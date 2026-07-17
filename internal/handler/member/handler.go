@@ -1,12 +1,14 @@
 package member
 
 import (
+	"log"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/homemate/server/internal/model"
 	"github.com/homemate/server/internal/pkg/response"
 	"github.com/homemate/server/internal/store"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ListMembersHandler 列出家庭成员
@@ -109,6 +111,25 @@ func CreateMemberHandler(c *gin.Context) {
 				return
 			}
 			req.ID = id
+
+			// 如果提供了密码，自动创建登录账号
+			if req.Password != "" {
+				hash, hashErr := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+				if hashErr == nil {
+					user := &model.User{
+						Username:     req.Name,
+						PasswordHash: string(hash),
+						Role:         req.Role,
+						Name:         req.Name,
+						FamilyID:     1,
+					}
+					if _, createUserErr := db.CreateUser(c.Request.Context(), user); createUserErr != nil {
+						// 账号创建失败不影响成员创建，仅日志记录
+						log.Printf("[WARN] 自动创建用户账号失败 %s: %v", req.Name, createUserErr)
+					}
+				}
+			}
+
 			response.Success(c, req)
 			return
 		}

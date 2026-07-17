@@ -46,6 +46,7 @@ type Member struct {
 	FamilyID         int64  `json:"family_id,omitempty"`
 	HealthFocus      string `json:"health_focus,omitempty"`
 	DataSourcePlugin string `json:"data_source_plugin,omitempty"`
+	Password         string `json:"password,omitempty"` // 创建成员时设置登录密码
 }
 
 // FamilyMember 家庭成员表

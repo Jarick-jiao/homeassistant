@@ -110,6 +110,8 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.POST("/weekend/vote", weekend.VoteProposalHandler)
 	authed.DELETE("/weekend/vote", weekend.CancelVoteHandler)
 	authed.POST("/weekend/confirm", weekend.ConfirmPlanHandler)
+	authed.POST("/weekend/import-csv", weekend.ImportCSVHandler)
+	authed.GET("/weekend/csv-template", weekend.GenerateCSVTemplateHandler)
 
 	// --- 家庭成员 ---
 	authed.GET("/members", member.ListMembersHandler)

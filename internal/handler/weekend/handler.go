@@ -1,8 +1,14 @@
 package weekend
 
 import (
+	"encoding/csv"
 	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"strings"
 	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/homemate/server/internal/model"
 	"github.com/homemate/server/internal/pkg/response"
@@ -266,4 +272,158 @@ func getUpcomingWeekend() string {
 	sat := now.AddDate(0, 0, daysUntilSat)
 	sun := sat.AddDate(0, 0, 1)
 	return sat.Format("2006-01-02") + " ~ " + sun.Format("2006-01-02")
+}
+
+// ImportCSVHandler CSV批量导入周末出行方案
+// CSV格式: title,description,icon,category,tags,duration,cost,difficulty,suitable_for,weather_req
+// tags 用分号分隔
+func ImportCSVHandler(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.BadRequest(c, "请上传CSV文件")
+		return
+	}
+	f, err := file.Open()
+	if err != nil {
+		response.InternalServerError(c, "文件读取失败")
+		return
+	}
+	defer f.Close()
+
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+
+	reader := csv.NewReader(f)
+	reader.LazyQuotes = true
+	header, err := reader.Read() // 跳过表头
+	if err != nil {
+		response.BadRequest(c, "CSV格式错误: 无法读取表头")
+		return
+	}
+
+	// 映射表头列名到索引
+	colMap := make(map[string]int)
+	for i, h := range header {
+		colMap[strings.TrimSpace(strings.ToLower(h))] = i
+	}
+
+	// 必须列
+	titleIdx, hasTitle := colMap["title"]
+	if !hasTitle {
+		titleIdx, hasTitle = colMap["标题"]
+	}
+	if !hasTitle {
+		response.BadRequest(c, "CSV必须包含 title（标题）列")
+		return
+	}
+
+	imported := 0
+	skipped := 0
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			skipped++
+			continue
+		}
+		if len(record) <= titleIdx {
+			skipped++
+			continue
+		}
+
+		title := strings.TrimSpace(record[titleIdx])
+		if title == "" {
+			skipped++
+			continue
+		}
+
+		getCol := func(keys ...string) string {
+			for _, k := range keys {
+				if idx, ok := colMap[k]; ok && idx < len(record) {
+					return strings.TrimSpace(record[idx])
+				}
+			}
+			return ""
+		}
+
+		description := getCol("description", "描述")
+		icon := getCol("icon", "图标")
+		category := getCol("category", "分类")
+		tagsStr := getCol("tags", "标签")
+		duration := getCol("duration", "时长")
+		cost := getCol("cost", "费用")
+		difficulty := getCol("difficulty", "难度")
+		suitableFor := getCol("suitable_for", "suitablefor", "适合人群")
+		weatherReq := getCol("weather_req", "weatherreq", "天气要求")
+
+		if icon == "" {
+			icon = "📋"
+		}
+		if category == "" {
+			category = "other"
+		}
+		if duration == "" {
+			duration = "半天"
+		}
+		if cost == "" {
+			cost = "低"
+		}
+		if difficulty == "" {
+			difficulty = "easy"
+		}
+		if suitableFor == "" {
+			suitableFor = "全家"
+		}
+		if weatherReq == "" {
+			weatherReq = "无限制"
+		}
+
+		var tags []string
+		for _, t := range strings.Split(tagsStr, ";") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				tags = append(tags, t)
+			}
+		}
+		tagsJSON, _ := json.Marshal(tags)
+
+		p := &model.WeekendProposalDB{
+			Title: title, Description: description, Icon: icon,
+			Category: category, TagsJSON: string(tagsJSON), Duration: duration,
+			Cost: cost, Difficulty: difficulty, SuitableFor: suitableFor,
+			WeatherReq: weatherReq, Tips: "CSV 导入", CreatedBy: 0,
+		}
+		if _, err := db.CreateWeekendProposal(c.Request.Context(), p); err != nil {
+			log.Printf("[WARN] CSV导入方案失败 [%s]: %v", title, err)
+			skipped++
+			continue
+		}
+		imported++
+	}
+
+	response.Success(c, gin.H{
+		"imported": imported,
+		"skipped":  skipped,
+		"message":  fmt.Sprintf("成功导入 %d 个方案，跳过 %d 个", imported, skipped),
+	})
+}
+
+// GenerateCSVTemplateHandler 生成CSV模板下载
+func GenerateCSVTemplateHandler(c *gin.Context) {
+	template := `title,description,icon,category,tags,duration,cost,difficulty,suitable_for,weather_req
+杭州西湖一日游,游览西湖十景,🏞️,outdoor,自然;亲子;文化,全天,中等,medium,全家,晴天
+科技馆探索,参观科学展览,🔬,indoor,科普;教育,半天,低,easy,亲子,无限制
+露营野餐,湖边露营烧烤,⛺,outdoor,户外;美食;亲子,全天,高,medium,全家,晴天
+图书馆阅读,安静阅读时光,📚,indoor,文化;安静,半天,免费,easy,全家,无限制
+`
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename=weekend_plans_template.csv")
+	// 添加 BOM 以支持 Excel 中文
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+	c.Writer.Write([]byte(template))
 }
