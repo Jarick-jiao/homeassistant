@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HomeMate v3.0 PRD</title>
+<title>HomeMate v3.0.1 PRD</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
   :root {
@@ -521,7 +521,7 @@
 
 <!-- ==================== DOCUMENT HEADER ==================== -->
 <header class="doc-header">
-  <div class="version-badge">v3.0 PRD</div>
+  <div class="version-badge">v3.0.1 PRD</div>
   <h1>HomeMate 家庭生活助理</h1>
   <p class="subtitle">基于 Go Gin + MCP 协议的多端家庭协作平台，覆盖健康监测、家务分配、出行规划、积分激励等核心家庭场景</p>
   <div class="meta">
@@ -1725,16 +1725,34 @@
   <div class="timeline">
     <div class="timeline-item active">
       <div class="timeline-dot"></div>
-      <div class="timeline-version">v3.0 — 当前版本 (MVP → Beta)</div>
+      <div class="timeline-version">v3.0 — 已发布 (MVP → Beta)</div>
       <div class="timeline-date">2026 Q3</div>
       <div class="timeline-content">
         <p>9 大功能模块全部完成（F1-F9），所有 mock 数据已清除，各模块使用真实内存存储或 SQLite 持久化。MCP Manager 已对接 garmin-mcp/health-mcp/weather-mcp。家庭健康总览从 DB 读取成员和健康缓存，动态生成指标和告警。家务劳动系统支持认领-完成-确认全流程，确认时自动联动积分。积分可视化系统支持动态创建成员和自动升级。周末出行推荐支持投票和自定义方案。成员管理增强支持完整 CRUD，创建时配置角色/关注指标/数据源插件，数据持久化到 SQLite。大屏综合展示从 chorse/points 包聚合真实数据。数据源配置支持弹窗式 UI，配置和同步操作持久化到 DB。深色模式和紧凑视图设置已实现，通过 localStorage 持久化。数据库迁移机制（migrate 方法）支持旧库自动升级。多角色权限和 JWT 认证已实现。Web 单页 7 个 Tab 和微信公众号双渠道框架就绪。</p>
       </div>
     </div>
 
+    <div class="timeline-item active">
+      <div class="timeline-dot"></div>
+      <div class="timeline-version">v3.0.1 — 修复迭代 (本次发布)</div>
+      <div class="timeline-date">2026-07-18</div>
+      <div class="timeline-content">
+        <ul>
+          <li><strong>BUG1 家务确认流程</strong>：chorse_claims 新增 verifier_id/verifier_name 字段，认领时自动指派验收人，前端实时反馈"等待 X 验收"/"已由 X 确认"，仅验收人或 admin 可确认</li>
+          <li><strong>BUG2 家庭健康"暂无数据"</strong>：GetHealthSummaryHandler 追加读取自定义指标，即使无设备同步数据也展示 health_metrics 表的记录；前端 renderMembers 增加 _allMembers 兜底</li>
+          <li><strong>BUG3 档案上传 nil scan</strong>：AnalyzedAt 改为 *time.Time 指针；defaultAIAnalyzer 未配置 OpenAI 时返回 error 而非占位"待分析"；Analyze/AnalyzeBatch 前置配置检查；前端 loadRecords 正确解析 {list,total,categories} 结构</li>
+          <li><strong>BUG4 积分排行</strong>：levelThresholds 重构为绝对阈值语义，修复 next_need 负数；GetPointsRanking 改 LEFT JOIN family_members，0 积分成员上榜；前端进度条按 next_need 计算</li>
+          <li><strong>BUG5 设置页面</strong>：通知/同步设置持久化到 localStorage；loadAdminTasks 非 admin 降级提示；switchTab('settings') 加载数据源配置</li>
+          <li><strong>BUG6 交互优化</strong>：新增成就系统（6 个成就）、音效开关、儿童模式 CSS 增强、健康达标反馈（步数破万/睡眠达标触发庆祝）</li>
+          <li><strong>需求1</strong>：家务任务 enabled 字段，管理员在设置页勾选启用，家务面板只展示 enabled=1 的任务；预置任务默认 enabled=1</li>
+          <li><strong>需求2</strong>：周末出行三个按钮（下载CSV模板/导入CSV/+推荐方案）重设计为虚线边框+SVG图标+hover变色</li>
+        </ul>
+      </div>
+    </div>
+
     <div class="timeline-item">
       <div class="timeline-dot"></div>
-      <div class="timeline-version">v3.1 — 数据源接入与持久化</div>
+      <div class="timeline-version">v3.1 — 数据源接入与持久化（部分完成）</div>
       <div class="timeline-date">2026 Q3-Q4</div>
       <div class="timeline-content">
         <ul>

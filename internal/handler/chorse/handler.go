@@ -2,6 +2,7 @@ package chorse
 
 import (
 	"fmt"
+	"log"
 	"time"
 	"github.com/gin-gonic/gin"
 	"github.com/homemate/server/internal/model"
@@ -80,6 +81,7 @@ func GetChorseDashboardHandler(c *gin.Context) {
 		taskViews = append(taskViews, ChorseTaskView{
 			ID: t.ID, Name: t.Name, Icon: t.Icon, Category: t.Category,
 			Difficulty: t.Difficulty, Points: t.Points, Duration: t.Duration, Description: t.Description,
+			Enabled: t.Enabled,
 		})
 	}
 
@@ -124,11 +126,13 @@ func GetChorseDashboardHandler(c *gin.Context) {
 // ClaimChorseHandler 认领家务
 func ClaimChorseHandler(c *gin.Context) {
 	var req struct {
-		MemberID   int64  `json:"member_id" binding:"required"`
-		MemberName string `json:"member_name" binding:"required"`
-		TaskID     int64  `json:"task_id" binding:"required"`
-		TaskName   string `json:"task_name" binding:"required"`
-		TaskIcon   string `json:"task_icon"`
+		MemberID     int64  `json:"member_id" binding:"required"`
+		MemberName   string `json:"member_name" binding:"required"`
+		TaskID       int64  `json:"task_id" binding:"required"`
+		TaskName     string `json:"task_name" binding:"required"`
+		TaskIcon     string `json:"task_icon"`
+		VerifierID   int64  `json:"verifier_id"`
+		VerifierName string `json:"verifier_name"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "请求参数错误: "+err.Error())
@@ -150,11 +154,31 @@ func ClaimChorseHandler(c *gin.Context) {
 		}
 	}
 
+	// 自动指派验收人：若请求未指定，则选第一个非执行人的成人/admin
+	verifierID := req.VerifierID
+	verifierName := req.VerifierName
+	if verifierID == 0 {
+		members, _ := db.GetMembers(c.Request.Context())
+		for _, m := range members {
+			if m.ID != req.MemberID && (m.Role == "adult" || m.Role == "admin") {
+				verifierID = m.ID
+				verifierName = m.Name
+				break
+			}
+		}
+		// 如果家庭只有一个成员，允许自验收
+		if verifierID == 0 {
+			verifierID = req.MemberID
+			verifierName = req.MemberName
+		}
+	}
+
 	deadline := time.Now().Add(24 * time.Hour)
 	claim := &model.ChorseClaimDB{
 		TaskID: req.TaskID, TaskName: req.TaskName, TaskIcon: req.TaskIcon,
 		MemberID: req.MemberID, MemberName: req.MemberName,
-		Deadline: deadline, Status: "pending", Points: points,
+		Deadline: &deadline, Status: "pending", Points: points,
+		VerifierID: verifierID, VerifierName: verifierName,
 	}
 	id, err := db.CreateChorseClaim(c.Request.Context(), claim)
 	if err != nil {
@@ -163,12 +187,14 @@ func ClaimChorseHandler(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"claim_id":    id,
-		"task_name":   req.TaskName,
-		"member_name": req.MemberName,
-		"points":      points,
-		"deadline":    deadline.Format("2006-01-02 15:04:05"),
-		"status":      "pending",
+		"claim_id":      id,
+		"task_name":     req.TaskName,
+		"member_name":   req.MemberName,
+		"verifier_id":   verifierID,
+		"verifier_name": verifierName,
+		"points":        points,
+		"deadline":       deadline.Format("2006-01-02 15:04:05"),
+		"status":         "pending",
 	})
 }
 
@@ -194,7 +220,7 @@ func CompleteChorseHandler(c *gin.Context) {
 	response.Success(c, gin.H{"message": "已标记完成，等待确认"})
 }
 
-// ConfirmChorseHandler 确认完成
+// ConfirmChorseHandler 确认完成（仅验收人或 admin 可调用）
 func ConfirmChorseHandler(c *gin.Context) {
 	var req struct {
 		ClaimID   int64  `json:"claim_id" binding:"required"`
@@ -207,6 +233,26 @@ func ConfirmChorseHandler(c *gin.Context) {
 	db := getDB(c)
 	if db == nil {
 		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+
+	// 权限校验：查询 claim 的 verifier_name，仅验收人或 admin 可确认
+	claims, _ := db.GetPendingChorseClaims(c.Request.Context())
+	var target *model.ChorseClaimDB
+	for i := range claims {
+		if claims[i].ID == req.ClaimID {
+			target = &claims[i]
+			break
+		}
+	}
+	if target == nil {
+		response.BadRequest(c, "认领记录不存在或状态不允许确认")
+		return
+	}
+	userRole, _ := c.Get("role")
+	roleStr, _ := userRole.(model.Role)
+	if target.VerifierName != "" && target.VerifierName != req.Confirmer && roleStr != model.RoleAdmin {
+		response.BadRequest(c, fmt.Sprintf("仅验收人 %s 或管理员可确认验收", target.VerifierName))
 		return
 	}
 
@@ -232,6 +278,7 @@ func GetPendingClaimsHandler(c *gin.Context) {
 	}
 	claims, err := db.GetPendingChorseClaims(c.Request.Context())
 	if err != nil {
+		log.Printf("[ERROR] 查询待办认领失败: %v", err)
 		claims = []model.ChorseClaimDB{}
 	}
 	response.Success(c, gin.H{"claims": claims})

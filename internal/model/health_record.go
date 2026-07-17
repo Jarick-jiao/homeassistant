@@ -16,7 +16,7 @@ type HealthRecordFile struct {
 	ThumbPath   string    `json:"thumb_path"`
 	Summary     string    `json:"summary"`      // AI 摘要
 	Analysis    string    `json:"analysis"`     // AI 分析结果（JSON 格式）
-	AnalyzedAt  time.Time `json:"analyzed_at"`
+	AnalyzedAt  *time.Time `json:"analyzed_at"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -24,6 +24,7 @@ type HealthRecordFile struct {
 type HealthRecordFileView struct {
 	ID          int64  `json:"id"`
 	MemberID    int64  `json:"member_id"`
+	MemberName  string `json:"member_name"`
 	Title       string `json:"title"`
 	Category    string `json:"category"`
 	RecordDate  string `json:"record_date"`

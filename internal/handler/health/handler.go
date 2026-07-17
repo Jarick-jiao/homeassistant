@@ -43,22 +43,40 @@ func GetHealthSummaryHandler(c *gin.Context) {
 	today := time.Now().Format("2006-01-02")
 	summaries := make([]MemberSummary, 0, len(members))
 	for _, m := range members {
-		cache, err := db.GetHealthDataCache(c.Request.Context(), m.ID, today)
-		if err != nil {
+		cache, cacheErr := db.GetHealthDataCache(c.Request.Context(), m.ID, today)
+		customMetrics, _ := db.GetHealthMetricsByMember(c.Request.Context(), m.Name)
+
+		// 两者都空才标 no_data
+		if cacheErr != nil && len(customMetrics) == 0 {
 			summaries = append(summaries, MemberSummary{
 				MemberID: m.ID, Name: m.Name, Role: m.Role,
-				Status: "no_data", StatusText: "暂无数据", Metrics: []gin.H{},
+				Status: "no_data", StatusText: "暂无数据，请配置数据源或添加自定义指标", Metrics: []gin.H{},
 			})
 			continue
 		}
+
 		status := "good"
 		statusText := "数据正常"
-		metrics := []gin.H{
-			{"type": "steps", "label": "步数", "value": cache.Steps, "unit": "步", "icon": "👟"},
-			{"type": "heart_rate", "label": "心率", "value": cache.HeartRate, "unit": "bpm", "icon": "❤️"},
-			{"type": "sleep", "label": "睡眠", "value": cache.SleepHours, "unit": "小时", "icon": "😴"},
-			{"type": "spo2", "label": "血氧", "value": cache.SpO2, "unit": "%", "icon": "🩸"},
-			{"type": "stress", "label": "压力", "value": cache.Stress, "unit": "", "icon": "😰"},
+		metrics := []gin.H{}
+		if cacheErr == nil {
+			metrics = append(metrics,
+				gin.H{"type": "steps", "label": "步数", "value": cache.Steps, "unit": "步", "icon": "👟"},
+				gin.H{"type": "heart_rate", "label": "心率", "value": cache.HeartRate, "unit": "bpm", "icon": "❤️"},
+				gin.H{"type": "sleep", "label": "睡眠", "value": cache.SleepHours, "unit": "小时", "icon": "😴"},
+				gin.H{"type": "spo2", "label": "血氧", "value": cache.SpO2, "unit": "%", "icon": "🩸"},
+				gin.H{"type": "stress", "label": "压力", "value": cache.Stress, "unit": "", "icon": "😰"},
+			)
+		} else {
+			status = "partial"
+			statusText = "仅自定义指标"
+		}
+		// 追加自定义指标
+		for _, cm := range customMetrics {
+			metrics = append(metrics, gin.H{
+				"type": "custom_" + cm.Label, "label": cm.Label,
+				"value": cm.Value, "unit": cm.Unit, "icon": cm.Icon,
+				"status": cm.Status, "trend": cm.Trend,
+			})
 		}
 		summaries = append(summaries, MemberSummary{
 			MemberID: m.ID, Name: m.Name, Role: m.Role,

@@ -37,23 +37,28 @@ type PointsDashboardResponse struct {
 	Recent          []PointsRecordView `json:"recent"`
 }
 
-// 积分等级定义
+// 积分等级定义（MinTotal/NextThreshold 为绝对阈值）
 var levelThresholds = []struct {
-	Total     int
-	Level     string
-	NextLevel string
-	NextNeed  int
+	MinTotal      int
+	Level         string
+	NextLevel     string
+	NextThreshold int // 下一级的 MinTotal；末级填 0 表示满级
 }{
 	{0, "新手", "全能小能手", 500},
-	{500, "全能小能手", "活力达人", 2000},
-	{2500, "活力达人", "运动健将", 500},
-	{3000, "运动健将", "传奇管家", 1000},
+	{500, "全能小能手", "活力达人", 2500},
+	{2500, "活力达人", "运动健将", 3000},
+	{3000, "运动健将", "传奇管家", 4000},
+	{4000, "传奇管家", "", 0},
 }
 
 func getLevel(total int) (level, nextLevel string, nextNeed int) {
 	for i := len(levelThresholds) - 1; i >= 0; i-- {
-		if total >= levelThresholds[i].Total {
-			return levelThresholds[i].Level, levelThresholds[i].NextLevel, levelThresholds[i].NextNeed - total
+		if total >= levelThresholds[i].MinTotal {
+			lvl := levelThresholds[i]
+			if lvl.NextThreshold == 0 {
+				return lvl.Level, "已满级", 0
+			}
+			return lvl.Level, lvl.NextLevel, lvl.NextThreshold - total
 		}
 	}
 	return "新手", "全能小能手", 500

@@ -20,6 +20,27 @@
       return div.innerHTML;
     }
 
+    // ===== 成就系统 =====
+    var achievements = [
+      { id: 'first_login', name: '初次登录', icon: '👋', desc: '欢迎加入 HomeMate' },
+      { id: 'first_claim', name: '首次认领家务', icon: '🎯', desc: '开始参与家务管理' },
+      { id: 'first_complete', name: '首次完成家务', icon: '✨', desc: '完成第一项家务' },
+      { id: 'first_upload', name: '上传首份档案', icon: '📁', desc: '建立家庭健康档案' },
+      { id: 'streak_3', name: '连续3天完成家务', icon: '🔥', desc: '坚持就是胜利' },
+      { id: 'points_500', name: '积分破500', icon: '🏆', desc: '全能小能手' },
+    ];
+    var unlockedAchievements = JSON.parse(localStorage.getItem('homemate_achievements') || '[]');
+
+    function unlockAchievement(id) {
+      if (unlockedAchievements.indexOf(id) !== -1) return;
+      unlockedAchievements.push(id);
+      localStorage.setItem('homemate_achievements', JSON.stringify(unlockedAchievements));
+      var ach = achievements.find(function(a) { return a.id === id; });
+      if (!ach) return;
+      showToast(ach.icon + ' 成就解锁：' + ach.name + ' — ' + ach.desc, 'success');
+      if (typeof burstStars === 'function') burstStars();
+    }
+
     // ===== 认证系统 =====
     var authToken = localStorage.getItem('homemate_token') || '';
     var currentUser = JSON.parse(localStorage.getItem('homemate_user') || 'null');
@@ -336,6 +357,19 @@
     body.kid-friendly .text-lg { font-size: 22px; }
     body.kid-friendly .w-12.h-12 { width: 56px; height: 56px; font-size: 22px; }
     body.dark-mode .kid-progress-bar { background: #334155; }
+    body.kid-friendly .tilt-card { border-radius: 24px; border-width: 2px; }
+    body.kid-friendly .tab-btn { font-size: 1.1em; padding: 0.75rem 1.25rem; }
+    body.kid-friendly .encourage-toast { font-size: 1.4em; padding: 1.5rem 2rem; }
+    body.kid-friendly .metric-card { border-radius: 20px; }
+    body.kid-friendly h4 { font-size: 1.2em; }
+    body.kid-friendly .ripple-btn { font-size: 1.05em; padding: 0.6rem 1.2rem; }
+    body.kid-friendly .section-card { border-radius: 20px; }
+    @keyframes wiggle {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(-3deg); }
+      75% { transform: rotate(3deg); }
+    }
+    body.kid-friendly .tilt-card:hover { animation: wiggle 0.4s ease-in-out; }
   </style>
 </head>
 <body class="font-sans min-h-screen">
@@ -647,18 +681,22 @@
       <div class="max-w-lg mx-auto space-y-6">
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h3 class="text-base font-bold mb-4">通知设置</h3>
-          <label class="flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer">
-            <span class="text-sm">健康异常推送</span>
-            <input type="checkbox" checked class="w-5 h-5 rounded accent-blue-500">
-          </label>
-          <label class="flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer">
-            <span class="text-sm">家务提醒推送</span>
-            <input type="checkbox" checked class="w-5 h-5 rounded accent-blue-500">
-          </label>
-          <label class="flex items-center justify-between py-3 cursor-pointer">
-            <span class="text-sm">积分变动通知</span>
-            <input type="checkbox" class="w-5 h-5 rounded accent-blue-500">
-          </label>
+          <div class="flex items-center justify-between py-2">
+            <label class="text-sm text-gray-700 dark:text-gray-300">健康异常推送</label>
+            <input type="checkbox" id="notifyHealth" onchange="saveNotifySettings()" class="w-4 h-4 rounded">
+          </div>
+          <div class="flex items-center justify-between py-2">
+            <label class="text-sm text-gray-700 dark:text-gray-300">家务提醒推送</label>
+            <input type="checkbox" id="notifyChorse" onchange="saveNotifySettings()" class="w-4 h-4 rounded">
+          </div>
+          <div class="flex items-center justify-between py-2">
+            <label class="text-sm text-gray-700 dark:text-gray-300">积分变动通知</label>
+            <input type="checkbox" id="notifyPoints" onchange="saveNotifySettings()" class="w-4 h-4 rounded">
+          </div>
+          <div class="flex items-center justify-between py-2">
+            <label class="text-sm text-gray-700 dark:text-gray-300">音效</label>
+            <input type="checkbox" id="soundToggle" onchange="toggleSound()" class="w-4 h-4 rounded">
+          </div>
         </div>
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h3 class="text-base font-bold mb-4">显示设置</h3>
@@ -673,14 +711,16 @@
         </div>
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h3 class="text-base font-bold mb-4">数据同步</h3>
-          <label class="flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer">
-            <span class="text-sm">自动同步</span>
-            <input type="checkbox" checked class="w-5 h-5 rounded accent-blue-500">
-          </label>
-          <div class="flex items-center justify-between py-3">
-            <span class="text-sm">同步频率</span>
-            <select class="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300">
-              <option>每5分钟</option><option>每15分钟</option><option selected>每30分钟</option><option>每1小时</option>
+          <div class="flex items-center justify-between py-2">
+            <label class="text-sm text-gray-700 dark:text-gray-300">自动同步</label>
+            <input type="checkbox" id="autoSync" onchange="saveSyncSettings()" class="w-4 h-4 rounded">
+          </div>
+          <div class="flex items-center justify-between py-2">
+            <label class="text-sm text-gray-700 dark:text-gray-300">同步频率</label>
+            <select id="syncFreq" onchange="saveSyncSettings()" class="text-sm px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+              <option value="hourly">每小时</option>
+              <option value="6h">每6小时</option>
+              <option value="daily">每天</option>
             </select>
           </div>
           <div class="pt-3">
@@ -1081,6 +1121,9 @@
       // 按需加载设置页管理数据
       if (tabName === 'settings') {
         loadAdminTasks();
+        loadDataSourceConfigs();
+        loadNotifySettings();
+        loadSyncSettings();
       }
     }
 
@@ -1175,6 +1218,21 @@
     }
 
     // ==================== 渲染成员健康卡片 ====================
+    var praiseTriggered = {};
+    function checkHealthPraise(member) {
+      if (!member.metrics) return;
+      var today = new Date().toDateString();
+      member.metrics.forEach(function(m) {
+        var key = member.name + '_' + m.type + '_' + today;
+        if (praiseTriggered[key]) return;
+        if ((m.type === 'steps' && m.value >= 10000) || (m.type === 'sleep' && m.value >= 7)) {
+          praiseTriggered[key] = true;
+          if (typeof burstStars === 'function') burstStars();
+          showToast('🎉 ' + member.name + ' ' + m.label + '达标！' + m.value + m.unit, 'success');
+        }
+      });
+    }
+
     function renderMembers(data) {
       var container = document.getElementById('membersContainer');
       container.innerHTML = '';
@@ -1197,12 +1255,20 @@
 
         // 紧凑视图：取前4个指标
         var preview = member.metrics.slice(0, 4);
-        var previewHTML = preview.map(function(m) {
-          return '<div class="text-center">' +
-            '<p class="text-xs text-gray-400">' + m.icon + ' ' + m.label + '</p>' +
-            '<p class="text-sm font-semibold mt-0.5">' + fmtVal(m) + '<span class="text-xs text-gray-400 ml-0.5">' + m.unit + '</span></p>' +
+        var previewHTML = '';
+        if (preview.length === 0) {
+          // metrics 为空：显示引导文案
+          previewHTML = '<div class="col-span-4 text-center py-2">' +
+            '<p class="text-xs text-gray-400">暂无数据，点击下方添加自定义指标或配置数据源</p>' +
           '</div>';
-        }).join('');
+        } else {
+          previewHTML = preview.map(function(m) {
+            return '<div class="text-center">' +
+              '<p class="text-xs text-gray-400">' + m.icon + ' ' + m.label + '</p>' +
+              '<p class="text-sm font-semibold mt-0.5">' + fmtVal(m) + '<span class="text-xs text-gray-400 ml-0.5">' + m.unit + '</span></p>' +
+            '</div>';
+          }).join('');
+        }
 
         // 展开视图：所有指标 + 自定义
         var allMetrics = member.metrics.concat(customs);
@@ -1252,6 +1318,8 @@
         '</div>';
 
         container.insertAdjacentHTML('beforeend', card);
+        // 健康达标反馈（节流：每个成员+指标+日期只触发一次）
+        checkHealthPraise(member);
       });
     }
 
@@ -1334,8 +1402,8 @@
       animateCount(document.getElementById('choreActiveMembers'), data.stats.active_members, 500);
       animateCount(document.getElementById('choreStreak'), data.stats.streak, 600);
 
-      var diffColors = { easy: '#10b981', medium: '#f59e0b', hard: '#ef4444' };
-      var diffLabels = { easy: '简单', medium: '中等', hard: '困难' };
+      var diffColors = { easy: '#10b981', medium: '#f59e0b', hard: '#ef4444', '简单': '#10b981', '中等': '#f59e0b', '困难': '#ef4444' };
+      var diffLabels = { easy: '简单', medium: '中等', hard: '困难', '简单': '简单', '中等': '中等', '困难': '困难' };
       var taskHTML = '';
       data.tasks.forEach(function(t) {
         var dc = diffColors[t.difficulty] || '#6b7280';
@@ -1489,12 +1557,19 @@
             var s = memberShortName[cl.member_name] || cl.member_name.charAt(0);
             var statusHTML = '';
             if (cl.status === 'pending') {
-              statusHTML = '<button onclick="markComplete(' + cl.id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--success)">标记完成</button>';
+              var verifier = cl.verifier_name || '其他成员';
+              statusHTML = '<button onclick="markComplete(' + cl.id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--success)">标记完成</button><span class="text-xs text-gray-400 ml-1">验收人：' + escapeHTML(verifier) + '</span>';
             } else if (cl.status === 'completed') {
-              var confirmerInfo = cl.confirmed_by ? '<span class="text-xs text-gray-400">等待 ' + cl.confirmed_by + ' 确认验收</span>' : '<span class="text-xs text-yellow-600 ml-1">待确认</span>';
-              statusHTML = '<button onclick="markConfirm(' + cl.id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--warning)">确认验收</button>' + confirmerInfo;
+              var verifier = cl.verifier_name || '其他成员';
+              var isVerifier = (currentUser && (currentUser.name === verifier || currentUser.role === 'admin'));
+              var confirmerInfo = '<span class="text-xs text-yellow-600 ml-1">等待 ' + escapeHTML(verifier) + ' 验收</span>';
+              if (isVerifier) {
+                statusHTML = '<button onclick="markConfirm(' + cl.id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--warning)">我来验收</button>' + confirmerInfo;
+              } else {
+                statusHTML = '<span class="text-xs text-gray-400">📋 ' + escapeHTML(verifier) + ' 待验收</span>' + confirmerInfo;
+              }
             } else if (cl.status === 'confirmed') {
-              statusHTML = '<span class="text-xs text-green-600 font-medium">已确认 ✓ ' + (cl.confirmed_by || '') + '</span>';
+              statusHTML = '<span class="text-xs text-green-600 font-medium">✓ 已由 ' + escapeHTML(cl.confirmed_by || '家人') + ' 确认</span>';
             }
             html += '<div class="bg-white rounded-lg p-3 shadow-sm border border-gray-100 flex items-center justify-between mb-2 stagger-item">' +
               '<div class="flex items-center gap-3">' +
@@ -1518,7 +1593,11 @@
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ claim_id: claimId })
-      }).then(function(res) { return res.json(); }).then(function() {
+      }).then(function(res) { return res.json(); }).then(function(result) {
+        if (result.code !== 0) {
+          showToast(result.message || '操作失败', 'error');
+          return;
+        }
         showToast('已标记完成，等待其他成员确认', 'warning');
         showEncourage(); playDing();
         loadPendingClaims();
@@ -1532,7 +1611,11 @@
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ claim_id: claimId, confirmer: (currentUser && currentUser.name) ? currentUser.name : '未知' })
-      }).then(function(res) { return res.json(); }).then(function() {
+      }).then(function(res) { return res.json(); }).then(function(result) {
+        if (result.code !== 0) {
+          showToast(result.message || '验收失败', 'error');
+          return;
+        }
         showToast('已确认完成！积分已增加', 'success');
         showEncourage(); playDing(); burstStars(window.innerWidth / 2, window.innerHeight / 3);
         loadPendingClaims();
@@ -1612,8 +1695,8 @@
 
       // 方案列表
       var catLabels = { outdoor:'户外', indoor:'室内', culture:'文化', food:'美食', sport:'运动', other:'其他' };
-      var diffColors = { easy:'#10b981', medium:'#f59e0b', hard:'#ef4444' };
-      var diffLabels = { easy:'简单', medium:'中等', hard:'困难' };
+      var diffColors = { easy:'#10b981', medium:'#f59e0b', hard:'#ef4444', '简单':'#10b981', '中等':'#f59e0b', '困难':'#ef4444' };
+      var diffLabels = { easy:'简单', medium:'中等', hard:'困难', '简单':'简单', '中等':'中等', '困难':'困难' };
       var costColors = { '免费':'#10b981', '低':'#3b82f6', '中':'#f59e0b', '高':'#ef4444' };
 
       // 获取当前用户已投票的方案
@@ -1780,7 +1863,7 @@
           document.getElementById('taskFormName').value = task.name;
           document.getElementById('taskFormIcon').value = task.icon || '';
           document.getElementById('taskFormCategory').value = task.category || 'cleaning';
-          document.getElementById('taskFormDifficulty').value = task.difficulty || 'easy';
+          document.getElementById('taskFormDifficulty').value = ({'简单':'easy','中等':'medium','困难':'hard'})[task.difficulty] || task.difficulty || 'easy';
           document.getElementById('taskFormPoints').value = task.points || '';
           document.getElementById('taskFormDuration').value = task.duration || '';
           document.getElementById('taskFormDesc').value = task.description || '';
@@ -1867,13 +1950,28 @@
       }, 200);
 
       var rankColors = ['#f59e0b', '#94a3b8', '#cd7f32', '#6b7280'];
-      var sorted = data.members.slice().sort(function(a, b) { return b.total - a.total; });
+      var members = data.members || [];
+      // 空数据兜底：从 _allMembers 构造 0 积分成员
+      if (members.length === 0 && window._allMembers && window._allMembers.length > 0) {
+        members = window._allMembers.map(function(m) {
+          return { name: m.name, total: 0, sport: 0, health: 0, labor: 0, level: '新手', next_level: '全能小能手', next_need: 500, rank: 0 };
+        });
+        data.members = members;
+      }
+      var sorted = members.slice().sort(function(a, b) { return b.total - a.total; });
       var rankHTML = '';
       sorted.forEach(function(m, i) {
         var c = memberColors[m.name] || '#6b7280';
         var s = memberShortName[m.name] || m.name.charAt(0);
         var rc = rankColors[i] || '#6b7280';
-        var nextPct = Math.min(Math.round((m.total % 1000) / 10), 100);
+        var nextPct;
+        if (m.next_need === 0) {
+          nextPct = 100; // 满级
+        } else {
+          var levelWidth = m.total + m.next_need; // 当前级到下一级的总宽度
+          var doneInLevel = levelWidth - m.next_need;
+          nextPct = levelWidth > 0 ? Math.min(Math.round(doneInLevel / levelWidth * 100), 100) : 0;
+        }
 
         rankHTML += '<div class="tilt-card bg-white rounded-xl p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:' + (0.1 + i * 0.1) + 's">' +
           '<div class="flex items-center gap-3 mb-4">' +
@@ -1951,6 +2049,7 @@
       authFetch('/api/health/overview').then(function(r) { return r.json(); }).then(function(result) {
         if (result.code === 0) {
           currentHealthData = result.data;
+          // 合并成员列表中的角色信息到 health data
           if (result.data && result.data.members && result.data.members.length === 0 && window._allMembers && window._allMembers.length > 0) {
             result.data.members = window._allMembers.map(function(m) {
               return { name: m.name, role: m.role, age: m.age, avatar: m.avatar || getRoleEmoji(m.role) };
@@ -1959,10 +2058,16 @@
           }
           renderMembers(currentHealthData);
         }
-      }).catch(function() { authFetch('/api/health/overview').then(function(r){return r.json();}).then(function(result){
-        if(result.code===0) { currentHealthData=result.data; renderMembers(result.data); }
-        else { currentHealthData=fallbackHealth; renderMembers(fallbackHealth); }
-      }).catch(function(){ currentHealthData=fallbackHealth; renderMembers(fallbackHealth); }); });
+      }).catch(function() {
+        // fallback：用 _allMembers 兜底
+        if (window._allMembers && window._allMembers.length > 0) {
+          var fallbackData = { members: window._allMembers.map(function(m) {
+            return { name: m.name, role: m.role, age: m.age, avatar: m.avatar || getRoleEmoji(m.role), status: 'no_data', status_text: '暂无数据', metrics: [] };
+          })};
+          currentHealthData = fallbackData;
+          renderMembers(fallbackData);
+        }
+      });
     }
 
     // ==================== 加载所有数据 ====================
@@ -2015,6 +2120,11 @@
 
     // ==================== 家务任务管理（设置页） ====================
     function loadAdminTasks() {
+      if (!currentUser || currentUser.role !== 'admin') {
+        var container = document.getElementById('adminTaskList');
+        if (container) container.innerHTML = '<p class="text-sm text-gray-400">仅管理员可管理家务任务</p>';
+        return;
+      }
       authFetch('/api/chorse/tasks').then(function(r) { return r.json(); }).then(function(result) {
         if (result.code !== 0) return;
         var tasks = result.data || [];
@@ -2351,25 +2461,19 @@
     var recordCategoryIcons = { checkup: '📋', lab: '🧪', prescription: '💊', imaging: '🏥', vaccination: '💉', other: '📁' };
 
     function loadRecords() {
-      authFetch('/api/records').then(function(res) { return res.json(); })
-        .then(function(result) {
-          currentRecords = (result.data || result) || [];
-          renderRecordsList();
-        }).catch(function() {
-          currentRecords = [];
-          renderRecordsList();
-        });
+      authFetch('/api/records').then(function(r) { return r.json(); }).then(function(result) {
+        var payload = result.data || result;
+        currentRecords = (payload && payload.list) ? payload.list : (Array.isArray(payload) ? payload : []);
+        renderRecordsList();
+      }).catch(function() { currentRecords = []; renderRecordsList(); });
     }
 
     function loadAnalysisReports() {
-      authFetch('/api/records/reports').then(function(res) { return res.json(); })
-        .then(function(result) {
-          currentAnalysisReports = (result.data || result) || [];
-          renderAnalysisReports();
-        }).catch(function() {
-          currentAnalysisReports = [];
-          renderAnalysisReports();
-        });
+      authFetch('/api/records/reports').then(function(r) { return r.json(); }).then(function(result) {
+        var payload = result.data || result;
+        currentAnalysisReports = (payload && payload.list) ? payload.list : (Array.isArray(payload) ? payload : []);
+        renderAnalysisReports();
+      }).catch(function() { currentAnalysisReports = []; renderAnalysisReports(); });
     }
 
     function renderRecordsList() {
@@ -2392,7 +2496,7 @@
         var memberColor = memberColors[r.member_name] || '#6b7280';
         var memberShort = memberShortName[r.member_name] || (r.member_name ? r.member_name.charAt(0) : '?');
         var isSelected = selectedRecordIds.has(r.id);
-        var hasAnalysis = r.analysis_status === 'completed';
+        var hasAnalysis = r.is_analyzed === true || r.analysis_status === 'completed';
 
         html += '<div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3 stagger-item' + (isSelected ? ' ring-2 ring-blue-300' : '') + '">' +
           '<input type="checkbox" class="record-cb rounded accent-blue-500 flex-shrink-0" data-id="' + r.id + '" ' + (isSelected ? 'checked' : '') + ' onchange="toggleRecordSelect(' + r.id + ', this)">' +
@@ -2575,7 +2679,11 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       }).then(function(res) { return res.json(); }).then(function(result) {
-        showToast('分析完成', 'success');
+        if (result.code !== 0) {
+          showToast(result.message || '分析失败', 'error');
+          return;
+        }
+        showToast(result.message || '分析已启动，请稍后查看结果', 'success');
         loadRecords();
         loadAnalysisReports();
       }).catch(function() {
@@ -2735,9 +2843,11 @@
           html += '</div>';
         } else if (sec.type === 'activities') {
           // 活动推荐
+          var w = sec.weather || {};
+          var wText = (w.saturday || w.sunday || w.temperature) ? ('🌤️ ' + (w.saturday || '-') + ' / ' + (w.sunday || '-') + ' · ' + (w.temperature || '-')) : '🌤️ 天气数据未配置';
           html += '<div class="flex items-center gap-4 mb-3 text-sm text-gray-500">' +
-            '<span>📅 ' + sec.weekend + '</span>' +
-            '<span>🌤️ ' + sec.weather.saturday + ' / ' + sec.weather.sunday + ' · ' + sec.weather.temperature + '</span>' +
+            '<span>📅 ' + (sec.weekend || '-') + '</span>' +
+            '<span>' + wText + '</span>' +
           '</div>';
           html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-3">';
           (sec.proposals || []).forEach(function(p) {
@@ -2824,6 +2934,7 @@
     }
     // 简单音效（Web Audio API）
     function playDing() {
+      if (localStorage.getItem('homemate_sound') === '0') return;
       try {
         var ctx = new (window.AudioContext || window.webkitAudioContext)();
         var osc = ctx.createOscillator();
@@ -2984,6 +3095,47 @@
       }).catch(function() { alert('网络错误'); });
     }
 
+    // ==================== 通知设置持久化 ====================
+    function saveNotifySettings() {
+      var settings = {
+        health: document.getElementById('notifyHealth').checked,
+        chorse: document.getElementById('notifyChorse').checked,
+        points: document.getElementById('notifyPoints').checked
+      };
+      localStorage.setItem('homemate_notify', JSON.stringify(settings));
+    }
+    function loadNotifySettings() {
+      var s = JSON.parse(localStorage.getItem('homemate_notify') || '{}');
+      var h = document.getElementById('notifyHealth'); if (h) h.checked = !!s.health;
+      var c = document.getElementById('notifyChorse'); if (c) c.checked = !!s.chores;
+      var p = document.getElementById('notifyPoints'); if (p) p.checked = !!s.points;
+    }
+
+    // ==================== 数据同步设置持久化 ====================
+    function saveSyncSettings() {
+      var settings = {
+        auto: document.getElementById('autoSync').checked,
+        freq: document.getElementById('syncFreq').value
+      };
+      localStorage.setItem('homemate_sync', JSON.stringify(settings));
+    }
+    function loadSyncSettings() {
+      var s = JSON.parse(localStorage.getItem('homemate_sync') || '{}');
+      var a = document.getElementById('autoSync'); if (a) a.checked = !!s.auto;
+      var f = document.getElementById('syncFreq'); if (f) f.value = s.freq || 'daily';
+    }
+
+    // ==================== 音效开关 ====================
+    function toggleSound() {
+      var on = document.getElementById('soundToggle').checked;
+      localStorage.setItem('homemate_sound', on ? '1' : '0');
+    }
+    function loadSoundSetting() {
+      var on = localStorage.getItem('homemate_sound') !== '0';
+      var el = document.getElementById('soundToggle');
+      if (el) el.checked = on;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
       loadDisplaySettings();
       if (!isLoggedIn()) {
@@ -3001,6 +3153,9 @@
       loadMembers();
       loadBigScreen();
       updateAuthUI();
+      loadNotifySettings();
+      loadSyncSettings();
+      loadSoundSetting();
     }
   </script>
   <!-- 登录/注册弹窗 -->

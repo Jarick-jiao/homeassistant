@@ -189,12 +189,21 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
+	// 解析成员 ID → 名称
+	memberNames := map[int64]string{}
+	if members, mErr := h.db.GetMembers(c.Request.Context()); mErr == nil {
+		for _, m := range members {
+			memberNames[m.ID] = m.Name
+		}
+	}
+
 	// 转为视图模型
 	views := make([]model.HealthRecordFileView, 0, len(files))
 	for _, f := range files {
 		views = append(views, model.HealthRecordFileView{
 			ID:         f.ID,
 			MemberID:   f.MemberID,
+			MemberName: memberNames[f.MemberID],
 			Title:      f.Title,
 			Category:   f.Category,
 			RecordDate: f.RecordDate,
@@ -204,7 +213,7 @@ func (h *Handler) List(c *gin.Context) {
 			FileURL:    fmt.Sprintf("/api/records/%d/download", f.ID),
 			Summary:    f.Summary,
 			Analysis:   f.Analysis,
-			IsAnalyzed: !f.AnalyzedAt.IsZero(),
+			IsAnalyzed: f.AnalyzedAt != nil,
 		})
 	}
 
@@ -229,9 +238,15 @@ func (h *Handler) GetDetail(c *gin.Context) {
 		return
 	}
 
+	memberName := ""
+	if m, mErr := h.db.GetMemberByID(c.Request.Context(), f.MemberID); mErr == nil {
+		memberName = m.Name
+	}
+
 	response.Success(c, model.HealthRecordFileView{
 		ID:         f.ID,
 		MemberID:   f.MemberID,
+		MemberName: memberName,
 		Title:      f.Title,
 		Category:   f.Category,
 		RecordDate: f.RecordDate,
@@ -241,7 +256,7 @@ func (h *Handler) GetDetail(c *gin.Context) {
 		FileURL:    fmt.Sprintf("/api/records/%d/download", f.ID),
 		Summary:    f.Summary,
 		Analysis:   f.Analysis,
-		IsAnalyzed: !f.AnalyzedAt.IsZero(),
+		IsAnalyzed: f.AnalyzedAt != nil,
 	})
 }
 
@@ -329,8 +344,8 @@ func (h *Handler) Analyze(c *gin.Context) {
 		return
 	}
 
-	if h.aiAnalyzer == nil {
-		response.InternalServerError(c, "AI 分析功能未配置")
+	if h.aiAnalyzer == nil || os.Getenv("HOMEMATE_OPENAI_KEY") == "" {
+		response.BadRequest(c, "AI 分析功能未配置，请在 config.yaml 中设置 openai.api_key 或环境变量 HOMEMATE_OPENAI_KEY")
 		return
 	}
 
@@ -371,7 +386,7 @@ func (h *Handler) AnalyzeBatch(c *gin.Context) {
 
 	var pending []model.HealthRecordFile
 	for _, f := range files {
-		if f.AnalyzedAt.IsZero() {
+		if f.AnalyzedAt == nil {
 			pending = append(pending, f)
 		}
 	}
@@ -385,8 +400,8 @@ func (h *Handler) AnalyzeBatch(c *gin.Context) {
 		return
 	}
 
-	if h.aiAnalyzer == nil {
-		response.InternalServerError(c, "AI 分析功能未配置")
+	if h.aiAnalyzer == nil || os.Getenv("HOMEMATE_OPENAI_KEY") == "" {
+		response.BadRequest(c, "AI 分析功能未配置，请在 config.yaml 中设置 openai.api_key 或环境变量 HOMEMATE_OPENAI_KEY")
 		return
 	}
 
@@ -488,7 +503,7 @@ func (h *Handler) generateAndSaveReport(ctx context.Context, memberID int64, per
 		return
 	}
 
-	if h.aiAnalyzer == nil {
+	if h.aiAnalyzer == nil || os.Getenv("HOMEMATE_OPENAI_KEY") == "" {
 		return
 	}
 
@@ -528,11 +543,9 @@ func (h *Handler) generateAndSaveReport(ctx context.Context, memberID int64, per
 
 // defaultAIAnalyzer 默认的 AI 分析实现
 func (h *Handler) defaultAIAnalyzer(ctx context.Context, file *model.HealthRecordFile) (summary, analysis string, err error) {
-	// TODO: 集成 OpenAI API 进行文件内容分析
-	// 当前为框架实现，当 OpenAI 配置就绪后替换为实际调用
 	apiKey := os.Getenv("HOMEMATE_OPENAI_KEY")
 	if apiKey == "" {
-		return "待分析", fmt.Sprintf(`{"status":"pending","file_type":"%s","note":"AI 分析服务未配置，请在 config.yaml 中设置 openai.api_key"}`, file.FileType), nil
+		return "", "", fmt.Errorf("OpenAI API Key 未配置，请在 config.yaml 中设置 openai.api_key 或环境变量 HOMEMATE_OPENAI_KEY")
 	}
 
 	// 占位实现 - 实际部署时替换为真实的文件内容提取 + LLM 调用

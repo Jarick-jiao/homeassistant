@@ -240,6 +240,8 @@ CREATE TABLE IF NOT EXISTS chorse_claims (
     deadline DATETIME,
     status TEXT DEFAULT 'pending',
     points INTEGER DEFAULT 10,
+    verifier_id INTEGER DEFAULT 0,
+    verifier_name TEXT DEFAULT '',
     confirmed_by TEXT,
     confirmed_at DATETIME,
     FOREIGN KEY (task_id) REFERENCES chorse_tasks(id),
@@ -326,6 +328,8 @@ func (db *DB) migrate() error {
 		{"calendar_events", "type", "ALTER TABLE calendar_events ADD COLUMN type TEXT"},
 		{"trip_plans", "members_json", "ALTER TABLE trip_plans ADD COLUMN members_json TEXT"},
 		{"chorse_tasks", "enabled", "ALTER TABLE chorse_tasks ADD COLUMN enabled INTEGER NOT NULL DEFAULT 0"},
+		{"chorse_claims", "verifier_id", "ALTER TABLE chorse_claims ADD COLUMN verifier_id INTEGER DEFAULT 0"},
+		{"chorse_claims", "verifier_name", "ALTER TABLE chorse_claims ADD COLUMN verifier_name TEXT DEFAULT ''"},
 	}
 	for _, m := range migrations {
 		var count int
@@ -747,8 +751,14 @@ func (db *DB) GetPointsRanking(ctx context.Context, limit int) ([]struct {
 	if limit <= 0 {
 		limit = 20
 	}
+	// LEFT JOIN family_members：0 积分成员也上榜
 	rows, err := db.conn.QueryContext(ctx,
-		"SELECT member_name, SUM(points) as total FROM points_records GROUP BY member_name ORDER BY total DESC LIMIT ?", limit)
+		`SELECT fm.name, COALESCE(SUM(pr.points), 0) AS total
+		 FROM family_members fm
+		 LEFT JOIN points_records pr ON pr.member_name = fm.name
+		 GROUP BY fm.id, fm.name
+		 ORDER BY total DESC, fm.id ASC
+		 LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -815,8 +825,8 @@ func (db *DB) GetRecentPointsRecords(ctx context.Context, limit int) ([]struct {
 // CreateChorseTask 创建家务任务
 func (db *DB) CreateChorseTask(ctx context.Context, task *model.ChorseTaskDB) (int64, error) {
 	res, err := db.conn.ExecContext(ctx,
-		"INSERT INTO chorse_tasks (name, icon, category, difficulty, points, duration, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		task.Name, task.Icon, task.Category, task.Difficulty, task.Points, task.Duration, task.Description)
+		"INSERT INTO chorse_tasks (name, icon, category, difficulty, points, duration, description, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		task.Name, task.Icon, task.Category, task.Difficulty, task.Points, task.Duration, task.Description, task.Enabled)
 	if err != nil {
 		return 0, err
 	}
@@ -869,8 +879,8 @@ func (db *DB) ToggleChorseTask(ctx context.Context, id int64, enabled bool) erro
 // CreateChorseClaim 创建认领记录
 func (db *DB) CreateChorseClaim(ctx context.Context, claim *model.ChorseClaimDB) (int64, error) {
 	res, err := db.conn.ExecContext(ctx,
-		"INSERT INTO chorse_claims (task_id, task_name, task_icon, member_id, member_name, deadline, status, points) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		claim.TaskID, claim.TaskName, claim.TaskIcon, claim.MemberID, claim.MemberName, claim.Deadline, claim.Status, claim.Points)
+		"INSERT INTO chorse_claims (task_id, task_name, task_icon, member_id, member_name, deadline, status, points, verifier_id, verifier_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		claim.TaskID, claim.TaskName, claim.TaskIcon, claim.MemberID, claim.MemberName, claim.Deadline, claim.Status, claim.Points, claim.VerifierID, claim.VerifierName)
 	if err != nil {
 		return 0, err
 	}
@@ -893,8 +903,8 @@ func (db *DB) ConfirmChorseClaim(ctx context.Context, claimID, confirmerID int64
 	defer tx.Rollback()
 
 	err = tx.QueryRowContext(ctx,
-		"SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points, confirmed_by, confirmed_at FROM chorse_claims WHERE id=? AND status='completed' FOR UPDATE",
-		claimID).Scan(&claim.ID, &claim.TaskID, &claim.TaskName, &claim.TaskIcon, &claim.MemberID, &claim.MemberName, &claim.ClaimedAt, &claim.Deadline, &claim.Status, &claim.Points, &claim.ConfirmedBy, &claim.ConfirmedAt)
+		"SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points, verifier_id, verifier_name, COALESCE(confirmed_by, '') AS confirmed_by, confirmed_at FROM chorse_claims WHERE id=? AND status='completed'",
+		claimID).Scan(&claim.ID, &claim.TaskID, &claim.TaskName, &claim.TaskIcon, &claim.MemberID, &claim.MemberName, &claim.ClaimedAt, &claim.Deadline, &claim.Status, &claim.Points, &claim.VerifierID, &claim.VerifierName, &claim.ConfirmedBy, &claim.ConfirmedAt)
 	if err != nil {
 		return nil, fmt.Errorf("认领记录不存在或状态不允许确认: %w", err)
 	}
@@ -923,7 +933,7 @@ func (db *DB) ConfirmChorseClaim(ctx context.Context, claimID, confirmerID int64
 // GetPendingChorseClaims 获取待处理认领（pending + completed）
 func (db *DB) GetPendingChorseClaims(ctx context.Context) ([]model.ChorseClaimDB, error) {
 	rows, err := db.conn.QueryContext(ctx,
-		`SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points, confirmed_by, confirmed_at
+		`SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points, verifier_id, verifier_name, COALESCE(confirmed_by, '') AS confirmed_by, confirmed_at
 		 FROM chorse_claims WHERE status IN ('pending','completed') ORDER BY
 		 CASE WHEN status='pending' THEN 0 ELSE 1 END,
 		 claimed_at DESC`)
@@ -934,7 +944,7 @@ func (db *DB) GetPendingChorseClaims(ctx context.Context) ([]model.ChorseClaimDB
 	var claims []model.ChorseClaimDB
 	for rows.Next() {
 		var c model.ChorseClaimDB
-		if err := rows.Scan(&c.ID, &c.TaskID, &c.TaskName, &c.TaskIcon, &c.MemberID, &c.MemberName, &c.ClaimedAt, &c.Deadline, &c.Status, &c.Points, &c.ConfirmedBy, &c.ConfirmedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.TaskID, &c.TaskName, &c.TaskIcon, &c.MemberID, &c.MemberName, &c.ClaimedAt, &c.Deadline, &c.Status, &c.Points, &c.VerifierID, &c.VerifierName, &c.ConfirmedBy, &c.ConfirmedAt); err != nil {
 			return nil, err
 		}
 		claims = append(claims, c)
@@ -945,7 +955,7 @@ func (db *DB) GetPendingChorseClaims(ctx context.Context) ([]model.ChorseClaimDB
 // GetTodayCompletedClaims 获取今日已完成的认领（大屏用）
 func (db *DB) GetTodayCompletedClaims(ctx context.Context) ([]model.ChorseClaimDB, error) {
 	rows, err := db.conn.QueryContext(ctx,
-		"SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points, confirmed_by, confirmed_at FROM chorse_claims WHERE status='confirmed' AND date(confirmed_at)=date('now') ORDER BY confirmed_at DESC")
+		"SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points, verifier_id, verifier_name, COALESCE(confirmed_by, '') AS confirmed_by, confirmed_at FROM chorse_claims WHERE status='confirmed' AND date(confirmed_at)=date('now') ORDER BY confirmed_at DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -953,7 +963,7 @@ func (db *DB) GetTodayCompletedClaims(ctx context.Context) ([]model.ChorseClaimD
 	var claims []model.ChorseClaimDB
 	for rows.Next() {
 		var c model.ChorseClaimDB
-		if err := rows.Scan(&c.ID, &c.TaskID, &c.TaskName, &c.TaskIcon, &c.MemberID, &c.MemberName, &c.ClaimedAt, &c.Deadline, &c.Status, &c.Points, &c.ConfirmedBy, &c.ConfirmedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.TaskID, &c.TaskName, &c.TaskIcon, &c.MemberID, &c.MemberName, &c.ClaimedAt, &c.Deadline, &c.Status, &c.Points, &c.VerifierID, &c.VerifierName, &c.ConfirmedBy, &c.ConfirmedAt); err != nil {
 			return nil, err
 		}
 		claims = append(claims, c)
@@ -1160,16 +1170,16 @@ func (db *DB) seedChorseTasks(ctx context.Context) error {
 	}
 
 	tasks := []model.ChorseTaskDB{
-		{Name: "洗碗", Icon: "🍽️", Category: "厨房", Difficulty: "简单", Points: 10, Duration: "30分钟", Description: "饭后清洗餐具、擦拭灶台"},
-		{Name: "扫地拖地", Icon: "🧹", Category: "清洁", Difficulty: "简单", Points: 15, Duration: "30分钟", Description: "全屋扫地和拖地"},
-		{Name: "倒垃圾", Icon: "🗑️", Category: "清洁", Difficulty: "简单", Points: 5, Duration: "10分钟", Description: "收集并丢弃生活垃圾"},
-		{Name: "洗衣服", Icon: "👕", Category: "洗衣", Difficulty: "简单", Points: 15, Duration: "20分钟", Description: "分类投放、启动洗衣机、晾晒"},
-		{Name: "整理房间", Icon: "🧹", Category: "整理", Difficulty: "中等", Points: 20, Duration: "45分钟", Description: "收拾个人物品、整理桌面和床铺"},
-		{Name: "做饭", Icon: "🍳", Category: "厨房", Difficulty: "中等", Points: 25, Duration: "60分钟", Description: "准备食材、烹饪、收拾厨房"},
-		{Name: "擦窗户", Icon: "🪟", Category: "清洁", Difficulty: "中等", Points: 20, Duration: "40分钟", Description: "擦拭玻璃窗、窗框和窗台"},
-		{Name: "浇花", Icon: "🌸", Category: "园艺", Difficulty: "简单", Points: 5, Duration: "10分钟", Description: "给室内外植物浇水"},
-		{Name: "遛狗", Icon: "🐕", Category: "宠物", Difficulty: "简单", Points: 15, Duration: "30分钟", Description: "带宠物出门散步"},
-		{Name: "整理书桌", Icon: "📚", Category: "整理", Difficulty: "简单", Points: 10, Duration: "20分钟", Description: "整理书桌上的书本和文具"},
+		{Name: "洗碗", Icon: "🍽️", Category: "厨房", Difficulty: "简单", Points: 10, Duration: "30分钟", Description: "饭后清洗餐具、擦拭灶台", Enabled: true},
+		{Name: "扫地拖地", Icon: "🧹", Category: "清洁", Difficulty: "简单", Points: 15, Duration: "30分钟", Description: "全屋扫地和拖地", Enabled: true},
+		{Name: "倒垃圾", Icon: "🗑️", Category: "清洁", Difficulty: "简单", Points: 5, Duration: "10分钟", Description: "收集并丢弃生活垃圾", Enabled: true},
+		{Name: "洗衣服", Icon: "👕", Category: "洗衣", Difficulty: "简单", Points: 15, Duration: "20分钟", Description: "分类投放、启动洗衣机、晾晒", Enabled: true},
+		{Name: "整理房间", Icon: "🧹", Category: "整理", Difficulty: "中等", Points: 20, Duration: "45分钟", Description: "收拾个人物品、整理桌面和床铺", Enabled: true},
+		{Name: "做饭", Icon: "🍳", Category: "厨房", Difficulty: "中等", Points: 25, Duration: "60分钟", Description: "准备食材、烹饪、收拾厨房", Enabled: true},
+		{Name: "擦窗户", Icon: "🪟", Category: "清洁", Difficulty: "中等", Points: 20, Duration: "40分钟", Description: "擦拭玻璃窗、窗框和窗台", Enabled: true},
+		{Name: "浇花", Icon: "🌸", Category: "园艺", Difficulty: "简单", Points: 5, Duration: "10分钟", Description: "给室内外植物浇水", Enabled: true},
+		{Name: "遛狗", Icon: "🐕", Category: "宠物", Difficulty: "简单", Points: 15, Duration: "30分钟", Description: "带宠物出门散步", Enabled: true},
+		{Name: "整理书桌", Icon: "📚", Category: "整理", Difficulty: "简单", Points: 10, Duration: "20分钟", Description: "整理书桌上的书本和文具", Enabled: true},
 	}
 
 	for _, t := range tasks {
