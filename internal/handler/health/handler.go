@@ -2,6 +2,7 @@ package health
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 	"github.com/gin-gonic/gin"
 	"github.com/homemate/server/internal/model"
@@ -182,4 +183,81 @@ func SyncHealthDataHandler(c *gin.Context) {
 		"message":        "同步已触发，请稍后刷新查看",
 		"metrics_synced": []string{"steps", "heart_rate", "sleep", "spo2", "body_battery", "stress"},
 	})
+}
+
+// AddMetricHandler 添加自定义健康指标
+func AddMetricHandler(c *gin.Context) {
+	var req struct {
+		MemberName string  `json:"member_name" binding:"required"`
+		Label      string  `json:"label" binding:"required"`
+		Value      float64 `json:"value" binding:"required"`
+		Unit       string  `json:"unit"`
+		Icon       string  `json:"icon"`
+		Status     string  `json:"status"`
+		Trend      string  `json:"trend"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "参数错误: "+err.Error())
+		return
+	}
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	if req.Icon == "" { req.Icon = "📊" }
+	if req.Status == "" { req.Status = "normal" }
+	if req.Trend == "" { req.Trend = "stable" }
+	m := &model.HealthMetric{
+		MemberName: req.MemberName,
+		Label:      req.Label,
+		Value:      req.Value,
+		Unit:       req.Unit,
+		Icon:       req.Icon,
+		Status:     req.Status,
+		Trend:      req.Trend,
+	}
+	id, err := db.AddHealthMetric(c.Request.Context(), m)
+	if err != nil {
+		response.InternalServerError(c, "添加指标失败: "+err.Error())
+		return
+	}
+	m.ID = id
+	response.Success(c, m)
+}
+
+// ListMetricsHandler 获取所有健康指标
+func ListMetricsHandler(c *gin.Context) {
+	db := getDB(c)
+	if db == nil {
+		response.Success(c, []model.HealthMetric{})
+		return
+	}
+	metrics, err := db.GetAllHealthMetrics(c.Request.Context())
+	if err != nil {
+		response.InternalServerError(c, "查询失败: "+err.Error())
+		return
+	}
+	if metrics == nil { metrics = []model.HealthMetric{} }
+	response.Success(c, metrics)
+}
+
+// DeleteMetricHandler 删除健康指标
+func DeleteMetricHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "无效的ID")
+		return
+	}
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	if err := db.DeleteHealthMetric(c.Request.Context(), id); err != nil {
+		response.BadRequest(c, "删除失败: "+err.Error())
+		return
+	}
+	response.Success(c, nil)
 }

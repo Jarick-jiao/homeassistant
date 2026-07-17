@@ -163,11 +163,32 @@ func RegisterHandler(c *gin.Context) {
 		return
 	}
 
+	// 注册成功后自动生成 token
+	user.ID = id
+	jwtSecret, _ := c.Get("jwtSecret")
+	secretStr, _ := jwtSecret.(string)
+	expireIn := time.Now().Add(24 * time.Hour).Unix()
+	token, err := jwtutil.GenerateToken(user, secretStr, expireIn)
+	if err != nil {
+		// token 生成失败不影响注册，但不自动登录
+		response.Success(c, gin.H{
+			"id":       id,
+			"username": req.Username,
+			"role":     req.Role,
+			"name":     req.Name,
+		})
+		return
+	}
+
 	response.Success(c, gin.H{
-		"id":       id,
-		"username": req.Username,
-		"role":     req.Role,
-		"name":     req.Name,
+		"token": token,
+		"user": gin.H{
+			"id":        id,
+			"username":  req.Username,
+			"role":      req.Role,
+			"name":      req.Name,
+			"family_id": user.FamilyID,
+		},
 	})
 }
 
@@ -181,4 +202,50 @@ func HashPassword(password string) (string, error) {
 func CheckPassword(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
+}
+
+// ResetPasswordRequest 密码重置请求
+type ResetPasswordRequest struct {
+	Username    string `json:"username" binding:"required"`
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
+}
+
+// ResetPasswordHandler 重置密码（需登录，只能改自己的）
+func ResetPasswordHandler(c *gin.Context) {
+	var req ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "参数错误: "+err.Error())
+		return
+	}
+
+	dbVal, exists := c.Get("db")
+	if !exists || dbVal == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	db := dbVal.(*store.DB)
+
+	// 验证旧密码
+	user, err := db.GetUserByUsername(c.Request.Context(), req.Username)
+	if err != nil {
+		response.BadRequest(c, "用户不存在")
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+		response.Unauthorized(c, "原密码错误")
+		return
+	}
+
+	// 更新密码
+	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		response.InternalServerError(c, "密码加密失败")
+		return
+	}
+	if err := db.ResetPassword(c.Request.Context(), req.Username, string(newHash)); err != nil {
+		response.InternalServerError(c, "密码重置失败: "+err.Error())
+		return
+	}
+	response.Success(c, nil)
 }

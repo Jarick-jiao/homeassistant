@@ -52,8 +52,8 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	api := r.Group("/api")
 
 	// ============ 公开路由（无需 JWT） ============
-	api.POST("/auth/login", auth.LoginHandler)
 	api.POST("/auth/register", auth.RegisterHandler)
+	api.POST("/auth/login", auth.LoginHandler)
 
 	// 家务面板（公开，前端大屏展示用）
 	api.GET("/chorse/dashboard", chorse.GetChorseDashboardHandler)
@@ -61,6 +61,9 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	// ============ 需要认证的路由 ============
 	authed := api.Group("")
 	authed.Use(middleware.AuthMiddleware(&secretProvider{secret: jwtSecret}))
+
+	// --- 认证 ---
+	authed.POST("/auth/reset-password", auth.ResetPasswordHandler)
 
 	// --- 健康数据 ---
 	authed.GET("/health/overview", health.GetHealthSummaryHandler)
@@ -70,6 +73,11 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.POST("/health/sync", health.SyncHealthDataHandler)
 	authed.GET("/health/data-source/configs", health.GetDataSourceConfigsHandler)
 	authed.POST("/health/data-source/config", health.SaveDataSourceConfigHandler)
+
+	// --- 健康指标（自定义） ---
+	authed.GET("/health/metrics", health.ListMetricsHandler)
+	authed.POST("/health/metrics", health.AddMetricHandler)
+	authed.DELETE("/health/metrics/:id", health.DeleteMetricHandler)
 
 	// --- 健康档案（文件上传/管理/AI分析） ---
 	recordsHandler := records.New(db, "")

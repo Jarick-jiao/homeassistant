@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/homemate/server/internal/config"
 	"github.com/homemate/server/internal/model"
@@ -56,8 +57,17 @@ func InitDB(cfg config.DatabaseConfig) (*DB, error) {
 		return nil, fmt.Errorf("创建档案表失败: %w", err)
 	}
 
+	if err := db.createHealthMetricTables(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("创建健康指标表失败: %w", err)
+	}
+
 	if err := db.seedChorseTasks(context.Background()); err != nil {
 		log.Printf("[WARN] 预置家务任务失败: %v", err)
+	}
+
+	if err := db.seedAdminUser(context.Background()); err != nil {
+		log.Printf("[WARN] 创建默认管理员失败: %v", err)
 	}
 
 	log.Println("[INFO] 数据库初始化完成:", cfg.Path)
@@ -280,6 +290,20 @@ CREATE INDEX IF NOT EXISTS idx_health_cache_member_date ON health_data_cache(mem
 CREATE INDEX IF NOT EXISTS idx_chorse_claims_status ON chorse_claims(status);
 CREATE INDEX IF NOT EXISTS idx_points_records_member ON points_records(member_name, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_weekend_votes_proposal ON weekend_votes(proposal_id);
+
+CREATE TABLE IF NOT EXISTS health_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id INTEGER NOT NULL DEFAULT 1,
+    member_name TEXT NOT NULL,
+    label TEXT NOT NULL,
+    value REAL NOT NULL,
+    unit TEXT DEFAULT '',
+    icon TEXT DEFAULT '📊',
+    status TEXT DEFAULT 'normal',
+    trend TEXT DEFAULT 'stable',
+    recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 `
 	if _, err := db.conn.Exec(schema); err != nil {
 		return fmt.Errorf("执行建表语句失败: %w", err)
@@ -1086,6 +1110,14 @@ func splitComma(s string) []string {
 	return parts
 }
 
+// createHealthMetricTables 创建健康指标索引
+func (db *DB) createHealthMetricTables() error {
+	_, err := db.conn.Exec(`
+	CREATE INDEX IF NOT EXISTS idx_health_metrics_member ON health_metrics(member_name, family_id);
+	`)
+	return err
+}
+
 // seedChorseTasks 预置 10 种常见家务任务（PRD M-17 修复）
 func (db *DB) seedChorseTasks(ctx context.Context) error {
 	// 检查是否已有任务
@@ -1118,4 +1150,147 @@ func (db *DB) seedChorseTasks(ctx context.Context) error {
 	}
 	log.Printf("[INFO] 已预置 %d 种家务任务", len(tasks))
 	return nil
+}
+
+// seedAdminUser 创建默认管理员账户
+func (db *DB) seedAdminUser(ctx context.Context) error {
+	var count int
+	err := db.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	// 默认管理员: admin / admin123
+	hash, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
+	_, err = db.conn.ExecContext(ctx,
+		"INSERT INTO users (username, password_hash, role, name, family_id) VALUES (?, ?, ?, ?, ?)",
+		"admin", string(hash), "admin", "管理员", 1)
+	if err != nil {
+		return err
+	}
+	log.Println("[INFO] 已创建默认管理员账户: admin / admin123（请及时修改密码）")
+	return nil
+}
+
+// ResetPassword 重置用户密码
+func (db *DB) ResetPassword(ctx context.Context, username, newHash string) error {
+	res, err := db.conn.ExecContext(ctx, "UPDATE users SET password_hash = ? WHERE username = ?", newHash, username)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("用户不存在")
+	}
+	return nil
+}
+
+// ============ Health Metrics (自定义指标) ============
+
+// AddHealthMetricOld 旧版添加健康指标（保留向后兼容）
+func (db *DB) AddHealthMetricOld(ctx context.Context, familyID int, memberName, label, unit, icon string, value float64) error {
+	_, err := db.conn.ExecContext(ctx,
+		"INSERT INTO health_metrics (family_id, member_name, label, value, unit, icon) VALUES (?, ?, ?, ?, ?, ?)",
+		familyID, memberName, label, value, unit, icon)
+	return err
+}
+
+// GetHealthMetrics 获取成员的健康指标（取每个 label 最新一条）
+func (db *DB) GetHealthMetrics(ctx context.Context, familyID int) ([]map[string]interface{}, error) {
+	rows, err := db.conn.QueryContext(ctx,
+		`SELECT hm.member_name, hm.label, hm.value, hm.unit, hm.icon, hm.status, hm.trend, hm.recorded_at
+		 FROM health_metrics hm
+		 INNER JOIN (
+		     SELECT member_name, label, MAX(id) AS max_id
+		     FROM health_metrics
+		     WHERE family_id = ?
+		     GROUP BY member_name, label
+		 ) latest ON hm.id = latest.max_id
+		 ORDER BY hm.member_name, hm.recorded_at DESC`, familyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []map[string]interface{}
+	for rows.Next() {
+		var name, label, unit, icon, status, trend string
+		var value float64
+		var recorded time.Time
+		if err := rows.Scan(&name, &label, &value, &unit, &icon, &status, &trend, &recorded); err != nil {
+			continue
+		}
+		results = append(results, map[string]interface{}{
+			"member_name": name,
+			"label":       label,
+			"value":       value,
+			"unit":        unit,
+			"icon":        icon,
+			"status":      status,
+			"trend":       trend,
+			"recorded_at": recorded.Format("2006-01-02 15:04"),
+		})
+	}
+	return results, nil
+}
+
+// AddHealthMetric 添加自定义健康指标
+func (db *DB) AddHealthMetric(ctx context.Context, m *model.HealthMetric) (int64, error) {
+	result, err := db.conn.ExecContext(ctx,
+		`INSERT INTO health_metrics (member_name, label, value, unit, icon, status, trend, family_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+		m.MemberName, m.Label, m.Value, m.Unit, m.Icon, m.Status, m.Trend)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+// GetHealthMetricsByMember 获取成员的自定义指标
+func (db *DB) GetHealthMetricsByMember(ctx context.Context, memberName string) ([]model.HealthMetric, error) {
+	rows, err := db.conn.QueryContext(ctx,
+		`SELECT id, member_name, label, value, unit, icon, status, trend, created_at
+		 FROM health_metrics WHERE member_name = ? AND family_id = 1 ORDER BY created_at DESC`,
+		memberName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var metrics []model.HealthMetric
+	for rows.Next() {
+		var m model.HealthMetric
+		if err := rows.Scan(&m.ID, &m.MemberName, &m.Label, &m.Value, &m.Unit, &m.Icon, &m.Status, &m.Trend, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		metrics = append(metrics, m)
+	}
+	return metrics, nil
+}
+
+// GetAllHealthMetrics 获取所有家庭的健康指标
+func (db *DB) GetAllHealthMetrics(ctx context.Context) ([]model.HealthMetric, error) {
+	rows, err := db.conn.QueryContext(ctx,
+		`SELECT id, member_name, label, value, unit, icon, status, trend, created_at
+		 FROM health_metrics WHERE family_id = 1 ORDER BY member_name, created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var metrics []model.HealthMetric
+	for rows.Next() {
+		var m model.HealthMetric
+		if err := rows.Scan(&m.ID, &m.MemberName, &m.Label, &m.Value, &m.Unit, &m.Icon, &m.Status, &m.Trend, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		metrics = append(metrics, m)
+	}
+	return metrics, nil
+}
+
+// DeleteHealthMetric 删除自定义指标
+func (db *DB) DeleteHealthMetric(ctx context.Context, id int64) error {
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM health_metrics WHERE id = ?`, id)
+	return err
 }

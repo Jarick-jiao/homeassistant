@@ -50,6 +50,19 @@ type HealthAnalysisReport struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+// HealthMetric 自定义健康指标
+type HealthMetric struct {
+	ID        int64   `json:"id"`
+	MemberName string  `json:"member_name"`
+	Label     string  `json:"label"`
+	Value     float64 `json:"value"`
+	Unit      string  `json:"unit"`
+	Icon      string  `json:"icon"`
+	Status    string  `json:"status"`
+	Trend     string  `json:"trend"`
+	CreatedAt string  `json:"created_at"`
+}
+
 // WeekendRecommendation 周末推荐方案（AI 生成 / 离线缓存）
 type WeekendRecommendation struct {
 	ID           int64     `json:"id"`

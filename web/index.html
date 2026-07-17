@@ -48,7 +48,7 @@
       options = options || {};
       if (!options.headers) options.headers = {};
       if (authToken) options.headers['Authorization'] = 'Bearer ' + authToken;
-      if (!options.headers['Content-Type'] && options.body) options.headers['Content-Type'] = 'application/json';
+      if (!options.headers['Content-Type'] && options.body && !(options.body instanceof FormData)) options.headers['Content-Type'] = 'application/json';
       return fetch(url, options);
     }
 
@@ -1247,11 +1247,32 @@
 
       if (!label || isNaN(val)) { alert('请填写完整的指标信息'); return; }
 
-      if (!customMetrics[name]) customMetrics[name] = [];
-      customMetrics[name].push({ label: label, value: val, unit: unit, icon: '📊', status: 'normal', trend: 'stable' });
+      authFetch('/api/health/metrics', {
+        method: 'POST',
+        body: JSON.stringify({ member_name: name, label: label, value: val, unit: unit, icon: '📊', status: 'normal', trend: 'stable' })
+      }).then(function(r) { return r.json(); }).then(function(result) {
+        if (result.code === 0) {
+          if (!customMetrics[name]) customMetrics[name] = [];
+          customMetrics[name].push(result.data);
+          hideCustomForm(name);
+          loadHealthMetrics();
+          showToast('指标已添加', 'success');
+        } else {
+          showToast(result.message || '添加失败', 'error');
+        }
+      }).catch(function() { showToast('网络错误', 'error'); });
+    }
 
-      hideCustomForm(name);
-      if (currentHealthData) renderMembers(currentHealthData);
+    function loadHealthMetrics() {
+      authFetch('/api/health/metrics').then(function(r) { return r.json(); }).then(function(result) {
+        if (result.code !== 0 || !result.data) return;
+        customMetrics = {};
+        (result.data || []).forEach(function(m) {
+          if (!customMetrics[m.member_name]) customMetrics[m.member_name] = [];
+          customMetrics[m.member_name].push(m);
+        });
+        if (currentHealthData) renderMembers(currentHealthData);
+      }).catch(function() {});
     }
 
     // ==================== 渲染家务 Tab ====================
@@ -1458,19 +1479,19 @@
       authFetch('/api/chorse/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ claim_id: claimId, confirmer: '当前用户' })
+        body: JSON.stringify({ claim_id: claimId, confirmer: (currentUser && currentUser.name) ? currentUser.name : '未知' })
       }).then(function(res) { return res.json(); }).then(function() {
         showToast('已确认完成！积分已增加', 'success');
         showEncourage(); playDing(); burstStars(window.innerWidth / 2, window.innerHeight / 3);
         loadPendingClaims();
         // 刷新家务面板和积分面板
-        fetchWithFallback('/api/chorse/dashboard', fallbackChores).then(function(data) {
-          currentChoresData = data;
-          renderChores(data);
+        authFetch('/api/chorse/dashboard').then(function(r) { return r.json(); }).then(function(result) {
+          currentChoresData = result.data || result;
+          renderChores(currentChoresData);
         });
-        fetchWithFallback('/api/points/dashboard', fallbackPoints).then(function(data) {
-          currentPointsData = data;
-          renderPoints(data);
+        authFetch('/api/points/dashboard').then(function(r) { return r.json(); }).then(function(result) {
+          currentPointsData = result.data || result;
+          renderPoints(currentPointsData);
         });
       }).catch(function() {
         showToast('操作失败，请重试', 'error');
@@ -1627,7 +1648,7 @@
       if (!memberId) { alert('请选择推荐人'); return; }
       var memberName = memberNames[memberId] || '未知';
 
-      authFetch('/api/weekend/add-proposal', {
+      authFetch('/api/weekend/proposals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1846,13 +1867,24 @@
       });
     }
 
+    function loadHealthData() {
+      authFetch('/api/health/overview').then(function(r) { return r.json(); }).then(function(result) {
+        if (result.code === 0) {
+          currentHealthData = result.data;
+          if (result.data && result.data.members && result.data.members.length === 0 && window._allMembers && window._allMembers.length > 0) {
+            result.data.members = window._allMembers.map(function(m) {
+              return { name: m.name, role: m.role, age: m.age, avatar: m.avatar || getRoleEmoji(m.role) };
+            });
+            currentHealthData.members = result.data.members;
+          }
+          renderMembers(currentHealthData);
+        }
+      }).catch(function() { fetchWithFallback('/api/health/overview', fallbackHealth).then(function(data) { currentHealthData = data; renderMembers(data); }); });
+    }
+
     // ==================== 加载所有数据 ====================
     function loadAllData() {
-      fetchWithFallback('/api/health/overview', fallbackHealth).then(function(data) {
-        currentHealthData = data;
-        renderHealthStats(data);
-        renderMembers(data);
-      });
+      loadHealthData();
       fetchWithFallback('/api/chorse/dashboard', fallbackChores).then(function(data) {
         currentChoresData = data;
         renderChores(data);
@@ -1903,7 +1935,7 @@
     var sourceTypeIcons = { garmin: '⌚', apple_health: '🍎', huawei: '📱', manual: '✏️' };
 
     function loadDataSourceConfigs() {
-      authFetch('/api/health/configs').then(function(res) { return res.json(); })
+      authFetch('/api/health/data-source/configs').then(function(res) { return res.json(); })
         .then(function(result) {
           var configs = (result.data || result) || [];
           renderDataSourceConfigs(configs);
@@ -1975,7 +2007,7 @@
     // ==================== 真实健康数据加载 ====================
     function loadRealHealthData() {
       // 为爸爸加载真实 Garmin 数据
-      authFetch('/api/health/real?member_id=1').then(function(res) { return res.json(); })
+      authFetch('/api/health/real-data?member_id=1').then(function(res) { return res.json(); })
         .then(function(result) {
           var data = result.data || result;
           if (data && data.metrics) {
@@ -2029,9 +2061,29 @@
     var focusLabels = { steps: '步数', heart_rate: '心率', sleep: '睡眠', blood_pressure: '血压', weight: '体重', height: '身高', stress: '压力', spo2: '血氧', body_battery: '身体电量' };
 
     function loadMembers() {
-      fetchWithFallback('/api/members', []).then(function(data) {
-        currentMembers = Array.isArray(data) ? data : [];
-        updateMemberMaps(currentMembers);
+      authFetch('/api/members').then(function(r) { return r.json(); }).then(function(result) {
+        if (result.code === 0) {
+          currentMembers = Array.isArray(result.data) ? result.data : [];
+          window._allMembers = result.data || [];
+          updateMemberMaps(currentMembers);
+          renderMembersList();
+          loadHealthMetrics();
+          if (currentHealthData) {
+            if (currentHealthData.members && currentHealthData.members.length === 0 && result.data && result.data.length > 0) {
+              currentHealthData.members = result.data.map(function(m) {
+                return { name: m.name, role: m.role, age: m.age, avatar: m.avatar || getRoleEmoji(m.role) };
+              });
+              renderMembers(currentHealthData);
+            }
+          }
+        } else {
+          currentMembers = [];
+          updateMemberMaps([]);
+          renderMembersList();
+        }
+      }).catch(function() {
+        currentMembers = [];
+        updateMemberMaps([]);
         renderMembersList();
       });
     }
@@ -2173,7 +2225,7 @@
     var recordCategoryIcons = { checkup: '📋', lab: '🧪', prescription: '💊', imaging: '🏥', vaccination: '💉', other: '📁' };
 
     function loadRecords() {
-      authFetch('/api/health/records').then(function(res) { return res.json(); })
+      authFetch('/api/records').then(function(res) { return res.json(); })
         .then(function(result) {
           currentRecords = (result.data || result) || [];
           renderRecordsList();
@@ -2184,7 +2236,7 @@
     }
 
     function loadAnalysisReports() {
-      authFetch('/api/health/records/analysis').then(function(res) { return res.json(); })
+      authFetch('/api/records/reports').then(function(res) { return res.json(); })
         .then(function(result) {
           currentAnalysisReports = (result.data || result) || [];
           renderAnalysisReports();
@@ -2364,7 +2416,7 @@
       formData.append('record_date', recordDate);
       formData.append('note', note);
 
-      authFetch('/api/health/records/upload', {
+      authFetch('/api/records/upload', {
         method: 'POST',
         body: formData
       }).then(function(res) { return res.json(); }).then(function(result) {
@@ -2393,7 +2445,7 @@
 
     function analyzeSingleRecord(recordId) {
       showToast('正在分析中...', 'warning');
-      authFetch('/api/health/records/' + recordId + '/analyze', {
+      authFetch('/api/records/' + recordId + '/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       }).then(function(res) { return res.json(); }).then(function(result) {
@@ -2426,7 +2478,7 @@
       var ids = Array.from(selectedRecordIds);
       showToast('正在批量分析 ' + ids.length + ' 份档案...', 'warning');
 
-      authFetch('/api/health/records/batch-analyze', {
+      authFetch('/api/records/analyze/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ record_ids: ids })
@@ -2449,7 +2501,7 @@
 
     function deleteRecord(recordId) {
       if (!confirm('确定要删除该档案吗？')) return;
-      authFetch('/api/health/records/' + recordId, { method: 'DELETE' }).then(function() {
+      authFetch('/api/records/' + recordId, { method: 'DELETE' }).then(function() {
         showToast('档案已删除', 'success');
         loadRecords();
       }).catch(function() {
@@ -2772,6 +2824,7 @@
     });
 
     function initApp() {
+      loadHealthMetrics();
       loadAllData();
       loadDataSourceConfigs();
       loadRealHealthData();
