@@ -1,9 +1,7 @@
 package points
 
 import (
-	"sort"
 	"github.com/gin-gonic/gin"
-	"github.com/homemate/server/internal/model"
 	"github.com/homemate/server/internal/pkg/response"
 	"github.com/homemate/server/internal/store"
 )
@@ -86,7 +84,10 @@ func GetPointsDashboardHandler(c *gin.Context) {
 	members := make([]MemberPointsView, 0, len(rankings))
 	familyTotal := 0
 	for i, r := range rankings {
-		sport, health, labor, _ := db.GetPointsByMember(c.Request.Context(), r.Name)
+		sport, health, labor, _, err := db.GetPointsByMember(c.Request.Context(), r.Name)
+		if err != nil {
+			sport, health, labor = 0, 0, 0
+		}
 		level, nextLevel, nextNeed := getLevel(r.Total)
 		members = append(members, MemberPointsView{
 			Name: r.Name, Total: r.Total, Sport: sport, Health: health, Labor: labor,

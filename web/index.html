@@ -241,6 +241,64 @@
     body.compact-view .gap-4 { gap: 0.75rem; }
     body.compact-view .text-lg { font-size: 1rem; }
     body.compact-view .text-base { font-size: 0.875rem; }
+
+    /* ==================== 儿童友好模式 ==================== */
+    /* 鼓励语弹出动画 */
+    @keyframes encouragePop {
+      0% { transform: translateX(-50%) scale(0); opacity: 0; }
+      60% { transform: translateX(-50%) scale(1.2); }
+      100% { transform: translateX(-50%) scale(1); opacity: 1; }
+    }
+    .encourage-toast {
+      position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white; padding: 16px 32px; border-radius: 24px;
+      font-size: 20px; font-weight: 600; z-index: 200;
+      animation: encouragePop 0.5s ease forwards;
+      box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
+      pointer-events: none;
+    }
+
+    /* 星星完成动画 */
+    @keyframes starBurst {
+      0% { transform: scale(0) rotate(0deg); opacity: 1; }
+      50% { transform: scale(1.5) rotate(180deg); opacity: 0.8; }
+      100% { transform: scale(0) rotate(360deg); opacity: 0; }
+    }
+    .star-burst {
+      position: fixed; font-size: 32px; z-index: 201;
+      animation: starBurst 0.8s ease forwards;
+      pointer-events: none;
+    }
+
+    /* 进度条卡通风格 */
+    .kid-progress-bar {
+      height: 24px; border-radius: 12px; background: #e2e8f0; overflow: hidden; position: relative;
+    }
+    .kid-progress-bar .fill {
+      height: 100%; border-radius: 12px;
+      background: linear-gradient(90deg, #f093fb 0%, #f5576c 50%, #fda085 100%);
+      background-size: 200% 100%;
+      animation: progressShimmer 2s ease infinite;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @keyframes progressShimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* 儿童友好模式 - 更大点击区域与圆润视觉 */
+    body.kid-friendly .overview-card { border-radius: 20px; padding: 20px; }
+    body.kid-friendly .tab-btn { font-size: 16px; padding: 8px 16px; }
+    body.kid-friendly .task-card { min-width: 180px; border-radius: 16px; padding: 16px; }
+    body.kid-friendly button, body.kid-friendly .btn { min-height: 48px; border-radius: 12px; font-size: 16px; }
+    body.kid-friendly .metric-card { border-radius: 16px; padding: 16px; }
+    body.kid-friendly .modal-box { border-radius: 24px; }
+    body.kid-friendly .text-sm { font-size: 15px; }
+    body.kid-friendly .text-xs { font-size: 13px; }
+    body.kid-friendly .text-lg { font-size: 22px; }
+    body.kid-friendly .w-12.h-12 { width: 56px; height: 56px; font-size: 22px; }
+    body.dark-mode .kid-progress-bar { background: #334155; }
   </style>
 </head>
 <body class="font-sans min-h-screen">
@@ -267,6 +325,7 @@
       <!-- 右侧：更新时间 + 刷新 -->
       <div class="flex items-center gap-2 flex-shrink-0">
         <span id="navUpdateTime" class="text-xs text-gray-400 hidden sm:inline">--</span>
+        <button id="kidModeBtn" onclick="toggleKidMode()" class="text-xl p-1 rounded-lg hover:bg-gray-100 transition" title="儿童模式">🧒</button>
         <button onclick="refreshAllData()" class="ripple-btn p-1.5 rounded-lg hover:bg-gray-100 transition" title="刷新数据">
           <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
         </button>
@@ -1020,6 +1079,7 @@
         var short = memberShortName[member.name] || member.name.charAt(0);
         var isExpanded = expandedMembers[member.name];
         var customs = customMetrics[member.name] || [];
+        var roleEmoji = getRoleEmoji(member.role);
 
         // 紧凑视图：取前4个指标
         var preview = member.metrics.slice(0, 4);
@@ -1043,7 +1103,7 @@
         var card = '<div class="tilt-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.3 + idx * 0.08) + 's">' +
           '<div class="p-4 md:p-5">' +
             '<div class="flex items-center gap-4">' +
-              '<div class="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0" style="background:' + color + '">' + short + '</div>' +
+              '<div class="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0" style="background:' + color + '">' + roleEmoji + '</div>' +
               '<div class="flex-1 min-w-0">' +
                 '<div class="flex items-center gap-2 flex-wrap">' +
                   '<h4 class="text-base font-bold">' + member.name + '</h4>' +
@@ -1236,10 +1296,12 @@
       }).then(function(res) { return res.json(); }).then(function(result) {
         var data = result.data || result;
         showToast(member + ' 已认领「' + task + '」，请按时完成！', 'success');
+        showEncourage(); playDing();
         loadPendingClaims();
       }).catch(function(err) {
         // 即使API失败也显示成功（fallback）
         showToast(member + ' 已认领「' + task + '」', 'success');
+        showEncourage(); playDing();
         addPendingToLocal(member, task, taskIcon, parseInt(taskId));
         loadPendingClaims();
       });
@@ -1264,6 +1326,12 @@
     }
 
     function completeClaim(btn, memberId) {
+      var rect = btn.getBoundingClientRect();
+      var cx = rect.left + rect.width / 2;
+      var cy = rect.top + rect.height / 2;
+      burstStars(cx, cy);
+      playDing();
+      showEncourage();
       var item = btn.closest('.pending-item');
       item.querySelector('.flex.gap-2').innerHTML =
         '<span class="text-xs text-yellow-600 font-medium">等待确认...</span>';
@@ -1316,6 +1384,7 @@
         body: JSON.stringify({ claim_id: claimId })
       }).then(function(res) { return res.json(); }).then(function() {
         showToast('已标记完成，等待其他成员确认', 'warning');
+        showEncourage(); playDing();
         loadPendingClaims();
       }).catch(function() {
         showToast('操作失败，请重试', 'error');
@@ -1329,6 +1398,7 @@
         body: JSON.stringify({ claim_id: claimId, confirmer: '当前用户' })
       }).then(function(res) { return res.json(); }).then(function() {
         showToast('已确认完成！积分已增加', 'success');
+        showEncourage(); playDing(); burstStars(window.innerWidth / 2, window.innerHeight / 3);
         loadPendingClaims();
         // 刷新家务面板和积分面板
         fetchWithFallback('/api/chorse/dashboard', fallbackChores).then(function(data) {
@@ -1930,7 +2000,7 @@
 
         html += '<div class="tilt-card bg-white rounded-xl p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:' + (0.05 + idx * 0.08) + 's">' +
           '<div class="flex items-center gap-4">' +
-            '<div class="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0" style="background:' + rc + '">' + (m.name.charAt(0)) + '</div>' +
+            '<div class="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0" style="background:' + rc + '">' + getRoleEmoji(m.role) + '</div>' +
             '<div class="flex-1 min-w-0">' +
               '<div class="flex items-center gap-2 flex-wrap">' +
                 '<h4 class="text-base font-bold">' + m.name + '</h4>' +
@@ -2482,6 +2552,78 @@
     }
 
     // ==================== 页面初始化 ====================
+    // 角色对应 emoji 前缀
+    function getRoleEmoji(role) {
+      var map = { admin: '👨‍👩‍👧‍👦', adult: '🧑', child: '👦', elder: '👴', guest: '🤝' };
+      return map[role] || '👤';
+    }
+
+    // 儿童友好鼓励系统
+    var encourageMessages = [
+      '太棒了！你真厉害！',
+      '继续加油，你是最棒的！',
+      '哇，好厉害呀！',
+      '你做到了！给你一朵小红花！',
+      '真了不起！再接再厉！',
+      '你像超级英雄一样厉害！',
+      '太优秀了！全家为你骄傲！',
+    ];
+    function showEncourage() {
+      var msg = encourageMessages[Math.floor(Math.random() * encourageMessages.length)];
+      var el = document.createElement('div');
+      el.className = 'encourage-toast';
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(function() { el.remove(); }, 2500);
+    }
+    function burstStars(x, y) {
+      var emojis = ['⭐','🌟','✨','💫'];
+      for (var i = 0; i < 5; i++) {
+        var s = document.createElement('span');
+        s.className = 'star-burst';
+        s.textContent = emojis[i % emojis.length];
+        s.style.left = (x + (Math.random()-0.5)*80) + 'px';
+        s.style.top = (y + (Math.random()-0.5)*80) + 'px';
+        document.body.appendChild(s);
+        (function(elem) { setTimeout(function() { elem.remove(); }, 1000); })(s);
+      }
+    }
+    // 简单音效（Web Audio API）
+    function playDing() {
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.4);
+      } catch(e) {}
+    }
+    // 儿童模式切换
+    function toggleKidMode() {
+      document.body.classList.toggle('kid-friendly');
+      var btn = document.getElementById('kidModeBtn');
+      if (document.body.classList.contains('kid-friendly')) {
+        btn.textContent = '👨‍💼';
+        localStorage.setItem('kidMode', '1');
+      } else {
+        btn.textContent = '🧒';
+        localStorage.setItem('kidMode', '0');
+      }
+    }
+    // 恢复儿童模式设置
+    if (localStorage.getItem('kidMode') === '1') {
+      document.body.classList.add('kid-friendly');
+      setTimeout(function() {
+        var btn = document.getElementById('kidModeBtn');
+        if (btn) btn.textContent = '👨‍💼';
+      }, 100);
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
       loadDisplaySettings();
       loadAllData();

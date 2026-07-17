@@ -21,19 +21,20 @@ import (
 	"github.com/homemate/server/internal/store"
 )
 
-const (
-	// UploadDir 文件上传根目录
-	UploadDir = "uploads/health_records"
-	// MaxFileSize 最大文件大小 50MB
-	MaxFileSize = 50 << 20
-	// 允许的文件类型
-	allowedExtensions = map[string]bool{
-		".pdf": true, ".jpg": true, ".jpeg": true, ".png": true,
-		".bmp": true, ".tiff": true, ".tif": true, ".webp": true,
-	}
-	// 档案分类
-	Categories = []string{"病例", "检查报告", "处方", "化验单", "影像", "其他"}
-)
+// UploadDir 文件上传根目录
+const UploadDir = "uploads/health_records"
+
+// MaxFileSize 最大文件大小 50MB
+const MaxFileSize = 50 << 20
+
+// allowedExtensions 允许的文件类型
+var allowedExtensions = map[string]bool{
+	".pdf": true, ".jpg": true, ".jpeg": true, ".png": true,
+	".bmp": true, ".tiff": true, ".tif": true, ".webp": true,
+}
+
+// Categories 档案分类
+var Categories = []string{"病例", "检查报告", "处方", "化验单", "影像", "其他"}
 
 // Handler 健康档案 handler
 type Handler struct {
@@ -547,8 +548,7 @@ func (h *Handler) generateComprehensiveReport(ctx context.Context, _ *model.Heal
 		return "AI 服务未配置", "", nil
 	}
 
-	// 构建综合报告提示词
-	prompt := fmt.Sprintf(`基于以下健康档案摘要，生成一份综合健康分析报告。
+	_ = fmt.Sprintf(`基于以下健康档案摘要，生成一份综合健康分析报告。
 
 档案摘要：
 %s
