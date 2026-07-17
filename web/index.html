@@ -19,6 +19,43 @@
       div.textContent = String(str);
       return div.innerHTML;
     }
+
+    // ===== 认证系统 =====
+    var authToken = localStorage.getItem('homemate_token') || '';
+    var currentUser = JSON.parse(localStorage.getItem('homemate_user') || 'null');
+
+    function setAuth(token, user) {
+      authToken = token;
+      currentUser = user;
+      localStorage.setItem('homemate_token', token || '');
+      localStorage.setItem('homemate_user', JSON.stringify(user || null));
+    }
+
+    function clearAuth() {
+      authToken = '';
+      currentUser = null;
+      localStorage.removeItem('homemate_token');
+      localStorage.removeItem('homemate_user');
+    }
+
+    function getAuthHeaders() {
+      var h = { 'Content-Type': 'application/json' };
+      if (authToken) h['Authorization'] = 'Bearer ' + authToken;
+      return h;
+    }
+
+    function authFetch(url, options) {
+      options = options || {};
+      if (!options.headers) options.headers = {};
+      if (authToken) options.headers['Authorization'] = 'Bearer ' + authToken;
+      if (!options.headers['Content-Type'] && options.body) options.headers['Content-Type'] = 'application/json';
+      return fetch(url, options);
+    }
+
+    function isLoggedIn() {
+      return !!authToken;
+    }
+
     tailwind.config = {
       theme: {
         extend: {
@@ -325,6 +362,7 @@
       <!-- 右侧：更新时间 + 刷新 -->
       <div class="flex items-center gap-2 flex-shrink-0">
         <span id="navUpdateTime" class="text-xs text-gray-400 hidden sm:inline">--</span>
+        <span id="userDisplay" class="text-xs text-gray-500 dark:text-gray-400 cursor-pointer hidden" onclick="doLogout()" title="点击退出登录"></span>
         <button id="kidModeBtn" onclick="toggleKidMode()" class="text-xl p-1 rounded-lg hover:bg-gray-100 transition" title="儿童模式">🧒</button>
         <button onclick="refreshAllData()" class="ripple-btn p-1.5 rounded-lg hover:bg-gray-100 transition" title="刷新数据">
           <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -1308,7 +1346,7 @@
       if (t) taskIcon = t.icon || '📋';
 
       // 调用后端API持久化
-      fetch('/api/chorse/claim', {
+      authFetch('/api/chorse/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1364,7 +1402,7 @@
     }
 
     function loadPendingClaims() {
-      fetch('/api/chorse/pending').then(function(res) { return res.json(); })
+      authFetch('/api/chorse/pending').then(function(res) { return res.json(); })
         .then(function(result) {
           var data = result.data || result;
           var claims = data.claims || [];
@@ -1403,7 +1441,7 @@
     }
 
     function markComplete(claimId) {
-      fetch('/api/chorse/complete', {
+      authFetch('/api/chorse/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ claim_id: claimId })
@@ -1417,7 +1455,7 @@
     }
 
     function markConfirm(claimId) {
-      fetch('/api/chorse/confirm', {
+      authFetch('/api/chorse/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ claim_id: claimId, confirmer: '当前用户' })
@@ -1564,7 +1602,7 @@
       if (!memberId) { alert('请选择投票人'); return; }
       var memberName = memberNames[memberId] || '未知';
 
-      fetch('/api/weekend/vote', {
+      authFetch('/api/weekend/vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ proposal_id: currentVoteProposalId, member_id: memberId, member_name: memberName })
@@ -1589,7 +1627,7 @@
       if (!memberId) { alert('请选择推荐人'); return; }
       var memberName = memberNames[memberId] || '未知';
 
-      fetch('/api/weekend/add-proposal', {
+      authFetch('/api/weekend/add-proposal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1797,7 +1835,7 @@
 
     // ==================== API 数据获取（带 fallback） ====================
     function fetchWithFallback(url, fallback) {
-      return fetch(url).then(function(res) {
+      return authFetch(url).then(function(res) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
       }).then(function(result) {
@@ -1847,7 +1885,7 @@
       document.body.appendChild(toast);
 
       // 调用后端同步API
-      fetch('/api/health/sync', { method: 'POST' })
+      authFetch('/api/health/sync', { method: 'POST' })
         .then(function(res) { return res.json(); })
         .then(function(result) {
           toast.textContent = '同步完成';
@@ -1865,7 +1903,7 @@
     var sourceTypeIcons = { garmin: '⌚', apple_health: '🍎', huawei: '📱', manual: '✏️' };
 
     function loadDataSourceConfigs() {
-      fetch('/api/health/configs').then(function(res) { return res.json(); })
+      authFetch('/api/health/configs').then(function(res) { return res.json(); })
         .then(function(result) {
           var configs = (result.data || result) || [];
           renderDataSourceConfigs(configs);
@@ -1909,7 +1947,7 @@
       var type = prompt('为 ' + name + ' 选择数据源类型：\n1. garmin (Garmin Connect)\n2. apple_health (Apple Health)\n3. huawei (华为健康)\n4. manual (手动录入)\n\n请输入类型代码：', 'garmin');
       if (!type) return;
       var apiKey = prompt('请输入 API Key / 认证密钥（可选）：', '');
-      fetch('/api/health/data-source/config', {
+      authFetch('/api/health/data-source/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ member_id: memberId, member_name: name, source_type: type, api_key: apiKey || '', api_secret: '', user_id: String(memberId), is_active: true })
@@ -1924,7 +1962,7 @@
 
     function syncMemberData(memberId) {
       showToast('正在同步 ' + (memberNames[memberId] || '') + ' 的数据...', 'warning');
-      fetch('/api/health/sync?member_id=' + memberId, { method: 'POST' })
+      authFetch('/api/health/sync?member_id=' + memberId, { method: 'POST' })
         .then(function() {
           showToast('同步完成', 'success');
           loadDataSourceConfigs();
@@ -1937,7 +1975,7 @@
     // ==================== 真实健康数据加载 ====================
     function loadRealHealthData() {
       // 为爸爸加载真实 Garmin 数据
-      fetch('/api/health/real?member_id=1').then(function(res) { return res.json(); })
+      authFetch('/api/health/real?member_id=1').then(function(res) { return res.json(); })
         .then(function(result) {
           var data = result.data || result;
           if (data && data.metrics) {
@@ -2089,7 +2127,7 @@
       var url = id ? '/api/members/' + id : '/api/members';
       var method = id ? 'PUT' : 'POST';
 
-      fetch(url, {
+      authFetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -2116,7 +2154,7 @@
 
     function deleteMember(id) {
       if (!confirm('确定要删除该成员吗？')) return;
-      fetch('/api/members/' + id, { method: 'DELETE' }).then(function() {
+      authFetch('/api/members/' + id, { method: 'DELETE' }).then(function() {
         showToast('成员已删除', 'success');
         loadMembers();
       }).catch(function() {
@@ -2135,7 +2173,7 @@
     var recordCategoryIcons = { checkup: '📋', lab: '🧪', prescription: '💊', imaging: '🏥', vaccination: '💉', other: '📁' };
 
     function loadRecords() {
-      fetch('/api/health/records').then(function(res) { return res.json(); })
+      authFetch('/api/health/records').then(function(res) { return res.json(); })
         .then(function(result) {
           currentRecords = (result.data || result) || [];
           renderRecordsList();
@@ -2146,7 +2184,7 @@
     }
 
     function loadAnalysisReports() {
-      fetch('/api/health/records/analysis').then(function(res) { return res.json(); })
+      authFetch('/api/health/records/analysis').then(function(res) { return res.json(); })
         .then(function(result) {
           currentAnalysisReports = (result.data || result) || [];
           renderAnalysisReports();
@@ -2326,7 +2364,7 @@
       formData.append('record_date', recordDate);
       formData.append('note', note);
 
-      fetch('/api/health/records/upload', {
+      authFetch('/api/health/records/upload', {
         method: 'POST',
         body: formData
       }).then(function(res) { return res.json(); }).then(function(result) {
@@ -2355,7 +2393,7 @@
 
     function analyzeSingleRecord(recordId) {
       showToast('正在分析中...', 'warning');
-      fetch('/api/health/records/' + recordId + '/analyze', {
+      authFetch('/api/health/records/' + recordId + '/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       }).then(function(res) { return res.json(); }).then(function(result) {
@@ -2388,7 +2426,7 @@
       var ids = Array.from(selectedRecordIds);
       showToast('正在批量分析 ' + ids.length + ' 份档案...', 'warning');
 
-      fetch('/api/health/records/batch-analyze', {
+      authFetch('/api/health/records/batch-analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ record_ids: ids })
@@ -2411,7 +2449,7 @@
 
     function deleteRecord(recordId) {
       if (!confirm('确定要删除该档案吗？')) return;
-      fetch('/api/health/records/' + recordId, { method: 'DELETE' }).then(function() {
+      authFetch('/api/health/records/' + recordId, { method: 'DELETE' }).then(function() {
         showToast('档案已删除', 'success');
         loadRecords();
       }).catch(function() {
@@ -2642,14 +2680,140 @@
       }, 100);
     }
 
+    function showLoginModal() {
+      document.getElementById('authModal').style.display = 'flex';
+      document.getElementById('authError').style.display = 'none';
+      var lastUser = localStorage.getItem('homemate_last_user') || '';
+      document.getElementById('loginUser').value = lastUser;
+    }
+
+    function toggleAuthView() {
+      var lv = document.getElementById('authLoginView');
+      var rv = document.getElementById('authRegisterView');
+      var show = lv.style.display !== 'none';
+      lv.style.display = show ? 'none' : 'block';
+      rv.style.display = show ? 'block' : 'none';
+      document.getElementById('authError').style.display = 'none';
+    }
+
+    function showAuthError(msg) {
+      var el = document.getElementById('authError');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function doLogin() {
+      var username = document.getElementById('loginUser').value.trim();
+      var password = document.getElementById('loginPass').value;
+      if (!username || !password) { showAuthError('请输入用户名和密码'); return; }
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      }).then(function(r) {
+        if (!r.ok) return r.json().then(function(d) { throw new Error(d.message || '登录失败'); });
+        return r.json();
+      }).then(function(result) {
+        var data = result.data || result;
+        setAuth(data.token, data.user);
+        localStorage.setItem('homemate_last_user', username);
+        document.getElementById('authModal').style.display = 'none';
+        initApp();
+      }).catch(function(err) {
+        showAuthError(err.message);
+      });
+    }
+
+    function doRegister() {
+      var username = document.getElementById('regUser').value.trim();
+      var password = document.getElementById('regPass').value;
+      var name = document.getElementById('regName').value.trim();
+      if (!username || !password || !name) { showAuthError('请填写所有字段'); return; }
+      if (password.length < 6) { showAuthError('密码至少6位'); return; }
+      fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password, name: name, role: 'adult' })
+      }).then(function(r) {
+        if (!r.ok) return r.json().then(function(d) { throw new Error(d.message || '注册失败'); });
+        return r.json();
+      }).then(function(result) {
+        var data = result.data || result;
+        setAuth(data.token, data.user);
+        document.getElementById('authModal').style.display = 'none';
+        initApp();
+      }).catch(function(err) {
+        showAuthError(err.message);
+      });
+    }
+
+    function updateAuthUI() {
+      var userBtn = document.getElementById('userDisplay');
+      if (userBtn && currentUser) {
+        userBtn.textContent = currentUser.name || currentUser.username || '用户';
+        userBtn.style.display = '';
+      }
+    }
+
+    function doLogout() {
+      clearAuth();
+      document.getElementById('authModal').style.display = 'flex';
+      document.getElementById('authLoginView').style.display = 'block';
+      document.getElementById('authRegisterView').style.display = 'none';
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
       loadDisplaySettings();
+      if (!isLoggedIn()) {
+        showLoginModal();
+        return;
+      }
+      initApp();
+    });
+
+    function initApp() {
       loadAllData();
       loadDataSourceConfigs();
       loadRealHealthData();
       loadMembers();
       loadBigScreen();
-    });
+      updateAuthUI();
+    }
   </script>
+  <!-- 登录/注册弹窗 -->
+  <div id="authModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" style="display:none">
+    <div class="modal-box bg-white dark:bg-gray-800 rounded-2xl p-6 w-80 shadow-2xl" style="max-width:360px">
+      <div id="authLoginView">
+        <h3 class="text-lg font-bold mb-4 text-center text-gray-800 dark:text-white">登录 HomeMate</h3>
+        <div class="mb-3">
+          <input id="loginUser" type="text" placeholder="用户名" class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm">
+        </div>
+        <div class="mb-4">
+          <input id="loginPass" type="password" placeholder="密码" class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+            onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <button onclick="doLogin()" class="w-full py-2 rounded-lg text-white font-medium text-sm" style="background:var(--primary)">登录</button>
+        <p class="text-center text-xs text-gray-500 mt-3">没有账号？<a href="javascript:void(0)" onclick="toggleAuthView()" class="text-blue-500 hover:underline">注册</a></p>
+      </div>
+      <div id="authRegisterView" style="display:none">
+        <h3 class="text-lg font-bold mb-4 text-center text-gray-800 dark:text-white">注册账号</h3>
+        <div class="mb-3">
+          <input id="regUser" type="text" placeholder="用户名" class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm">
+        </div>
+        <div class="mb-3">
+          <input id="regPass" type="password" placeholder="密码（至少6位）" class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm">
+        </div>
+        <div class="mb-3">
+          <input id="regName" type="text" placeholder="昵称" class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm">
+        </div>
+        <div class="mb-4">
+          <input id="regRole" type="text" value="adult" disabled class="w-full px-3 py-2 border rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-gray-400 text-sm" title="默认为成人角色">
+        </div>
+        <button onclick="doRegister()" class="w-full py-2 rounded-lg text-white font-medium text-sm" style="background:var(--primary)">注册</button>
+        <p class="text-center text-xs text-gray-500 mt-3">已有账号？<a href="javascript:void(0)" onclick="toggleAuthView()" class="text-blue-500 hover:underline">登录</a></p>
+      </div>
+      <p id="authError" class="text-red-500 text-xs text-center mt-2" style="display:none"></p>
+    </div>
+  </div>
 </body>
 </html>
