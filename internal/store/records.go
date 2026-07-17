@@ -13,8 +13,8 @@ import (
 // CreateHealthRecordFile 上传健康档案文件记录
 func (db *DB) CreateHealthRecordFile(ctx context.Context, f *model.HealthRecordFile) (int64, error) {
 	res, err := db.conn.ExecContext(ctx,
-		`INSERT INTO health_record_files (member_id, title, category, record_date, file_name, file_size, file_type, file_path, thumb_path, summary, analysis, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?)`,
+		`INSERT INTO health_record_files (member_id, title, category, record_date, file_name, file_size, file_type, file_path, summary, analysis, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '', ?)`,
 		f.MemberID, f.Title, f.Category, f.RecordDate, f.FileName, f.FileSize, f.FileType, f.FilePath, f.Summary, f.Analysis, time.Now())
 	if err != nil {
 		return 0, err
