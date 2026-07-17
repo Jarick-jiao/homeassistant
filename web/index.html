@@ -541,11 +541,17 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
           推荐方案
         </button>
-        <button onclick="downloadCSVTemplate()" class="ripple-btn text-xs px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">下载CSV模板</button>
-        <label class="ripple-btn text-xs px-3 py-1.5 rounded-lg text-white cursor-pointer" style="background:var(--primary)">
-          导入CSV
-          <input type="file" accept=".csv" onchange="importCSV(event)" class="hidden">
-        </label>
+        <div class="flex gap-2 mt-2">
+          <button onclick="downloadCSVTemplate()" class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            下载模板
+          </button>
+          <label class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg cursor-pointer border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-green-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+            导入CSV
+            <input type="file" accept=".csv" onchange="importCSV(event)" class="hidden">
+          </label>
+        </div>
       </div>
       <div id="proposalsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"></div>
 
@@ -679,6 +685,15 @@
           </div>
           <div class="pt-3">
             <button onclick="manualSync()" class="ripple-btn w-full py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">手动同步</button>
+          </div>
+        </div>
+
+        <!-- 家务任务管理 -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 mb-4">
+          <h4 class="text-base font-bold mb-3">家务任务管理</h4>
+          <p class="text-xs text-gray-400 mb-3">勾选后任务才会出现在"家务劳动"页面中供认领</p>
+          <div id="adminTaskList" class="space-y-2">
+            <p class="text-sm text-gray-400">加载中...</p>
           </div>
         </div>
 
@@ -1063,6 +1078,10 @@
         loadRecords();
         loadAnalysisReports();
       }
+      // 按需加载设置页管理数据
+      if (tabName === 'settings') {
+        loadAdminTasks();
+      }
     }
 
     // ==================== 显示设置（深色模式 + 紧凑视图） ====================
@@ -1159,6 +1178,15 @@
     function renderMembers(data) {
       var container = document.getElementById('membersContainer');
       container.innerHTML = '';
+
+      var members = data.members || [];
+      // 如果 health overview 没返回成员，从全局成员列表补充
+      if (members.length === 0 && window._allMembers && window._allMembers.length > 0) {
+        members = window._allMembers.map(function(m) {
+          return { name: m.name, role: m.role, age: m.age, avatar: m.avatar || getRoleEmoji(m.role), status: 'normal', status_text: (m.role || '') + ' · 正常', metrics: [] };
+        });
+        data.members = members;
+      }
 
       data.members.forEach(function(member, idx) {
         var color = memberColors[member.name] || '#6b7280';
@@ -1461,11 +1489,12 @@
             var s = memberShortName[cl.member_name] || cl.member_name.charAt(0);
             var statusHTML = '';
             if (cl.status === 'pending') {
-              statusHTML = '<button onclick="markComplete(' + cl.claim_id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--success)">标记完成</button>';
+              statusHTML = '<button onclick="markComplete(' + cl.id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--success)">标记完成</button>';
             } else if (cl.status === 'completed') {
-              statusHTML = '<button onclick="markConfirm(' + cl.claim_id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--warning)">确认完成</button><span class="text-xs text-yellow-600 ml-1">待确认</span>';
+              var confirmerInfo = cl.confirmed_by ? '<span class="text-xs text-gray-400">等待 ' + cl.confirmed_by + ' 确认验收</span>' : '<span class="text-xs text-yellow-600 ml-1">待确认</span>';
+              statusHTML = '<button onclick="markConfirm(' + cl.id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--warning)">确认验收</button>' + confirmerInfo;
             } else if (cl.status === 'confirmed') {
-              statusHTML = '<span class="text-xs text-green-600 font-medium">已确认 ✓</span>';
+              statusHTML = '<span class="text-xs text-green-600 font-medium">已确认 ✓ ' + (cl.confirmed_by || '') + '</span>';
             }
             html += '<div class="bg-white rounded-lg p-3 shadow-sm border border-gray-100 flex items-center justify-between mb-2 stagger-item">' +
               '<div class="flex items-center gap-3">' +
@@ -1982,6 +2011,46 @@
           toast.textContent = '同步完成';
           setTimeout(function() { toast.remove(); }, 1500);
         });
+    }
+
+    // ==================== 家务任务管理（设置页） ====================
+    function loadAdminTasks() {
+      authFetch('/api/chorse/tasks').then(function(r) { return r.json(); }).then(function(result) {
+        if (result.code !== 0) return;
+        var tasks = result.data || [];
+        var container = document.getElementById('adminTaskList');
+        if (!container) return;
+        if (tasks.length === 0) { container.innerHTML = '<p class="text-sm text-gray-400">暂无任务</p>'; return; }
+        var html = '';
+        tasks.forEach(function(t) {
+          html += '<div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">' +
+            '<div class="flex items-center gap-2">' +
+              '<span>' + (t.icon || '📋') + '</span>' +
+              '<span class="text-sm">' + t.name + '</span>' +
+              '<span class="text-xs text-gray-400">' + t.category + ' · ' + t.points + '分</span>' +
+            '</div>' +
+            '<label class="relative inline-flex items-center cursor-pointer">' +
+              '<input type="checkbox" ' + (t.enabled ? 'checked' : '') + ' onchange="toggleTask(' + t.id + ', this.checked)" class="sr-only peer">' +
+              '<div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\\\'\\\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>' +
+            '</label>' +
+          '</div>';
+        });
+        container.innerHTML = html;
+      });
+    }
+
+    function toggleTask(id, enabled) {
+      authFetch('/api/chorse/tasks/toggle', {
+        method: 'PUT',
+        body: JSON.stringify({ id: id, enabled: enabled })
+      }).then(function(r) { return r.json(); }).then(function(result) {
+        if (result.code === 0) {
+          showToast(enabled ? '任务已启用' : '任务已禁用', 'success');
+        } else {
+          showToast(result.message || '操作失败', 'error');
+          loadAdminTasks();
+        }
+      }).catch(function() { showToast('网络错误', 'error'); loadAdminTasks(); });
     }
 
     // ==================== 数据源配置 ====================

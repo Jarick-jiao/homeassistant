@@ -224,6 +224,7 @@ CREATE TABLE IF NOT EXISTS chorse_tasks (
     points INTEGER DEFAULT 10,
     duration TEXT DEFAULT '',
     description TEXT DEFAULT '',
+    enabled INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -324,6 +325,7 @@ func (db *DB) migrate() error {
 		{"calendar_events", "time", "ALTER TABLE calendar_events ADD COLUMN time TEXT"},
 		{"calendar_events", "type", "ALTER TABLE calendar_events ADD COLUMN type TEXT"},
 		{"trip_plans", "members_json", "ALTER TABLE trip_plans ADD COLUMN members_json TEXT"},
+		{"chorse_tasks", "enabled", "ALTER TABLE chorse_tasks ADD COLUMN enabled INTEGER NOT NULL DEFAULT 0"},
 	}
 	for _, m := range migrations {
 		var count int
@@ -821,10 +823,10 @@ func (db *DB) CreateChorseTask(ctx context.Context, task *model.ChorseTaskDB) (i
 	return res.LastInsertId()
 }
 
-// ListChorseTasks 列出可用家务任务
+// ListChorseTasks 列出可用家务任务（仅启用的）
 func (db *DB) ListChorseTasks(ctx context.Context) ([]model.ChorseTaskDB, error) {
 	rows, err := db.conn.QueryContext(ctx,
-		"SELECT id, name, icon, category, difficulty, points, duration, description FROM chorse_tasks WHERE is_active=1 ORDER BY id")
+		"SELECT id, name, icon, category, difficulty, points, duration, description, enabled FROM chorse_tasks WHERE enabled=1 AND is_active=1 ORDER BY category, id")
 	if err != nil {
 		return nil, err
 	}
@@ -832,12 +834,36 @@ func (db *DB) ListChorseTasks(ctx context.Context) ([]model.ChorseTaskDB, error)
 	var tasks []model.ChorseTaskDB
 	for rows.Next() {
 		var t model.ChorseTaskDB
-		if err := rows.Scan(&t.ID, &t.Name, &t.Icon, &t.Category, &t.Difficulty, &t.Points, &t.Duration, &t.Description); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.Icon, &t.Category, &t.Difficulty, &t.Points, &t.Duration, &t.Description, &t.Enabled); err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, t)
 	}
 	return tasks, rows.Err()
+}
+
+// ListAllChorseTasks 查询所有任务（管理用，含禁用的）
+func (db *DB) ListAllChorseTasks(ctx context.Context) ([]model.ChorseTaskDB, error) {
+	rows, err := db.conn.QueryContext(ctx, "SELECT id, name, icon, category, difficulty, points, duration, description, enabled FROM chorse_tasks ORDER BY category, id")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tasks []model.ChorseTaskDB
+	for rows.Next() {
+		var t model.ChorseTaskDB
+		if err := rows.Scan(&t.ID, &t.Name, &t.Icon, &t.Category, &t.Difficulty, &t.Points, &t.Duration, &t.Description, &t.Enabled); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
+}
+
+// ToggleChorseTask 启用/禁用任务
+func (db *DB) ToggleChorseTask(ctx context.Context, id int64, enabled bool) error {
+	_, err := db.conn.ExecContext(ctx, "UPDATE chorse_tasks SET enabled=? WHERE id=?", enabled, id)
+	return err
 }
 
 // CreateChorseClaim 创建认领记录
@@ -867,8 +893,8 @@ func (db *DB) ConfirmChorseClaim(ctx context.Context, claimID, confirmerID int64
 	defer tx.Rollback()
 
 	err = tx.QueryRowContext(ctx,
-		"SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points FROM chorse_claims WHERE id=? AND status='completed' FOR UPDATE",
-		claimID).Scan(&claim.ID, &claim.TaskID, &claim.TaskName, &claim.TaskIcon, &claim.MemberID, &claim.MemberName, &claim.ClaimedAt, &claim.Deadline, &claim.Status, &claim.Points)
+		"SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points, confirmed_by, confirmed_at FROM chorse_claims WHERE id=? AND status='completed' FOR UPDATE",
+		claimID).Scan(&claim.ID, &claim.TaskID, &claim.TaskName, &claim.TaskIcon, &claim.MemberID, &claim.MemberName, &claim.ClaimedAt, &claim.Deadline, &claim.Status, &claim.Points, &claim.ConfirmedBy, &claim.ConfirmedAt)
 	if err != nil {
 		return nil, fmt.Errorf("认领记录不存在或状态不允许确认: %w", err)
 	}
@@ -894,10 +920,13 @@ func (db *DB) ConfirmChorseClaim(ctx context.Context, claimID, confirmerID int64
 	return &claim, nil
 }
 
-// GetPendingChorseClaims 获取待处理认领
+// GetPendingChorseClaims 获取待处理认领（pending + completed）
 func (db *DB) GetPendingChorseClaims(ctx context.Context) ([]model.ChorseClaimDB, error) {
 	rows, err := db.conn.QueryContext(ctx,
-		"SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points FROM chorse_claims WHERE status IN ('pending','completed') ORDER BY claimed_at DESC")
+		`SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points, confirmed_by, confirmed_at
+		 FROM chorse_claims WHERE status IN ('pending','completed') ORDER BY
+		 CASE WHEN status='pending' THEN 0 ELSE 1 END,
+		 claimed_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -905,7 +934,7 @@ func (db *DB) GetPendingChorseClaims(ctx context.Context) ([]model.ChorseClaimDB
 	var claims []model.ChorseClaimDB
 	for rows.Next() {
 		var c model.ChorseClaimDB
-		if err := rows.Scan(&c.ID, &c.TaskID, &c.TaskName, &c.TaskIcon, &c.MemberID, &c.MemberName, &c.ClaimedAt, &c.Deadline, &c.Status, &c.Points); err != nil {
+		if err := rows.Scan(&c.ID, &c.TaskID, &c.TaskName, &c.TaskIcon, &c.MemberID, &c.MemberName, &c.ClaimedAt, &c.Deadline, &c.Status, &c.Points, &c.ConfirmedBy, &c.ConfirmedAt); err != nil {
 			return nil, err
 		}
 		claims = append(claims, c)
@@ -916,7 +945,7 @@ func (db *DB) GetPendingChorseClaims(ctx context.Context) ([]model.ChorseClaimDB
 // GetTodayCompletedClaims 获取今日已完成的认领（大屏用）
 func (db *DB) GetTodayCompletedClaims(ctx context.Context) ([]model.ChorseClaimDB, error) {
 	rows, err := db.conn.QueryContext(ctx,
-		"SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points FROM chorse_claims WHERE status='confirmed' AND date(confirmed_at)=date('now') ORDER BY confirmed_at DESC")
+		"SELECT id, task_id, task_name, task_icon, member_id, member_name, claimed_at, deadline, status, points, confirmed_by, confirmed_at FROM chorse_claims WHERE status='confirmed' AND date(confirmed_at)=date('now') ORDER BY confirmed_at DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -924,7 +953,7 @@ func (db *DB) GetTodayCompletedClaims(ctx context.Context) ([]model.ChorseClaimD
 	var claims []model.ChorseClaimDB
 	for rows.Next() {
 		var c model.ChorseClaimDB
-		if err := rows.Scan(&c.ID, &c.TaskID, &c.TaskName, &c.TaskIcon, &c.MemberID, &c.MemberName, &c.ClaimedAt, &c.Deadline, &c.Status, &c.Points); err != nil {
+		if err := rows.Scan(&c.ID, &c.TaskID, &c.TaskName, &c.TaskIcon, &c.MemberID, &c.MemberName, &c.ClaimedAt, &c.Deadline, &c.Status, &c.Points, &c.ConfirmedBy, &c.ConfirmedAt); err != nil {
 			return nil, err
 		}
 		claims = append(claims, c)

@@ -266,20 +266,23 @@ type ChorseTaskDB struct {
 	Points      int    `json:"points"`
 	Duration    string `json:"duration"`
 	Description string `json:"description"`
+	Enabled     bool   `json:"enabled"`
 }
 
 // ChorseClaimDB 家务认领记录（数据库模型）
 type ChorseClaimDB struct {
-	ID         int64     `json:"id"`
-	TaskID     int64     `json:"task_id"`
-	TaskName   string    `json:"task_name"`
-	TaskIcon   string    `json:"task_icon"`
-	MemberID   int64     `json:"member_id"`
-	MemberName string    `json:"member_name"`
-	ClaimedAt  time.Time `json:"claimed_at"`
-	Deadline   time.Time `json:"deadline"`
-	Status     string    `json:"status"` // pending/completed/confirmed
-	Points     int       `json:"points"`
+	ID          int64     `json:"id"`
+	TaskID      int64     `json:"task_id"`
+	TaskName    string    `json:"task_name"`
+	TaskIcon    string    `json:"task_icon"`
+	MemberID    int64     `json:"member_id"`
+	MemberName  string    `json:"member_name"`
+	ClaimedAt   time.Time `json:"claimed_at"`
+	Deadline    time.Time `json:"deadline"`
+	Status      string    `json:"status"` // pending/completed/confirmed
+	Points      int       `json:"points"`
+	ConfirmedBy string    `json:"confirmed_by"`
+	ConfirmedAt *time.Time `json:"confirmed_at"`
 }
 
 // WeekendProposalDB 周末出行方案（数据库模型）

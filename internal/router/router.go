@@ -166,6 +166,8 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 		}
 		c.JSON(200, gin.H{"code": 0, "message": "任务已触发: " + task})
 	})
+	adminGroup.GET("/chorse/tasks", chorse.ListAllChorseTasksHandler)
+	adminGroup.PUT("/chorse/tasks/toggle", chorse.ToggleChorseTaskHandler)
 
 	return r
 }

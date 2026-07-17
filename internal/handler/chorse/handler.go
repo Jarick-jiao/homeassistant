@@ -19,6 +19,7 @@ type ChorseTaskView struct {
 	Points      int    `json:"points"`
 	Duration    string `json:"duration"`
 	Description string `json:"description"`
+	Enabled     bool   `json:"enabled"`
 }
 
 // ChorseRecordView 前端展示用的完成记录
@@ -272,4 +273,49 @@ func GetMemberContrib(c *gin.Context) []ChorseContribView {
 		result = append(result, *v)
 	}
 	return result
+}
+
+// ListAllChorseTasksHandler 管理员查看所有任务（含禁用的）
+func ListAllChorseTasksHandler(c *gin.Context) {
+	db := getDB(c)
+	if db == nil {
+		response.Success(c, []ChorseTaskView{})
+		return
+	}
+	tasks, err := db.ListAllChorseTasks(c.Request.Context())
+	if err != nil {
+		response.Success(c, []ChorseTaskView{})
+		return
+	}
+	views := make([]ChorseTaskView, 0, len(tasks))
+	for _, t := range tasks {
+		views = append(views, ChorseTaskView{
+			ID: t.ID, Name: t.Name, Icon: t.Icon, Category: t.Category,
+			Difficulty: t.Difficulty, Points: t.Points, Duration: t.Duration, Description: t.Description,
+			Enabled: t.Enabled,
+		})
+	}
+	response.Success(c, views)
+}
+
+// ToggleChorseTaskHandler 启用/禁用任务
+func ToggleChorseTaskHandler(c *gin.Context) {
+	var req struct {
+		ID      int64 `json:"id" binding:"required"`
+		Enabled bool  `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "参数错误")
+		return
+	}
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	if err := db.ToggleChorseTask(c.Request.Context(), req.ID, req.Enabled); err != nil {
+		response.BadRequest(c, "操作失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"enabled": req.Enabled})
 }

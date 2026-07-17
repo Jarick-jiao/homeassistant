@@ -9,6 +9,7 @@ import (
 	"github.com/homemate/server/internal/handler/points"
 	"github.com/homemate/server/internal/model"
 	"github.com/homemate/server/internal/pkg/response"
+	"github.com/homemate/server/internal/store"
 )
 
 // GetDashboardHandler 获取角色专属的 Dashboard 数据
@@ -122,8 +123,33 @@ func GetBigScreenHandler(c *gin.Context) {
 	now := time.Now().Format("2006-01-02 15:04:05")
 
 	// === 1. 健康板块 ===
-	// 健康数据待接入，暂返回空数组
 	healthMembers := []gin.H{}
+	if dbVal, exists := c.Get("db"); exists && dbVal != nil {
+		if db, ok := dbVal.(*store.DB); ok {
+			members, err := db.GetMembers(c.Request.Context())
+			if err == nil {
+				metricsMap := map[string][]gin.H{}
+				allMetrics, _ := db.GetAllHealthMetrics(c.Request.Context())
+				for _, m := range allMetrics {
+					metricsMap[m.MemberName] = append(metricsMap[m.MemberName], gin.H{
+						"icon": m.Icon, "label": m.Label, "value": m.Value,
+						"unit": m.Unit, "status": m.Status, "trend": m.Trend,
+					})
+				}
+				for _, mem := range members {
+					metrics := metricsMap[mem.Name]
+					if metrics == nil {
+						metrics = []gin.H{}
+					}
+					healthMembers = append(healthMembers, gin.H{
+						"name": mem.Name, "role": mem.Role,
+						"status": "normal", "status_text": mem.Role + " · 正常",
+						"metrics": metrics,
+					})
+				}
+			}
+		}
+	}
 
 	// === 2. 家务板块（从 chorse 包获取真实数据）===
 	chorseRecords := chorse.GetTodayRecords(c)
