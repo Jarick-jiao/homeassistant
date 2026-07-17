@@ -1,0 +1,1806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HomeMate v3.0 PRD</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #faf7f2;
+    --surface: #ffffff;
+    --bg-secondary: #f3efe8;
+    --text: #2d2a26;
+    --text-secondary: #6b6560;
+    --text-tertiary: #9c958e;
+    --accent: #3b82f6;
+    --accent-light: #eff6ff;
+    --accent-dark: #2563eb;
+    --green: #10b981;
+    --green-light: #ecfdf5;
+    --orange: #f59e0b;
+    --orange-light: #fffbeb;
+    --red: #ef4444;
+    --red-light: #fef2f2;
+    --purple: #8b5cf6;
+    --border: #e8e3db;
+    --border-light: #f0ece5;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --shadow: 0 1px 3px rgba(45,42,38,0.06), 0 1px 2px rgba(45,42,38,0.04);
+    --shadow-md: 0 4px 12px rgba(45,42,38,0.08);
+    --shadow-lg: 0 10px 30px rgba(45,42,38,0.1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ---- Document Header ---- */
+  .doc-header {
+    text-align: center;
+    padding: 48px 0 40px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 48px;
+  }
+  .doc-header .version-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+  }
+  .doc-header h1 {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .doc-header .subtitle {
+    font-size: 17px;
+    color: var(--text-secondary);
+    max-width: 560px;
+    margin: 0 auto 20px;
+  }
+  .doc-header .meta {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .doc-header .meta span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ---- Table of Contents ---- */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 28px 32px;
+    margin-bottom: 48px;
+    box-shadow: var(--shadow);
+  }
+  .toc h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+  }
+  .toc ol {
+    list-style: none;
+    counter-reset: toc-counter;
+    columns: 2;
+    column-gap: 32px;
+  }
+  .toc li {
+    counter-increment: toc-counter;
+    margin-bottom: 8px;
+    break-inside: avoid;
+  }
+  .toc li::before {
+    content: counter(toc-counter) ".";
+    font-weight: 600;
+    color: var(--accent);
+    margin-right: 8px;
+  }
+  .toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 15px;
+  }
+  .toc a:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+
+  /* ---- Sections ---- */
+  .section {
+    margin-bottom: 56px;
+  }
+  .section-number {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 4px;
+  }
+  h2 {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 20px;
+    letter-spacing: -0.3px;
+  }
+  h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 32px 0 12px;
+  }
+  h4 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 24px 0 8px;
+  }
+  p {
+    margin-bottom: 14px;
+    color: var(--text);
+  }
+
+  /* ---- Cards ---- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .card-sm {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card-sm .card-label {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .card-sm .card-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  /* ---- Tag ---- */
+  .tag {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 12px;
+    margin-right: 6px;
+    margin-bottom: 4px;
+  }
+  .tag-blue { background: var(--accent-light); color: var(--accent); }
+  .tag-green { background: var(--green-light); color: var(--green); }
+  .tag-orange { background: var(--orange-light); color: var(--orange); }
+  .tag-red { background: var(--red-light); color: var(--red); }
+  .tag-purple { background: #f5f3ff; color: var(--purple); }
+
+  /* ---- Tables ---- */
+  .table-wrapper {
+    overflow-x: auto;
+    margin-bottom: 20px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  thead th {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-light);
+    vertical-align: top;
+  }
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+  tbody tr:hover {
+    background: var(--bg);
+  }
+
+  /* ---- Callouts ---- */
+  .callout {
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .callout-info {
+    background: var(--accent-light);
+    border-left: 4px solid var(--accent);
+    color: #1e40af;
+  }
+  .callout-success {
+    background: var(--green-light);
+    border-left: 4px solid var(--green);
+    color: #065f46;
+  }
+  .callout-warn {
+    background: var(--orange-light);
+    border-left: 4px solid var(--orange);
+    color: #92400e;
+  }
+
+  /* ---- Mermaid Diagrams ---- */
+  .mermaid {
+    margin: 24px 0;
+    text-align: center;
+  }
+  .mermaid svg {
+    max-width: 100%;
+  }
+
+  /* ---- Lists ---- */
+  ul, ol {
+    margin: 8px 0 16px 20px;
+  }
+  li {
+    margin-bottom: 6px;
+  }
+  li strong {
+    color: var(--text);
+  }
+
+  /* ---- Code ---- */
+  code {
+    font-family: "SF Mono", "Fira Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    background: var(--bg-secondary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #c2410c;
+  }
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 20px 24px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    margin: 16px 0;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  pre code {
+    background: none;
+    color: inherit;
+    padding: 0;
+  }
+
+  /* ---- Persona ---- */
+  .persona-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow);
+  }
+  .persona-card .persona-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .persona-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .persona-card .persona-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .persona-card .persona-role {
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+  .persona-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .persona-detail {
+    font-size: 14px;
+  }
+  .persona-detail dt {
+    color: var(--text-tertiary);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+  .persona-detail dd {
+    color: var(--text);
+    margin: 0;
+  }
+
+  /* ---- Scenario Flow ---- */
+  .scenario {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow);
+  }
+  .scenario-step {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step-content h4 {
+    margin: 0 0 4px;
+    font-size: 15px;
+  }
+  .step-content p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  /* ---- API Method Badges ---- */
+  .method {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: "SF Mono", Menlo, monospace;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .method-get { background: #dcfce7; color: #166534; }
+  .method-post { background: var(--accent-light); color: var(--accent-dark); }
+
+  .endpoint-path {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  /* ---- Status Badge ---- */
+  .status-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+  }
+  .status-done { background: var(--green-light); color: var(--green); }
+  .status-wip { background: var(--orange-light); color: var(--orange); }
+  .status-planned { background: #f3f4f6; color: #6b7280; }
+
+  /* ---- Roadmap Timeline ---- */
+  .timeline {
+    position: relative;
+    padding-left: 32px;
+    margin: 20px 0;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 28px;
+  }
+  .timeline-dot {
+    position: absolute;
+    left: -32px;
+    top: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 3px solid var(--accent);
+    z-index: 1;
+  }
+  .timeline-item.active .timeline-dot {
+    background: var(--accent);
+  }
+  .timeline-item.future .timeline-dot {
+    border-color: var(--border);
+    background: var(--bg);
+  }
+  .timeline-version {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .timeline-date {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-bottom: 8px;
+  }
+  .timeline-content {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  /* ---- Responsive ---- */
+  @media (max-width: 768px) {
+    .container { padding: 24px 16px 60px; }
+    .doc-header h1 { font-size: 28px; }
+    .toc ol { columns: 1; }
+    .persona-grid { grid-template-columns: 1fr; }
+    .card-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ==================== DOCUMENT HEADER ==================== -->
+<header class="doc-header">
+  <div class="version-badge">v3.0 PRD</div>
+  <h1>HomeMate 家庭生活助理</h1>
+  <p class="subtitle">基于 Go Gin + MCP 协议的多端家庭协作平台，覆盖健康监测、家务分配、出行规划、积分激励等核心家庭场景</p>
+  <div class="meta">
+    <span>阶段: MVP → Beta</span>
+    <span>创建日期: 2026-07-16</span>
+    <span>技术栈: Go 1.23 / Gin / SQLite / MCP (mcp-go)</span>
+  </div>
+</header>
+
+<!-- ==================== TABLE OF CONTENTS ==================== -->
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#background">需求背景</a></li>
+    <li><a href="#positioning">产品定位与目标用户</a></li>
+    <li><a href="#features">功能需求</a></li>
+    <li><a href="#scenarios">用户场景</a></li>
+    <li><a href="#architecture">技术架构</a></li>
+    <li><a href="#data-model">数据模型</a></li>
+    <li><a href="#api-overview">API 概览</a></li>
+    <li><a href="#roadmap">迭代计划</a></li>
+  </ol>
+</nav>
+
+<!-- ==================== SECTION 1: 需求背景 ==================== -->
+<section class="section" id="background">
+  <div class="section-number">SECTION 01</div>
+  <h2>需求背景</h2>
+
+  <p>一个典型的四口之家，日常运转中充斥着大量低效的信息传递: 健康数据散落在各自的智能手表 App 里，家务分工全靠口头约定，周末去哪玩每次都要在微信群里讨论半天，孩子的锻炼和家务完成情况没有统一的记录和激励手段。这些事情单独来看都不大，但累积起来消耗了大量家庭沟通成本。</p>
+
+  <p>当前家庭数字生活的核心矛盾在于: <strong>家庭成员的健康、出行、劳动、财务等信息分布在各自独立的平台和设备上，没有一个地方能把这些数据汇聚起来，形成完整的家庭视图</strong>。父母查看孩子今天的运动情况需要打开另一个 App，老人想知道自己血压趋势找不到历史记录，想给家务做得好的孩子一个奖励也缺乏量化的依据。</p>
+
+  <p>市面上的产品要么聚焦于个人健康（如 Apple Health、Garmin Connect），要么聚焦于家庭社交（如家庭微信群），要么聚焦于儿童教育激励。没有任何一个产品把"健康监测 + 家务协作 + 出行规划 + 积分激励"这几个家庭高频场景串联起来，形成闭环。</p>
+
+  <div class="callout callout-info">
+    <strong>核心假设</strong>: 家庭需要一个统一的协作平台，将分散在多个设备和 App 中的健康、家务、出行等信息汇聚到一处，用游戏化的积分机制连接各个场景，让家庭成员之间的协作变得可见、可量化、可激励。
+  </div>
+
+  <p>HomeMate v3.0 正是为解决这一问题而构建。基于 MCP（Model Context Protocol）协议，系统能够对接 Garmin、Apple Health、华为健康等多种数据源，通过统一的 Service 层聚合数据，在 Web 端和微信公众号两个渠道为家庭成员提供一致的使用体验。</p>
+
+  <div class="card-grid">
+    <div class="card-sm">
+      <div class="card-label">当前代码规模</div>
+      <div class="card-value">~7,000 行</div>
+    </div>
+    <div class="card-sm">
+      <div class="card-label">文件数量</div>
+      <div class="card-value">48 个</div>
+    </div>
+    <div class="card-sm">
+      <div class="card-label">已实现 API</div>
+      <div class="card-value">34 个端点</div>
+    </div>
+    <div class="card-sm">
+      <div class="card-label">功能模块</div>
+      <div class="card-value">7 个</div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 2: 产品定位与目标用户 ==================== -->
+<section class="section" id="positioning">
+  <div class="section-number">SECTION 02</div>
+  <h2>产品定位与目标用户</h2>
+
+  <h3>产品定位</h3>
+  <p>HomeMate 是一个面向家庭的协作平台，以<strong>健康数据聚合</strong>为核心，向家务分工、出行规划、积分激励等场景延伸。它不是一个替代 Garmin Connect 或 Apple Health 的健康 App，而是一个家庭级别的"数据中台"——把各个成员、各个设备、各个渠道的数据收拢到一处，让家庭协作有据可依。</p>
+
+  <h3>目标用户画像</h3>
+  <div class="persona-grid">
+
+    <div class="persona-card">
+      <div class="persona-header">
+        <div class="persona-avatar" style="background:#3b82f6;">忙</div>
+        <div>
+          <div class="persona-name">忙碌的父母</div>
+          <div class="persona-role">家庭管理员 / 主要决策者</div>
+        </div>
+      </div>
+      <dl class="persona-detail">
+        <dt>痛点</dt><dd>想了解全家健康状况但没有时间逐个查看各 App；家务分工靠催，缺乏量化记录</dd>
+        <dt>使用频率</dt><dd>每天 1-2 次，碎片化查看</dd>
+        <dt>核心诉求</dt><dd>一打开就能看到全家健康概览和家务完成情况</dd>
+      </dl>
+    </div>
+
+    <div class="persona-card">
+      <div class="persona-header">
+        <div class="persona-avatar" style="background:#10b981;">老</div>
+        <div>
+          <div class="persona-name">关注健康的老人</div>
+          <div class="persona-role">家庭成员 / 数据提供者</div>
+        </div>
+      </div>
+      <dl class="persona-detail">
+        <dt>痛点</dt><dd>血压、心率等健康数据分散在多个平台，看不到长期趋势；子女不在身边时缺乏健康提醒</dd>
+        <dt>使用频率</dt><dd>每天查看，重点关注血压和睡眠</dd>
+        <dt>核心诉求</dt><dd>数据自动同步，有异常时家人能及时收到提醒</dd>
+      </dl>
+    </div>
+
+    <div class="persona-card">
+      <div class="persona-header">
+        <div class="persona-avatar" style="background:#f59e0b;">孩</div>
+        <div>
+          <div class="persona-name">需要激励的孩子</div>
+          <div class="persona-role">家庭成员 / 积分参与者</div>
+        </div>
+      </div>
+      <dl class="persona-detail">
+        <dt>痛点</dt><dd>运动和家务的完成情况没人关注，缺乏动力持续坚持</dd>
+        <dt>使用频率</dt><dd>每周几次，关注自己的积分和排行</dd>
+        <dt>核心诉求</dt><dd>完成任务能获得积分和称号，看到自己在排行榜的位置</dd>
+      </dl>
+    </div>
+
+    <div class="persona-card">
+      <div class="persona-header">
+        <div class="persona-avatar" style="background:#8b5cf6;">管</div>
+        <div>
+          <div class="persona-name">家庭管理员</div>
+          <div class="persona-role">系统管理员 / 数据配置者</div>
+        </div>
+      </div>
+      <dl class="persona-detail">
+        <dt>痛点</dt><dd>需要为不同成员配置不同的健康数据源，管理家庭成员的角色和权限</dd>
+        <dt>使用频率</dt><dd>初次配置后低频使用，有新设备或新成员时介入</dd>
+        <dt>核心诉求</dt><dd>配置流程简单直观，支持多种健康设备接入</dd>
+      </dl>
+    </div>
+
+  </div>
+</section>
+
+<!-- ==================== SECTION 3: 功能需求 ==================== -->
+<section class="section" id="features">
+  <div class="section-number">SECTION 03</div>
+  <h2>功能需求</h2>
+
+  <!-- Feature Overview Table -->
+  <h3>功能总览</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;">#</th>
+          <th style="width:140px;">模块</th>
+          <th>功能描述</th>
+          <th style="width:80px;">状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>F1</strong></td>
+          <td>家庭健康总览</td>
+          <td>按个人维度展示步数、心率、睡眠、血压、体重、身高、压力、血氧、身体电量 9 项健康指标。数据从 SQLite 的 health_data_cache 表读取，由数据源配置和同步功能写入。健康总览接口动态读取成员列表和各自最新缓存，自动检测异常（血氧<90、血压>130/85）并生成告警。支持自定义指标添加。</td>
+          <td><span class="status-badge status-done">已完成</span></td>
+        </tr>
+        <tr>
+          <td><strong>F2</strong></td>
+          <td>家务劳动系统</td>
+          <td>家务任务管理，每个任务标注分类、难度和积分奖励。完整流程: 认领 → 完成 → 监督确认。支持通过 API 新增/编辑/删除自定义任务。认领后进入待办列表，标记完成后等待其他成员确认，确认通过后自动联动积分系统加分。家务面板统计（总积分/完成数/参与人数/连续天数）从内存存储动态计算。</td>
+          <td><span class="status-badge status-done">已完成</span></td>
+        </tr>
+        <tr>
+          <td><strong>F3</strong></td>
+          <td>积分可视化系统</td>
+          <td>三类积分维度（运动/健康/劳动），每类积分独立累计并汇总为总积分。等级称号体系（新手 → 全能小能手 → 活力达人 → 运动健将 → 传奇管家），达到阈值自动升级。成员通过 <code>AddPoints()</code> 首次加分时自动创建积分记录。展示家庭总积分、周目标进度环、成员排行榜（按总积分降序）、最近积分变动记录。</td>
+          <td><span class="status-badge status-done">已完成</span></td>
+        </tr>
+        <tr>
+          <td><strong>F4</strong></td>
+          <td>周末出行推荐</td>
+          <td>周末出行方案管理，按分类（户外/运动/文化/美食）标签组织。每个方案标注时长、费用等级、难度、适宜人群和天气要求。初始方案为空，由家庭成员自行添加。投票机制: 每位成员可对方案投票，防重复投票校验，支持取消投票。自定义方案推荐: 任何成员可提交新方案加入候选池。包含周末天气预报信息和出行建议。管理员可确认最终方案。</td>
+          <td><span class="status-badge status-done">已完成</span></td>
+        </tr>
+        <tr>
+          <td><strong>F5</strong></td>
+          <td>多数据源配置</td>
+          <td>支持四种健康数据来源: Garmin Connect、Apple Health、华为健康、手动录入。每个家庭成员可独立配置数据源类型和认证密钥（API Key）。配置持久化到 SQLite 的 data_source_config 表。同步操作写入 health_data_cache 缓存表。前端配置弹窗支持成员下拉选择、数据源类型选择、API Key 输入。同步状态和最近同步时间实时展示。</td>
+          <td><span class="status-badge status-done">已完成</span></td>
+        </tr>
+        <tr>
+          <td><strong>F6</strong></td>
+          <td>多角色权限</td>
+          <td>五种角色: admin（管理员）、adult（成人）、child（儿童）、elder（长者）、guest（访客）。基于 JWT 的身份认证，登录时签发包含 user_id、username、role、family_id 的 Token。Dashboard 按角色差异化展示。路由级权限控制: 认证路由组需要有效 JWT，角色中间件校验操作权限。</td>
+          <td><span class="status-badge status-done">已完成</span></td>
+        </tr>
+        <tr>
+          <td><strong>F7</strong></td>
+          <td>多渠道通信</td>
+          <td>Web 渠道: REST API + WebSocket 双模式。微信公众号渠道: 接收微信 XML 回调消息，通过 OpenID 绑定家庭成员身份，支持消息交互和推送通知。</td>
+          <td><span class="status-badge status-wip">进行中</span></td>
+        </tr>
+        <tr>
+          <td><strong>F8</strong></td>
+          <td>成员管理增强</td>
+          <td>家庭成员完整 CRUD，创建时配置角色（5 种）、Health 关注指标（9 项复选：步数/心率/睡眠/血压/体重/身高/压力/血氧/身体电量）、数据采集模块插件（Garmin/Apple Health/华为/手动）。数据持久化到 SQLite，角色标签色彩区分，支持编辑和删除。</td>
+          <td><span class="status-badge status-done">已完成</span></td>
+        </tr>
+        <tr>
+          <td><strong>F9</strong></td>
+          <td>大屏综合展示</td>
+          <td>聚合 4 大板块：家庭健康总览（成员指标+状态色标+告警）、今日家务（统计+时间线）、活动推荐（天气+方案投票）、积分动态（周目标进度+排行）。卡片式布局，支持 API 自动刷新。</td>
+          <td><span class="status-badge status-done">已完成</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Module Detail: F1 Health -->
+  <h3>F1 — 家庭健康总览</h3>
+
+  <div class="mermaid">
+  graph LR
+    subgraph 数据源
+      G[Garmin 手表]
+      H[华为手环]
+      A[Apple Health]
+      M[手动录入]
+    end
+    subgraph MCP 层
+      GM[garmin-mcp]
+      HM[health-mcp]
+    end
+    subgraph Service 层
+      SVC[HealthMonitor]
+      STORE[HealthStore]
+    end
+    subgraph API 层
+      API1[/health/summary]
+      API2[/health/real]
+      API3[/health/sync]
+    end
+    G --> GM --> SVC --> STORE
+    H --> HM --> SVC
+    A --> SVC
+    M --> SVC
+    SVC --> API1
+    SVC --> API2
+    SVC --> API3
+  </div>
+
+  <h4>业务逻辑</h4>
+  <ul>
+    <li>系统从已配置的数据源获取每个成员的健康数据，按日聚合存储到 <code>health_data_cache</code> 表</li>
+    <li>Garmin 数据通过 <code>garmin-mcp</code> 子进程以 stdio 方式通信，调用 <code>getDailyHealth</code> 工具获取当日数据</li>
+    <li>华为/Apple Health 数据源预留接口，<code>HealthMonitor</code> 已实现 <code>SyncHuaweiData</code> 方法，待对应 MCP Server 接入</li>
+    <li>健康评估规则: 周均步数 ≥ 8000 且周均睡眠 ≥ 7h → "优秀"；周均步数 ≥ 6000 且周均睡眠 ≥ 6h → "良好"；周均步数 ≥ 4000 且周均睡眠 ≥ 5h → "一般"；其余 → "需关注"</li>
+  </ul>
+
+  <h4>交互逻辑</h4>
+  <ul>
+    <li>进入 Dashboard 页面，默认展示"今日健康"卡片组，每个成员一张卡片</li>
+    <li>卡片包含 9 项指标的当日值，无数据显示 "--"</li>
+    <li>点击"同步数据"按钮，触发增量同步（调用 <code>/health/sync</code>），同步期间显示加载状态</li>
+    <li>支持点击指标查看近 7 天趋势</li>
+  </ul>
+
+  <h4>规则约束</h4>
+  <ul>
+    <li>数据源配置: <code>source_type</code> 枚举值 garmin / apple_health / huawei / manual</li>
+    <li>API Key、API Secret 字段在列表接口中脱敏显示（仅展示前 4 位）</li>
+    <li>同步操作有 30 秒超时保护（配置项 <code>mcp_timeout</code>）</li>
+  </ul>
+
+  <!-- Module Detail: F2 Chores -->
+  <h3>F2 — 家务劳动系统</h3>
+
+  <div class="mermaid">
+  stateDiagram-v2
+    [*] --> Available: 任务库中
+    Available --> Claimed: 成员认领
+    Claimed --> Completed: 标记完成
+    Completed --> Confirmed: 其他成员确认
+    Confirmed --> [*]: 积分入账
+    Claimed --> Overdue: 超过截止时间
+  </div>
+
+  <h4>业务逻辑</h4>
+  <ul>
+    <li>预定义 10 种家务任务，每种任务有固定的分类（cleaning/cooking/laundry/organizing/other）、难度（easy/medium/hard）和积分奖励（5-25 分）</li>
+    <li>任务流程为: 成员认领 → 标记完成 → 其他成员监督确认 → 确认通过后自动调用 <code>points.AddPoints()</code> 加分</li>
+    <li>认领时记录认领人、认领时间、截止时间（默认 24 小时）</li>
+    <li>只有状态为 <code>completed</code> 的认领记录才能被确认</li>
+  </ul>
+
+  <h4>交互逻辑</h4>
+  <ul>
+    <li>Dashboard 展示任务网格（图标 + 名称 + 积分），点击任务卡片弹出认领确认框</li>
+    <li>认领成功后任务进入"我的待办"列表，状态标签显示"待完成"</li>
+    <li>完成待办后状态变为"待确认"，其他成员看到确认按钮</li>
+    <li>确认通过后弹出积分奖励提示，任务归档到"今日完成记录"</li>
+  </ul>
+
+  <h4>积分联动规则</h4>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr><th>任务</th><th>难度</th><th>积分</th><th>积分类型</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>倒垃圾</td><td>easy</td><td>5</td><td>劳动</td></tr>
+        <tr><td>晾衣服</td><td>easy</td><td>5</td><td>劳动</td></tr>
+        <tr><td>洗碗</td><td>easy</td><td>8</td><td>劳动</td></tr>
+        <tr><td>买菜</td><td>easy</td><td>8</td><td>劳动</td></tr>
+        <tr><td>洗衣服</td><td>easy</td><td>10</td><td>劳动</td></tr>
+        <tr><td>扫地拖地</td><td>easy</td><td>10</td><td>劳动</td></tr>
+        <tr><td>整理房间</td><td>medium</td><td>15</td><td>劳动</td></tr>
+        <tr><td>擦窗户</td><td>hard</td><td>15</td><td>劳动</td></tr>
+        <tr><td>做饭</td><td>medium</td><td>20</td><td>劳动</td></tr>
+        <tr><td>深度清洁</td><td>hard</td><td>25</td><td>劳动</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Module Detail: F3 Points -->
+  <h3>F3 — 积分可视化系统</h3>
+
+  <h4>业务逻辑</h4>
+  <ul>
+    <li>积分按三个维度分类统计: 运动（exercise）、健康（health）、劳动（chorse），汇总为总积分</li>
+    <li>等级称号和升级阈值: 总积分 ≥ 1500 → "运动新星"；≥ 2000 → "活力少年"；≥ 2500 → "全能小能手" → "活力达人"；≥ 3000 → "运动健将"（路径根据当前等级动态推算）</li>
+    <li>积分来源: 家务确认完成自动加分（调用 <code>AddPoints</code>），运动和健康积分目前手动记录，后续通过 MCP 自动采集</li>
+    <li>排行榜按总积分降序排列，同分按劳动积分再排</li>
+  </ul>
+
+  <h4>交互逻辑</h4>
+  <ul>
+    <li>积分 Dashboard 顶部展示家庭总积分和本周目标进度环（默认周目标 500 分）</li>
+    <li>中部为成员卡片列表，每张卡片展示: 姓名、总积分、三维度积分柱状条、等级称号、距下一等级所需积分</li>
+    <li>底部为最近积分变动时间线，标注来源类型和分值</li>
+  </ul>
+
+  <!-- Module Detail: F4 Weekend -->
+  <h3>F4 — 周末出行推荐</h3>
+
+  <h4>业务逻辑</h4>
+  <ul>
+    <li>系统预置 6 种推荐方案，每种方案包含: 标题、描述、图标、分类标签、时长、费用等级、难度、适宜人群、天气要求、出行建议</li>
+    <li>投票机制: 每位成员对每个方案只能投一票，重复投票返回错误提示；支持取消投票（取消后重新统计结果）</li>
+    <li>自定义方案: 任何成员可提交新方案，系统自动分配 ID 并加入候选池，参与投票</li>
+    <li>确认方案: 管理员角色可确认最终选定方案，确认后推送通知全体成员</li>
+    <li>投票结果按票数降序排列，票数最高的方案标记为"当前领先"</li>
+  </ul>
+
+  <h4>交互逻辑</h4>
+  <ul>
+    <li>进入周末出行页面，顶部展示本周末日期范围和天气预报（周六/周日天气、温度、出行建议）</li>
+    <li>中部为方案卡片网格，每张卡片展示图标、标题、分类标签、时长/费用/难度、投票按钮</li>
+    <li>底部为投票结果柱状图，实时更新投票数和领先状态</li>
+    <li>"添加方案"按钮打开表单，填写方案详情后提交</li>
+  </ul>
+
+  <h4>权限逻辑</h4>
+  <ul>
+    <li>所有家庭成员可查看方案、投票、取消投票、提交自定义方案</li>
+    <li>仅 admin 角色可执行"确认选定方案"操作</li>
+  </ul>
+
+  <!-- Module Detail: F5 DataSource -->
+  <h3>F5 — 多数据源配置</h3>
+
+  <h4>业务逻辑</h4>
+  <ul>
+    <li>每个家庭成员独立配置健康数据源，支持一个成员同时配置多个数据源（如 Garmin 用于运动数据、手动录入用于血压数据）</li>
+    <li>数据源类型: <code>garmin</code>（通过 garmin-mcp stdio 通信）、<code>apple_health</code>（预留）、<code>huawei</code>（通过 health-mcp）、<code>manual</code>（手动录入）</li>
+    <li>配置项: 数据源类型、API Key、激活状态。配置通过 <code>POST /api/health/config</code> 持久化到 SQLite <code>data_source_config</code> 表（INSERT OR REPLACE 语义，按 member_id 去重）</li>
+    <li>同步操作 <code>POST /api/health/sync</code> 查找成员的数据源配置后，写入 <code>health_data_cache</code> 缓存表，同时更新配置的 <code>last_sync_at</code> 和 <code>is_active</code></li>
+    <li>健康总览 <code>GET /api/health/summary</code> 从数据库读取成员列表，再查询各自最新的 <code>health_data_cache</code> 记录，动态生成指标列表（步数/心率/睡眠/血压/体重/身高/压力/血氧/身体电量），自动检测异常并生成告警</li>
+  </ul>
+
+  <h4>交互逻辑</h4>
+  <ul>
+    <li>在设置页面"数据源配置"卡片中管理所有成员的数据源</li>
+    <li>按成员分组展示已配置的数据源列表，显示成员头像、数据源类型图标、激活状态、最近同步时间</li>
+    <li>点击"+ 添加数据源"虚线按钮打开配置弹窗，选择成员（下拉）、数据源类型（下拉）、填写 API Key（可选）后保存</li>
+    <li>已配置的数据源可点击"配置"修改，或点击"同步"触发数据拉取</li>
+    <li>前端使用动态成员映射（<code>memberColors</code>/<code>memberNames</code>），成员颜色由 <code>updateMemberMaps()</code> 根据 API 返回的成员列表自动分配</li>
+  </ul>
+
+  <!-- Module Detail: F6 Auth -->
+  <h3>F6 — 多角色权限</h3>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr><th>角色</th><th>标识</th><th>权限范围</th><th>Dashboard 差异</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>管理员</td>
+          <td><code>admin</code></td>
+          <td>全部功能，包括成员管理、数据源配置、方案确认、系统设置</td>
+          <td>展示全局管理面板，含成员管理入口和系统状态</td>
+        </tr>
+        <tr>
+          <td>成人</td>
+          <td><code>adult</code></td>
+          <td>健康查看、家务认领/确认、出行投票、积分查看</td>
+          <td>标准 Dashboard，含健康概览和家务面板</td>
+        </tr>
+        <tr>
+          <td>儿童</td>
+          <td><code>child</code></td>
+          <td>健康查看（自己的）、家务认领、出行投票、积分查看</td>
+          <td>聚焦积分和任务，简化健康数据展示</td>
+        </tr>
+        <tr>
+          <td>长者</td>
+          <td><code>elder</code></td>
+          <td>健康查看（自己的）、家务认领、出行投票</td>
+          <td>聚焦健康数据和简单操作，字体放大</td>
+        </tr>
+        <tr>
+          <td>访客</td>
+          <td><code>guest</code></td>
+          <td>仅查看公开信息，无操作权限</td>
+          <td>只读视图，隐藏操作按钮</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>认证流程</h4>
+  <ul>
+    <li>用户提交用户名和密码到 <code>POST /api/auth/login</code></li>
+    <li>服务端验证通过后签发 JWT Token，Claims 包含 <code>user_id</code>、<code>username</code>、<code>role</code>、<code>family_id</code></li>
+    <li>后续请求在 <code>Authorization: Bearer &lt;token&gt;</code> 头中携带 Token</li>
+    <li>AuthMiddleware 校验 Token 有效性，RoleMiddleware 校验角色权限</li>
+  </ul>
+
+  <!-- Module Detail: F8 Member Management -->
+  <h3>F8 — 成员管理增强</h3>
+
+  <h4>业务逻辑</h4>
+  <ul>
+    <li>家庭成员 CRUD：支持创建、查看详情、更新、删除成员，数据持久化到 SQLite</li>
+    <li>创建成员时必须配置三个维度：<strong>角色</strong>（admin/adult/child/elder/guest）、<strong>Health 关注指标</strong>（从 9 种健康指标中勾选）、<strong>数据采集模块插件</strong>（garmin/apple_health/huawei/manual）</li>
+    <li>角色决定 Dashboard 视图和权限范围（admin 看全局、adult 看自己+孩子、child 眀简化、elder 看大字版）</li>
+    <li>Health 关注指标决定该成员在健康总览 Tab 中默认显示哪些指标卡片</li>
+    <li>数据采集模块决定该成员的数据来源：Garmin 通过 MCP 自动拉取、Apple Health 待对接、华为待对接、manual 为手动录入</li>
+  </ul>
+
+  <h4>交互逻辑</h4>
+  <ul>
+    <li>成员列表以卡片网格展示，每张卡片包含：头像（角色色彩）、姓名、角色标签、年龄、数据源、关注指标标签</li>
+    <li>新增/编辑对话框包含：姓名输入、角色下拉选择、年龄输入、9 项关注指标复选框、数据源下拉选择</li>
+    <li>所有操作（增删改）通过 API 持久化到 SQLite，DB 不可用时返回错误提示</li>
+    <li>删除操作通过 <code>DELETE /api/members/:id</code> 执行真实数据库删除</li>
+  </ul>
+
+  <h4>数据模型变更</h4>
+  <ul>
+    <li><code>family_members</code> 表新增列：<code>health_focus TEXT</code>（逗号分隔的关注指标）和 <code>data_source_plugin TEXT</code>（数据源插件类型）</li>
+    <li>Store 层新增 <code>UpdateMember()</code>、<code>GetMemberByID()</code>、<code>DeleteMember()</code> 方法</li>
+    <li>新增 <code>migrate()</code> 方法：使用 <code>pragma_table_info</code> 检查列是否存在，不存在则 <code>ALTER TABLE ADD COLUMN</code>，兼容旧数据库无需手动迁移</li>
+  </ul>
+
+  <!-- Module Detail: F9 Big Screen -->
+  <h3>F9 — 大屏综合展示</h3>
+
+  <h4>业务逻辑</h4>
+  <ul>
+    <li>大屏接口 <code>GET /api/dashboard/bigscreen</code> 聚合 4 大板块数据：家庭健康总览、今日家务、活动推荐、积分动态</li>
+    <li>家务板块数据从 chorse 包的 <code>GetTodayRecords()</code> 和 <code>GetMemberContrib()</code> 动态获取，非硬编码</li>
+    <li>积分板块数据从 points 包的 <code>GetMembersSnapshot()</code> 动态获取，按总积分排序后生成排行榜</li>
+    <li>健康板块从数据库读取成员和各自最新的健康缓存，动态生成指标和状态色标（green/yellow/red），底部显示告警</li>
+    <li>活动推荐板块显示周末天气 + 方案卡片（领先标记），方案数据来自 weekend handler 的 proposals 变量</li>
+    <li>前端以卡片式布局展示各板块，页面加载时自动调用 API 获取聚合数据</li>
+  </ul>
+
+  <h4>交互逻辑</h4>
+  <ul>
+    <li>大屏 Tab 在导航栏中独立入口，与各功能 Tab 平级</li>
+    <li>每个板块以白卡片展示，标题带图标，内容使用网格布局适配不同数据类型</li>
+    <li>页面加载和切换到大屏 Tab 时自动调用 API 获取聚合数据</li>
+    <li>家务确认后大屏数据自动联动更新（家务面板与大屏共享同一内存存储）</li>
+  </ul>
+
+  <!-- Module Detail: F7 Channels -->
+  <h3>F7 — 多渠道通信</h3>
+
+  <div class="mermaid">
+  graph TB
+    subgraph 渠道
+      WEB[Web 浏览器]
+      WX[微信公众号]
+    end
+    subgraph 接入层
+      REST[REST API]
+      WS[WebSocket]
+      WCB[微信 XML 回调]
+      WBIND[OpenID 绑定]
+    end
+    subgraph 服务层
+      SVC[业务 Service]
+    end
+    WEB --> REST --> SVC
+    WEB --> WS --> SVC
+    WX --> WCB --> SVC
+    WX --> WBIND --> SVC
+  </div>
+
+  <h4>Web 渠道</h4>
+  <ul>
+    <li>REST API 提供 CRUD 操作，标准 JSON 请求/响应</li>
+    <li>WebSocket（<code>/api/chat/ws</code>）用于实时聊天和推送通知</li>
+    <li>AI Agent 通过 <code>/api/chat</code> 提供对话式交互（基于 OpenAI 接口）</li>
+  </ul>
+
+  <h4>微信公众号渠道</h4>
+  <ul>
+    <li>微信服务器发送 XML 格式消息到 <code>/api/wechat/callback</code>，系统解析后路由到对应 Service</li>
+    <li>通过 <code>/api/wechat/bind</code> 将微信 OpenID 与家庭成员账户绑定</li>
+    <li>绑定后可通过微信公众号查询健康数据、查看积分、接收提醒通知</li>
+  </ul>
+</section>
+
+<!-- ==================== SECTION 4: 用户场景 ==================== -->
+<section class="section" id="scenarios">
+  <div class="section-number">SECTION 04</div>
+  <h2>用户场景</h2>
+
+  <!-- Scenario 1 -->
+  <div class="scenario">
+    <h3>场景一: 每日健康监测</h3>
+    <p style="margin-bottom:20px;color:var(--text-secondary);">妈妈早上起床后打开 HomeMate，查看全家人的健康状态。爸爸的 Garmin 数据已自动同步，老人的血压需要手动录入，孩子的运动数据来自前一天的记录。</p>
+    <div class="scenario-step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <h4>打开健康总览</h4>
+        <p>妈妈进入 Dashboard，看到四张成员健康卡片。爸爸的卡片显示步数 8,234、心率 72bpm、睡眠 7.2h，数据来源标注 "Garmin - 今日 06:30 同步"。其他成员数据来源标注"手动录入"。</p>
+      </div>
+    </div>
+    <div class="scenario-step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <h4>录入老人血压</h4>
+        <p>妈妈切换到老人（爷爷）的健康卡片，点击"录入数据"，选择"血压"指标，输入收缩压 128 / 舒张压 82，提交后数据保存到 health_records 表。</p>
+      </div>
+    </div>
+    <div class="scenario-step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <h4>查看周趋势</h4>
+        <p>点击爸爸的"步数"指标，展开近 7 天步数折线图，确认本周运动量稳定。健康评估标签显示"优秀"（绿色）。</p>
+      </div>
+    </div>
+    <div class="scenario-step">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <h4>同步 Garmin 数据</h4>
+        <p>点击"同步数据"按钮，系统调用 <code>/health/sync</code>，通过 garmin-mcp stdio 进程获取爸爸的最新数据。同步完成后刷新 Dashboard。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scenario 2 -->
+  <div class="scenario">
+    <h3>场景二: 周末出行投票</h3>
+    <p style="margin-bottom:20px;color:var(--text-secondary);">周四晚上，全家讨论这周末去哪里玩。爸爸打开 HomeMate 的周末出行页面，看到 6 个推荐方案和天气预报，全家在系统里投票决定。</p>
+    <div class="scenario-step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <h4>查看推荐方案</h4>
+        <p>爸爸进入周末出行页面，顶部显示"本周末: 2026-07-19 ~ 07-20"，天气预报: 周六晴 28-35°C，周日多云。6 个方案卡片按分类排列。</p>
+      </div>
+    </div>
+    <div class="scenario-step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <h4>家庭成员投票</h4>
+        <p>爸爸投了"西湖骑行"（天气晴适合户外），妈妈投了"浙江省博物馆"（免费且室内），儿子和女儿投了"湘湖露营野餐"。投票结果实时更新: 湘湖露营 2 票领先。</p>
+      </div>
+    </div>
+    <div class="scenario-step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <h4>女儿提交自定义方案</h4>
+        <p>女儿觉得现有方案都不错，但又想到"室内攀岩体验"。点击"添加方案"，填写详情后提交，新方案立即出现在候选池中参与投票。</p>
+      </div>
+    </div>
+    <div class="scenario-step">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <h4>爸爸取消并重投</h4>
+        <p>爸爸看到湘湖露营领先，觉得天气太热不适合露营。取消自己之前的投票，改投"室内攀岩体验"。结果更新: 湘湖露营和室内攀岩各 2 票并列。</p>
+      </div>
+    </div>
+    <div class="scenario-step">
+      <div class="step-number">5</div>
+      <div class="step-content">
+        <h4>妈妈确认最终方案</h4>
+        <p>作为 admin 角色，妈妈查看投票结果后确认"室内攀岩体验"为最终方案。系统记录选定方案，准备推送通知。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scenario 3 -->
+  <div class="scenario">
+    <h3>场景三: 家务积分激励</h3>
+    <p style="margin-bottom:20px;color:var(--text-secondary);">儿子主动倒了垃圾和整理了房间，希望通过完成家务获取积分，冲击排行榜第一。爸爸作为监督者确认完成情况。</p>
+    <div class="scenario-step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <h4>儿子认领任务</h4>
+        <p>儿子打开家务面板，看到任务网格。选择"倒垃圾"（5 分）和"整理房间"（15 分），点击认领。两条认领记录进入待办列表，状态为"待完成"。</p>
+      </div>
+    </div>
+    <div class="scenario-step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <h4>标记完成</h4>
+        <p>儿子完成两项家务后，在待办列表中点击"标记完成"。状态变为"待确认"，等待其他家庭成员监督确认。</p>
+      </div>
+    </div>
+    <div class="scenario-step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <h4>爸爸监督确认</h4>
+        <p>爸爸在"待确认"列表中看到儿子的两条记录，确认垃圾已倒、房间已整理后，点击"确认完成"。系统调用 <code>points.AddPoints("儿子", "chorse", "劳动", "倒垃圾", 5)</code> 和 <code>points.AddPoints("儿子", "chorse", "劳动", "整理房间", 15)</code>，总计增加 20 分。</p>
+      </div>
+    </div>
+    <div class="scenario-step">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <h4>查看积分变化</h4>
+        <p>儿子查看积分面板，总积分从 1,520 增长到 1,540，距离下一等级"活力少年"还差 460 分。积分时间线新增两条记录: "倒垃圾 +5"和"整理房间 +15"。排行榜中儿子的排名不变（第 4 名），但与第 3 名差距缩小。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 5: 技术架构 ==================== -->
+<section class="section" id="architecture">
+  <div class="section-number">SECTION 05</div>
+  <h2>技术架构</h2>
+
+  <h3>整体架构</h3>
+
+  <div class="mermaid">
+  graph TB
+    subgraph 客户端
+      WEB[Web 前端<br/>index.html]
+      WX[微信公众号<br/>XML 回调]
+    end
+
+    subgraph 接入层 Handler
+      AUTH[auth handler]
+      HLTH[health handler]
+      CHOR[chorse handler]
+      PNTS[points handler]
+      WKND[weekend handler]
+      TRIP[trip handler]
+      DASH[dashboard handler]
+      MBM[member handler]
+      CAL[calendar handler]
+      CHAT[chat handler]
+      WCB[wechat handler]
+      IOT[iot handler]
+      FBK[feedback handler]
+    end
+
+    subgraph 业务层 Service
+      AGT[Agent Engine<br/>OpenAI 对话]
+      HMON[Health Monitor<br/>多数据源聚合]
+      TPLN[Trip Planner<br/>出行规划]
+      CSYNC[Calendar Sync<br/>日历同步]
+      DIET[Diet Nutrition<br/>饮食营养]
+      FIN[Finance Tracker<br/>财务追踪]
+      KNW[Knowledge Manager<br/>知识库]
+      IOTC[IoT Controller<br/>智能家居]
+    end
+
+    subgraph 基础设施
+      MCPM[MCP Manager<br/>注册表 + 连接池]
+      STORE[SQLite Store<br/>11 张表]
+      GM[garmin-mcp<br/>stdio]
+      HM[health-mcp<br/>stdio]
+      WM[weather-mcp<br/>stdio]
+    end
+
+    WEB --> AUTH
+    WEB --> HLTH
+    WEB --> CHOR
+    WEB --> PNTS
+    WEB --> WKND
+    WX --> WCB
+
+    AUTH --> AGT
+    HLTH --> HMON
+    CHOR --> PNTS
+    WKND --> TPLN
+    TRIP --> TPLN
+    CHAT --> AGT
+    IOT --> IOTC
+
+    HMON --> MCPM
+    HMON --> STORE
+    TPLN --> MCPM
+    TPLN --> STORE
+    AGT --> STORE
+    IOTC --> MCPM
+
+    MCPM --> GM
+    MCPM --> HM
+    MCPM --> WM
+  </div>
+
+  <h3>三层架构说明</h3>
+
+  <h4>Handler 层（接入层）</h4>
+  <p>负责 HTTP 请求处理、参数校验、响应格式化。当前 13 个 handler 模块，覆盖认证、健康、家务、积分、出行、成员、日历、聊天、微信、IoT、反馈、Dashboard 等功能。所有 handler 返回统一 JSON 格式: <code>{"code": 0, "message": "success", "data": {...}}</code>。DB 实例通过 <code>NewRouter(db)</code> 参数注入，在路由注册前添加 Gin 中间件将 DB 设置到 <code>gin.Context</code> 中，handler 通过 <code>c.Get("db")</code> 获取。chorse、points、weekend 使用内存存储（包级变量），成员管理和数据源配置通过 Store 层持久化到 SQLite。大屏 Dashboard 通过跨包函数调用（<code>chorse.GetTodayRecords()</code>、<code>points.GetMembersSnapshot()</code>）聚合真实数据。</p>
+
+  <h4>Service 层（业务层）</h4>
+  <p>负责业务逻辑、数据聚合、外部服务调用。8 个 Service 模块: agent（AI 对话引擎）、trip（出行规划）、health（健康监测）、diet（饮食营养）、finance（财务追踪）、knowledge（知识库管理）、calendar（日历同步）、iot（智能家居控制）。Service 层通过 MCP Manager 调用外部 MCP Server 获取数据，通过 Store 层持久化到 SQLite。</p>
+
+  <h4>Store / MCP 层（基础设施层）</h4>
+  <p>Store 层封装 SQLite 数据库操作，提供 CRUD 接口。MCP Manager 包含两部分: Registry（服务注册表，维护所有 MCP Server 的配置和能力元数据）和 MCPClientManager（客户端连接池，管理多个 MCP Server 的连接、工具调用和生命周期）。当前已注册 3 个 MCP Server 子进程: garmin-mcp、health-mcp、weather-mcp，均通过 stdio 方式通信。</p>
+
+  <h3>MCP 协议集成</h3>
+
+  <div class="mermaid">
+  sequenceDiagram
+    participant API as API Handler
+    participant SVC as HealthMonitor
+    participant REG as MCP Registry
+    participant MGR as MCPClientManager
+    participant MCP as garmin-mcp
+
+    API->>SVC: SyncGarminData(memberID)
+    SVC->>REG: GetToolsForCategory("health")
+    REG-->>SVC: [{name:"garmin-mcp", metadata:{brand:"garmin"}}]
+    SVC->>MGR: CallTool("garmin-mcp", "getDailyHealth", {member_id, date})
+    MGR->>MCP: stdio: CallToolRequest
+    MCP-->>MGR: CallToolResult (steps, heart_rate, sleep...)
+    MGR-->>SVC: parsed result
+    SVC->>SVC: SaveHealthData()
+    SVC-->>API: nil (success)
+  </div>
+
+  <h4>MCP Manager 工作机制</h4>
+  <ul>
+    <li><strong>注册阶段</strong>: 启动时从配置文件读取 MCP Server 列表，调用 <code>Registry.Register()</code> 注册每个 Server 的名称、传输方式（stdio/sse）、命令、参数、分类和工具列表</li>
+    <li><strong>连接阶段</strong>: 调用 <code>MCPClientManager.Connect()</code> 启动子进程（stdio）或建立 HTTP 连接（sse），发送 InitializeRequest 完成握手</li>
+    <li><strong>调用阶段</strong>: Service 通过 <code>CallTool()</code> 传递 Server 名称、工具名称和参数，MCP Manager 路由到对应连接并转发请求</li>
+    <li><strong>分类路由</strong>: Registry 支持按 Category（weather/health/flight/map/iot/food/knowledge/calendar）查找 Server，Service 可按需发现同类服务的多个实例</li>
+  </ul>
+
+  <h3>数据流概览</h3>
+
+  <div class="mermaid">
+  graph LR
+    subgraph 外部数据
+      G[Garmin API]
+      W[高德地图 API]
+      R[飞常准 API]
+    end
+    subgraph MCP Server
+      GM[garmin-mcp]
+      HM[health-mcp]
+      WM[weather-mcp]
+    end
+    subgraph HomeMate Server
+      MGR[MCP Manager]
+      SVC[Service Layer]
+      DB[(SQLite)]
+    end
+    subgraph 客户端
+      WEB[Web]
+      WX[微信]
+    end
+
+    G --> GM --> MGR --> SVC
+    W --> WM --> MGR
+    R --> HM --> MGR
+    SVC --> DB
+    SVC --> WEB
+    SVC --> WX
+  </div>
+</section>
+
+<!-- ==================== SECTION 6: 数据模型 ==================== -->
+<section class="section" id="data-model">
+  <div class="section-number">SECTION 06</div>
+  <h2>数据模型</h2>
+
+  <h3>ER 关系图</h3>
+
+  <div class="mermaid">
+  erDiagram
+    users ||--o{ family_members : "user_id"
+    family_members ||--o{ health_records : "member_id"
+    family_members ||--o{ calendar_events : "member_id"
+    family_members ||--o{ chat_messages : "member_id"
+    family_members ||--o{ reminders : "member_id"
+    family_members ||--o{ device_data : "member_id"
+    family_members ||--o{ feedback_records : "member_id"
+    users ||--o{ trip_plans : "created_by"
+
+    users {
+      int64 id PK
+      text username UK
+      text password_hash
+      text role
+      datetime created_at
+    }
+    family_members {
+      int64 id PK
+      int64 user_id FK
+      text name
+      text role
+      int age
+      text preferences_json
+      datetime created_at
+    }
+    health_records {
+      int64 id PK
+      int64 member_id FK
+      text record_type
+      text value
+      text unit
+      datetime recorded_at
+      text source
+    }
+    calendar_events {
+      int64 id PK
+      int64 member_id FK
+      text title
+      text description
+      datetime start_time
+      datetime end_time
+      text location
+      text event_type
+    }
+    trip_plans {
+      int64 id PK
+      text title
+      text destination
+      text start_date
+      text end_date
+      text status
+      text plan_json
+      int64 created_by FK
+    }
+    chat_messages {
+      int64 id PK
+      int64 member_id FK
+      text content
+      text role
+      datetime timestamp
+      text session_id
+    }
+    reminders {
+      int64 id PK
+      int64 member_id FK
+      text title
+      text content
+      datetime remind_at
+      text status
+      text channel
+    }
+    device_data {
+      int64 id PK
+      int64 member_id FK
+      text device_type
+      text data_json
+      datetime received_at
+    }
+    feedback_records {
+      int64 id PK
+      int64 member_id FK
+      text item_name
+      text item_type
+      int rating
+      text comment
+      datetime created_at
+    }
+  </div>
+
+  <h3>核心表说明</h3>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>表名</th>
+          <th>用途</th>
+          <th>关键字段</th>
+          <th>关联</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>users</code></td>
+          <td>系统用户账户，存储认证信息</td>
+          <td>username (UK), password_hash, role</td>
+          <td>关联 family_members</td>
+        </tr>
+        <tr>
+          <td><code>family_members</code></td>
+          <td>家庭成员信息，角色、偏好</td>
+          <td>user_id (FK), name, role, age, preferences_json</td>
+          <td>关联 users，被 health/calendar/chat 等表引用</td>
+        </tr>
+        <tr>
+          <td><code>health_records</code></td>
+          <td>健康数据记录</td>
+          <td>member_id (FK), record_type, value, unit, source</td>
+          <td>关联 family_members</td>
+        </tr>
+        <tr>
+          <td><code>calendar_events</code></td>
+          <td>日历事件</td>
+          <td>member_id (FK), title, start_time, end_time, event_type</td>
+          <td>关联 family_members</td>
+        </tr>
+        <tr>
+          <td><code>trip_plans</code></td>
+          <td>出行计划</td>
+          <td>title, destination, status, plan_json, created_by (FK)</td>
+          <td>关联 users</td>
+        </tr>
+        <tr>
+          <td><code>chat_messages</code></td>
+          <td>聊天消息记录</td>
+          <td>member_id (FK), content, role, session_id</td>
+          <td>关联 family_members</td>
+        </tr>
+        <tr>
+          <td><code>reminders</code></td>
+          <td>提醒事项</td>
+          <td>member_id (FK), title, remind_at, status, channel</td>
+          <td>关联 family_members</td>
+        </tr>
+        <tr>
+          <td><code>device_data</code></td>
+          <td>IoT 设备上报数据</td>
+          <td>member_id (FK), device_type, data_json</td>
+          <td>关联 family_members</td>
+        </tr>
+        <tr>
+          <td><code>feedback_records</code></td>
+          <td>反馈评分记录</td>
+          <td>member_id (FK), item_name, item_type, rating</td>
+          <td>关联 family_members</td>
+        </tr>
+        <tr>
+          <td><code>health_data_cache</code></td>
+          <td>健康数据缓存（聚合后的结构化数据）</td>
+          <td>member_id, date, steps, heart_rate, sleep_hours, sleep_score, blood_pressure_sys/dia, weight, height, stress, spo2, body_battery, source</td>
+          <td>逻辑关联 family_members</td>
+        </tr>
+        <tr>
+          <td><code>data_source_configs</code></td>
+          <td>成员数据源配置</td>
+          <td>member_id, source_type, api_key, api_secret, user_id, is_active, last_sync_at</td>
+          <td>逻辑关联 family_members</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout callout-warn">
+    <strong>当前状态</strong>: health_records 和 health_data_cache 存在数据模型重叠。health_data_cache 是聚合后的缓存表（由 MCP 同步写入），health_records 是通用的原始记录表（支持手动录入和任意指标）。后续需明确两者的职责边界: health_data_cache 负责 MCP 自动同步的标准化数据，health_records 负责手动录入和非标准指标。
+  </div>
+</section>
+
+<!-- ==================== SECTION 7: API 概览 ==================== -->
+<section class="section" id="api-overview">
+  <div class="section-number">SECTION 07</div>
+  <h2>API 概览</h2>
+
+  <p>共 41 个 API 端点，按功能模块分类。其中 24 个公开端点（无需认证），17 个认证端点（需要 JWT Token）。成员管理、大屏展示、数据源配置等家庭内部工具路由设为公开，降低使用门槛。</p>
+
+  <h3>公开端点（无需认证）</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr><th style="width:60px;">方法</th><th>路径</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/auth/login</td>
+          <td>用户登录，返回 JWT Token</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/health/summary</td>
+          <td>获取健康数据汇总（从 DB 读取成员和健康缓存）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/health/real</td>
+          <td>获取成员真实健康数据（从 health_data_cache 读取）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/health/configs</td>
+          <td>获取数据源配置列表（从 data_source_config 表读取）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/health/config</td>
+          <td>保存数据源配置（写入 data_source_config 表）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/health/sync</td>
+          <td>触发健康数据同步（写入 health_data_cache 表）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/members</td>
+          <td>列出家庭成员</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/members</td>
+          <td>添加家庭成员（含角色/关注指标/数据源配置）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/members/:id</td>
+          <td>获取成员详情</td>
+        </tr>
+        <tr>
+          <td><span class="method method-put">PUT</span></td>
+          <td class="endpoint-path">/api/members/:id</td>
+          <td>更新成员信息（角色/关注指标/数据源）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-delete">DELETE</span></td>
+          <td class="endpoint-path">/api/members/:id</td>
+          <td>删除家庭成员</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/dashboard/bigscreen</td>
+          <td>大屏综合数据（健康+家务+活动+积分）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/chorse/dashboard</td>
+          <td>获取家务面板数据（统计/任务/今日记录/贡献）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/chorse/pending</td>
+          <td>获取待确认的认领列表</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/chorse/claim</td>
+          <td>认领家务任务</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/chorse/complete</td>
+          <td>标记家务完成</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/chorse/confirm</td>
+          <td>确认家务完成（联动积分）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/points/dashboard</td>
+          <td>获取积分面板数据（排行榜/记录/周目标）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/weekend/dashboard</td>
+          <td>获取周末出行面板（方案/投票/天气）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/weekend/vote</td>
+          <td>投票（防重复）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/weekend/cancel-vote</td>
+          <td>取消投票</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/weekend/confirm</td>
+          <td>确认选定方案</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/weekend/add-proposal</td>
+          <td>添加自定义出行方案</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>认证端点（需要 JWT Token）</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr><th style="width:60px;">方法</th><th>路径</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/auth/register</td>
+          <td>注册新用户（admin 权限）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/dashboard/:role</td>
+          <td>获取角色专属 Dashboard 数据</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/health/records</td>
+          <td>获取健康记录列表</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/health/records</td>
+          <td>创建健康记录（手动录入）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/trips</td>
+          <td>列出出行计划</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/trips</td>
+          <td>创建出行计划</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/calendar/events</td>
+          <td>列出日历事件</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/calendar/events</td>
+          <td>创建日历事件</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/chat</td>
+          <td>AI 对话（REST）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/chat/ws</td>
+          <td>WebSocket 实时聊天</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/wechat/callback</td>
+          <td>微信消息回调</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/wechat/bind</td>
+          <td>绑定微信 OpenID</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/iot/devices</td>
+          <td>列出 IoT 设备（通过 MCP）</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/iot/control</td>
+          <td>控制 IoT 设备</td>
+        </tr>
+        <tr>
+          <td><span class="method method-get">GET</span></td>
+          <td class="endpoint-path">/api/feedback</td>
+          <td>列出反馈记录</td>
+        </tr>
+        <tr>
+          <td><span class="method method-post">POST</span></td>
+          <td class="endpoint-path">/api/feedback</td>
+          <td>提交反馈</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== SECTION 8: 迭代计划 ==================== -->
+<section class="section" id="roadmap">
+  <div class="section-number">SECTION 08</div>
+  <h2>迭代计划</h2>
+
+  <div class="timeline">
+    <div class="timeline-item active">
+      <div class="timeline-dot"></div>
+      <div class="timeline-version">v3.0 — 当前版本 (MVP → Beta)</div>
+      <div class="timeline-date">2026 Q3</div>
+      <div class="timeline-content">
+        <p>9 大功能模块全部完成（F1-F9），所有 mock 数据已清除，各模块使用真实内存存储或 SQLite 持久化。MCP Manager 已对接 garmin-mcp/health-mcp/weather-mcp。家庭健康总览从 DB 读取成员和健康缓存，动态生成指标和告警。家务劳动系统支持认领-完成-确认全流程，确认时自动联动积分。积分可视化系统支持动态创建成员和自动升级。周末出行推荐支持投票和自定义方案。成员管理增强支持完整 CRUD，创建时配置角色/关注指标/数据源插件，数据持久化到 SQLite。大屏综合展示从 chorse/points 包聚合真实数据。数据源配置支持弹窗式 UI，配置和同步操作持久化到 DB。深色模式和紧凑视图设置已实现，通过 localStorage 持久化。数据库迁移机制（migrate 方法）支持旧库自动升级。多角色权限和 JWT 认证已实现。Web 单页 7 个 Tab 和微信公众号双渠道框架就绪。</p>
+      </div>
+    </div>
+
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-version">v3.1 — 数据源接入与持久化</div>
+      <div class="timeline-date">2026 Q3-Q4</div>
+      <div class="timeline-content">
+        <ul>
+          <li>将家务、积分、出行投票从内存存储迁移到 SQLite，补建 <code>chorse_claims</code>、<code>chorse_records</code>、<code>points_records</code>、<code>weekend_votes</code>、<code>weekend_proposals</code> 表</li>
+          <li>完成华为健康 MCP Server 对接，支持华为手环/手表数据自动同步</li>
+          <li>Apple Health 数据导入接口实现（通过 HealthKit 导出文件解析）</li>
+          <li>手动录入健康数据的前端表单完善（血压/体重/血糖等）</li>
+          <li>积分系统与运动数据联动: Garmin 同步步数达标后自动加运动积分</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-version">v3.2 — 体验完善与通知机制</div>
+      <div class="timeline-date">2026 Q4</div>
+      <div class="timeline-content">
+        <ul>
+          <li>微信公众号推送通知: 健康异常提醒、家务待确认通知、出行方案确认、积分变动</li>
+          <li>健康趋势图表: 步数/心率/睡眠近 30 天趋势折线图</li>
+          <li>Dashboard 按角色进一步差异化: 儿童版聚焦积分和任务，老人版聚焦健康和提醒</li>
+          <li>饮食营养模块接入: 饮食记录、营养摄入分析、家庭食谱推荐</li>
+          <li>日历事件与提醒联动: 提醒到期通过微信公众号推送</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="timeline-item future">
+      <div class="timeline-dot"></div>
+      <div class="timeline-version">v4.0 — 全场景协作平台</div>
+      <div class="timeline-date">2027 Q1-Q2</div>
+      <div class="timeline-content">
+        <ul>
+          <li>IoT 模块上线: 通过 Home Assistant MCP 控制智能设备（灯光/空调/窗帘），家庭场景自动化</li>
+          <li>家庭财务追踪: 收支记录、预算管理、月度报表</li>
+          <li>家庭知识库: 重要文档、证件到期提醒、家庭规则记录</li>
+          <li>AI Agent 增强: 基于家庭上下文的智能建议（如"本周运动量不足，建议周末户外活动"）</li>
+          <li>多家庭支持: 支持多个家庭独立使用，数据隔离</li>
+          <li>移动端适配: 响应式布局优化，PWA 离线支持</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#eff6ff',
+      primaryTextColor: '#2d2a26',
+      primaryBorderColor: '#93c5fd',
+      lineColor: '#9ca3af',
+      secondaryColor: '#faf7f2',
+      tertiaryColor: '#ffffff',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
+      fontSize: '14px'
+    },
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+    sequence: { useMaxWidth: true, actorMargin: 60, mirrorActors: false },
+    stateDiagram: { useMaxWidth: true },
+    er: { useMaxWidth: true }
+  });
+</script>
+</body>
+</html>

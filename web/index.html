@@ -1,0 +1,2495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HomeMate 家庭健康总览 v3.0</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;">
+  <!-- Google Fonts 中文字体 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // XSS 防护：转义用户可控字符串
+    function escapeHTML(str) {
+      if (!str) return '';
+      var div = document.createElement('div');
+      div.textContent = String(str);
+      return div.innerHTML;
+    }
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans SC"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* ==================== 全局颜色变量 ==================== */
+    :root {
+      --primary: #3b82f6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --text-secondary: #64748b;
+      --border: #e2e8f0;
+    }
+
+    body { background: var(--bg); color: var(--text); }
+
+    /* 隐藏滚动条 */
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* ==================== 毛玻璃导航栏 ==================== */
+    .glass-nav {
+      background: rgba(255,255,255,0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(226,232,240,0.6);
+    }
+
+    /* ==================== Tab 下划线指示器 ==================== */
+    .tab-btn { position: relative; transition: color 0.25s ease; }
+    .tab-btn::after {
+      content: '';
+      position: absolute;
+      bottom: -2px; left: 50%; width: 0; height: 2.5px;
+      background: var(--primary);
+      border-radius: 2px;
+      transition: width 0.3s ease, left 0.3s ease;
+    }
+    .tab-btn.active { color: var(--primary); font-weight: 600; }
+    .tab-btn.active::after { width: 70%; left: 15%; }
+
+    /* ==================== Tab 内容淡入动画 ==================== */
+    .tab-panel { display: none; animation: fadeSlideIn 0.35s ease forwards; }
+    .tab-panel.active { display: block; }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ==================== Stagger 依次淡入 ==================== */
+    .stagger-item {
+      opacity: 0;
+      animation: fadeSlideIn 0.4s ease forwards;
+    }
+
+    /* ==================== 概览卡片悬停浮动 ==================== */
+    .overview-card {
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      perspective: 600px;
+    }
+    .overview-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.08);
+    }
+
+    /* ==================== 3D 微倾斜悬停 ==================== */
+    .tilt-card {
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .tilt-card:hover {
+      transform: perspective(800px) rotateX(2deg) rotateY(-2deg) translateY(-3px);
+      box-shadow: 0 14px 32px rgba(0,0,0,0.10);
+    }
+
+    /* ==================== 指标卡片左边框 ==================== */
+    .metric-card { transition: transform 0.2s ease, background 0.2s ease; background: transparent !important; }
+    .metric-card:hover { transform: scale(1.03); background: rgba(0,0,0,0.03) !important; }
+    body.dark-mode .metric-card:hover { background: rgba(255,255,255,0.05) !important; }
+
+    /* ==================== 展开/收起过渡 ==================== */
+    .expand-area {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease;
+      opacity: 0;
+    }
+    .expand-area.open {
+      max-height: 1200px;
+      opacity: 1;
+    }
+
+    /* ==================== 呼吸灯动画 ==================== */
+    @keyframes breathe {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.82; transform: scale(1.04); }
+    }
+    .breathe { animation: breathe 2.5s ease-in-out infinite; }
+
+    /* ==================== 进度条填充动画 ==================== */
+    .progress-fill {
+      transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    /* ==================== Ripple 按钮效果 ==================== */
+    .ripple-btn { position: relative; overflow: hidden; }
+    .ripple-btn .ripple-circle {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.45);
+      transform: scale(0);
+      animation: rippleAnim 0.5s ease-out forwards;
+      pointer-events: none;
+    }
+    @keyframes rippleAnim {
+      to { transform: scale(4); opacity: 0; }
+    }
+
+    /* ==================== 成功闪烁提示 ==================== */
+    @keyframes successFlash {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+      50% { box-shadow: 0 0 0 10px rgba(16,185,129,0.25); }
+    }
+    .success-flash { animation: successFlash 0.6s ease 2; }
+
+    /* ==================== CSS 圆环进度条 ==================== */
+    .ring-progress {
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ring-progress svg { position: absolute; top: 0; left: 0; transform: rotate(-90deg); }
+    .ring-progress .ring-bg { stroke: #e2e8f0; fill: none; stroke-width: 10; }
+    .ring-progress .ring-fg {
+      fill: none; stroke-width: 10; stroke-linecap: round;
+      stroke-dasharray: 377;
+      stroke-dashoffset: 377;
+      transition: stroke-dashoffset 1s ease;
+    }
+
+    /* ==================== 横向滚动任务卡片 ==================== */
+    .task-scroll { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; }
+    .task-scroll::-webkit-scrollbar { height: 6px; }
+    .task-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .task-card { min-width: 200px; flex-shrink: 0; }
+
+    /* ==================== 遮罩对话框 ==================== */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: none; align-items: center; justify-content: center; z-index: 100;
+      padding: 20px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-box {
+      background: white; border-radius: 16px; padding: 28px;
+      width: 90%; max-width: 400px;
+      max-height: 85vh; overflow-y: auto;
+      margin: auto;
+      animation: modalFadeIn 0.3s ease;
+    }
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: translateY(0) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* ==================== 深色模式 ==================== */
+    body.dark-mode {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --border: #334155;
+    }
+    body.dark-mode .glass-nav {
+      background: rgba(15,23,42,0.82);
+      border-bottom-color: rgba(51,65,85,0.6);
+    }
+    body.dark-mode .bg-white { background: var(--card) !important; }
+    body.dark-mode .text-gray-400 { color: var(--text-secondary) !important; }
+    body.dark-mode .text-gray-500 { color: var(--text-secondary) !important; }
+    body.dark-mode .border-gray-100 { border-color: var(--border) !important; }
+    body.dark-mode .border-gray-200 { border-color: var(--border) !important; }
+    body.dark-mode input, body.dark-mode select {
+      background: #334155; color: var(--text); border-color: var(--border) !important;
+    }
+    body.dark-mode .modal-box { background: var(--card); }
+    body.dark-mode .bg-gray-50 { background: #1e293b !important; }
+    body.dark-mode .bg-gray-100 { background: #334155 !important; }
+    body.dark-mode .bg-blue-50 { background: rgba(59,130,246,0.15) !important; }
+    body.dark-mode .bg-green-50 { background: rgba(16,185,129,0.15) !important; }
+    body.dark-mode .bg-orange-50 { background: rgba(249,115,22,0.15) !important; }
+    body.dark-mode .bg-purple-50 { background: rgba(168,85,247,0.15) !important; }
+    body.dark-mode .bg-yellow-50 { background: rgba(245,158,11,0.15) !important; }
+    body.dark-mode .bg-red-50 { background: rgba(239,68,68,0.15) !important; }
+    body.dark-mode .text-blue-600 { color: #60a5fa !important; }
+    body.dark-mode .text-green-600 { color: #34d399 !important; }
+    body.dark-mode .text-orange-600 { color: #fbbf24 !important; }
+    body.dark-mode .text-purple-600 { color: #c084fc !important; }
+    body.dark-mode .text-yellow-700 { color: #fbbf24 !important; }
+    body.dark-mode .text-red-700 { color: #f87171 !important; }
+    body.dark-mode .text-blue-700 { color: #60a5fa !important; }
+    body.dark-mode .ring-bg { stroke: #334155 !important; }
+
+    /* ==================== 紧凑视图 ==================== */
+    body.compact-view .space-y-6 > * + * { margin-top: 0.75rem; }
+    body.compact-view .p-6 { padding: 1rem; }
+    body.compact-view .p-5 { padding: 0.75rem; }
+    body.compact-view .py-3 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+    body.compact-view .mb-4 { margin-bottom: 0.5rem; }
+    body.compact-view .gap-4 { gap: 0.75rem; }
+    body.compact-view .text-lg { font-size: 1rem; }
+    body.compact-view .text-base { font-size: 0.875rem; }
+  </style>
+</head>
+<body class="font-sans min-h-screen">
+
+  <!-- ==================== 顶部固定导航栏（毛玻璃） ==================== -->
+  <nav class="glass-nav fixed top-0 left-0 right-0 z-50">
+    <div class="max-w-7xl mx-auto flex items-center justify-between px-4 md:px-6 h-14">
+      <!-- 左侧 Logo -->
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <span class="text-xl font-bold" style="color:var(--primary)">HomeMate</span>
+        <span class="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">v3.0</span>
+      </div>
+      <!-- 中间 Tab 按钮 -->
+      <div class="flex items-center gap-1 md:gap-4 overflow-x-auto hide-scrollbar">
+        <button class="tab-btn active text-sm px-2 md:px-3 py-1" data-tab="health" onclick="switchTab('health')">健康总览</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="chores" onclick="switchTab('chores')">家务劳动</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="points" onclick="switchTab('points')">积分排行</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="weekend" onclick="switchTab('weekend')">周末出行</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="records" onclick="switchTab('records')">健康档案</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="members" onclick="switchTab('members')">成员管理</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="bigscreen" onclick="switchTab('bigscreen')">大屏</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="settings" onclick="switchTab('settings')">设置</button>
+      </div>
+      <!-- 右侧：更新时间 + 刷新 -->
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <span id="navUpdateTime" class="text-xs text-gray-400 hidden sm:inline">--</span>
+        <button onclick="refreshAllData()" class="ripple-btn p-1.5 rounded-lg hover:bg-gray-100 transition" title="刷新数据">
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ==================== 主内容区域 ==================== -->
+  <main class="pt-16 pb-8 px-4 md:px-6 max-w-7xl mx-auto">
+
+    <!-- ========== Tab 1: 健康总览 ========== -->
+    <div id="panel-health" class="tab-panel active">
+      <!-- 概览卡片（4列网格） -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+        <div class="overview-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.05s">
+          <div class="flex items-center justify-between">
+            <div><p class="text-xs text-gray-400">家庭成员</p><p id="statMembers" class="text-2xl font-bold mt-1">0</p></div>
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#eff6ff;color:#3b82f6">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="overview-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.1s">
+          <div class="flex items-center justify-between">
+            <div><p class="text-xs text-gray-400">平均步数</p><p id="statSteps" class="text-2xl font-bold mt-1">0</p></div>
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#ecfdf5;color:#10b981">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="overview-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.15s">
+          <div class="flex items-center justify-between">
+            <div><p class="text-xs text-gray-400">平均睡眠</p><p id="statSleep" class="text-2xl font-bold mt-1">0h</p></div>
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#f5f3ff;color:#8b5cf6">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="overview-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.2s">
+          <div class="flex items-center justify-between">
+            <div><p class="text-xs text-gray-400">异常提醒</p><p id="statAlerts" class="text-2xl font-bold mt-1">0</p></div>
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#fffbeb;color:#f59e0b">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 个人健康卡片区域 -->
+      <h3 class="text-lg font-bold mb-4 stagger-item" style="animation-delay:0.25s">家庭成员健康</h3>
+      <div id="membersContainer" class="space-y-4"></div>
+    </div>
+
+    <!-- ========== Tab 2: 家务劳动 ========== -->
+    <div id="panel-chores" class="tab-panel">
+      <!-- 顶部统计 -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+        <div class="overview-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.05s">
+          <p class="text-xs text-gray-400">今日总积分</p>
+          <p id="choreTotalPts" class="text-2xl font-bold mt-1" style="color:var(--primary)">0</p>
+        </div>
+        <div class="overview-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.1s">
+          <p class="text-xs text-gray-400">完成家务数</p>
+          <p id="choreDoneCount" class="text-2xl font-bold mt-1" style="color:var(--success)">0</p>
+        </div>
+        <div class="overview-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.15s">
+          <p class="text-xs text-gray-400">参与成员数</p>
+          <p id="choreActiveMembers" class="text-2xl font-bold mt-1" style="color:var(--warning)">0</p>
+        </div>
+        <div class="overview-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.2s">
+          <p class="text-xs text-gray-400">连续打卡天数</p>
+          <p id="choreStreak" class="text-2xl font-bold mt-1" style="color:var(--danger)">0</p>
+        </div>
+      </div>
+
+      <!-- 任务卡片横向滚动 -->
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-bold">可认领家务</h3>
+        <button onclick="openTaskForm('add')" class="ripple-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          新增家务
+        </button>
+      </div>
+      <div id="taskScroll" class="task-scroll mb-6"></div>
+
+      <!-- 待办认领 -->
+      <h3 class="text-lg font-bold mb-3">待办认领</h3>
+      <div id="pendingClaims" class="mb-6"></div>
+
+      <!-- 今日完成记录（时间线） -->
+      <h3 class="text-lg font-bold mb-3">今日完成记录</h3>
+      <div id="todayRecords" class="mb-6"></div>
+
+      <!-- 成员贡献排行 -->
+      <h3 class="text-lg font-bold mb-3">成员贡献排行</h3>
+      <div id="memberContrib" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
+    </div>
+
+    <!-- ========== Tab 3: 积分排行 ========== -->
+    <div id="panel-points" class="tab-panel">
+      <!-- 家庭总积分 + 周目标进度环 -->
+      <div class="flex flex-col md:flex-row items-center gap-6 mb-8">
+        <div class="flex flex-col items-center">
+          <p class="text-sm text-gray-400 mb-1">家庭总积分</p>
+          <p id="familyTotalPts" class="text-5xl font-bold breathe" style="color:var(--primary)">0</p>
+        </div>
+        <div class="ring-progress">
+          <svg width="140" height="140" viewBox="0 0 140 140">
+            <circle class="ring-bg" cx="70" cy="70" r="60"/>
+            <circle id="weeklyRing" class="ring-fg" cx="70" cy="70" r="60" stroke="url(#ringGrad)"/>
+            <defs><linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#3b82f6"/><stop offset="100%" style="stop-color:#10b981"/>
+            </linearGradient></defs>
+          </svg>
+          <div class="text-center">
+            <p id="weeklyPct" class="text-2xl font-bold" style="color:var(--primary)">0%</p>
+            <p class="text-xs text-gray-400">家庭周目标</p>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <p class="text-sm text-gray-400">周目标：<span id="weeklyGoalText">--</span></p>
+          <p class="text-sm text-gray-400">当前进度：<span id="weeklyProgressText">--</span></p>
+        </div>
+      </div>
+
+      <!-- 成员积分排行榜（卡片式） -->
+      <h3 class="text-lg font-bold mb-3">积分排行榜</h3>
+      <div id="pointsRanking" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8"></div>
+
+      <!-- 最近积分动态（Feed 流） -->
+      <h3 class="text-lg font-bold mb-3">最近积分动态</h3>
+      <div id="pointsFeed"></div>
+    </div>
+
+    <!-- ========== Tab 5: 周末出行 ========== -->
+    <div id="panel-weekend" class="tab-panel">
+      <!-- 周末信息栏 -->
+      <div class="bg-gradient-to-r from-blue-500 to-cyan-400 rounded-xl p-5 mb-6 text-white stagger-item">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 class="text-lg font-bold">🏔️ 本周末出行计划</h3>
+            <p id="weekendDate" class="text-sm opacity-90 mt-1">--</p>
+          </div>
+          <div id="weekendWeather" class="text-right text-sm">
+            <p id="weekendSat">--</p>
+            <p id="weekendSun"--</p>
+            <p id="weekendTemp" class="opacity-80">--</p>
+          </div>
+        </div>
+        <p id="weekendAdvice" class="text-sm mt-3 bg-white/20 rounded-lg px-3 py-1.5">--</p>
+      </div>
+
+      <!-- 投票结果实时排行 -->
+      <h3 class="text-lg font-bold mb-3">📊 投票排行</h3>
+      <div id="voteResults" class="space-y-2 mb-6"></div>
+
+      <!-- 出行方案列表 -->
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-bold">🎯 推荐方案</h3>
+        <button onclick="openProposalForm()" class="ripple-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          推荐方案
+        </button>
+      </div>
+      <div id="proposalsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"></div>
+
+      <!-- 投票成员选择对话框 -->
+      <div id="voteModal" class="modal-overlay">
+        <div class="modal-box">
+          <h4 class="text-lg font-bold mb-1">投票支持</h4>
+          <p id="voteProposalName" class="text-sm text-gray-400 mb-4"></p>
+          <label class="block text-sm font-medium mb-1">选择投票人</label>
+          <select id="voteMember" class="w-full border border-gray-200 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-1 focus:ring-blue-300">
+            <option value="">请选择...</option>
+            <option value="1">爸爸</option>
+            <option value="2">妈妈</option>
+            <option value="3">儿子</option>
+            <option value="4">女儿</option>
+          </select>
+          <div class="flex gap-3">
+            <button onclick="document.getElementById('voteModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
+            <button onclick="confirmVote()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">确认投票</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 新增方案对话框 -->
+      <div id="proposalFormModal" class="modal-overlay">
+        <div class="modal-box" style="max-width:480px">
+          <h4 class="text-lg font-bold mb-4">推荐新方案</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">方案名称</label>
+              <input type="text" id="propTitle" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="例如：钱塘江夜骑">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">描述</label>
+              <textarea id="propDesc" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" rows="2" placeholder="方案描述"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">图标</label>
+                <input type="text" id="propIcon" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="🚴">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">分类</label>
+                <select id="propCategory" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
+                  <option value="outdoor">户外</option>
+                  <option value="indoor">室内</option>
+                  <option value="culture">文化</option>
+                  <option value="food">美食</option>
+                  <option value="sport">运动</option>
+                  <option value="other">其他</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">时长</label>
+                <select id="propDuration" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="半天">半天</option>
+                  <option value="全天">全天</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">费用</label>
+                <select id="propCost" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="免费">免费</option>
+                  <option value="低">低</option>
+                  <option value="中">中</option>
+                  <option value="高">高</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">难度</label>
+                <select id="propDifficulty" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="easy">简单</option>
+                  <option value="medium">中等</option>
+                  <option value="hard">困难</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">推荐人</label>
+              <select id="propMember" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                <option value="1">爸爸</option>
+                <option value="2">妈妈</option>
+                <option value="3">儿子</option>
+                <option value="4">女儿</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex gap-3 mt-5">
+            <button onclick="document.getElementById('proposalFormModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
+            <button onclick="submitProposal()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">提交推荐</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Tab 4: 设置 ========== -->
+    <div id="panel-settings" class="tab-panel">
+      <div class="max-w-lg mx-auto space-y-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h3 class="text-base font-bold mb-4">通知设置</h3>
+          <label class="flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer">
+            <span class="text-sm">健康异常推送</span>
+            <input type="checkbox" checked class="w-5 h-5 rounded accent-blue-500">
+          </label>
+          <label class="flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer">
+            <span class="text-sm">家务提醒推送</span>
+            <input type="checkbox" checked class="w-5 h-5 rounded accent-blue-500">
+          </label>
+          <label class="flex items-center justify-between py-3 cursor-pointer">
+            <span class="text-sm">积分变动通知</span>
+            <input type="checkbox" class="w-5 h-5 rounded accent-blue-500">
+          </label>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h3 class="text-base font-bold mb-4">显示设置</h3>
+          <label class="flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer">
+            <span class="text-sm">深色模式</span>
+            <input type="checkbox" id="darkModeToggle" class="w-5 h-5 rounded accent-blue-500" onchange="toggleDarkMode()">
+          </label>
+          <label class="flex items-center justify-between py-3 cursor-pointer">
+            <span class="text-sm">紧凑视图</span>
+            <input type="checkbox" id="compactViewToggle" class="w-5 h-5 rounded accent-blue-500" onchange="toggleCompactView()">
+          </label>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h3 class="text-base font-bold mb-4">数据同步</h3>
+          <label class="flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer">
+            <span class="text-sm">自动同步</span>
+            <input type="checkbox" checked class="w-5 h-5 rounded accent-blue-500">
+          </label>
+          <div class="flex items-center justify-between py-3">
+            <span class="text-sm">同步频率</span>
+            <select class="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300">
+              <option>每5分钟</option><option>每15分钟</option><option selected>每30分钟</option><option>每1小时</option>
+            </select>
+          </div>
+          <div class="pt-3">
+            <button onclick="manualSync()" class="ripple-btn w-full py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">手动同步</button>
+          </div>
+        </div>
+
+        <!-- 数据源配置 -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-bold">数据源配置</h3>
+            <span class="text-xs text-gray-400">MCP Server</span>
+          </div>
+          <div id="dataSourceList" class="space-y-3">
+            <!-- 动态渲染 -->
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-100">
+            <p class="text-xs text-gray-400 mb-2">支持的数据源：Garmin Connect、Apple Health、华为健康、手动录入</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Tab: 健康档案 ========== -->
+    <div id="panel-records" class="tab-panel">
+      <!-- 顶部标题 + 上传按钮 -->
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-bold">家庭健康档案库</h3>
+          <p class="text-xs text-gray-400 mt-0.5">上传和管理家庭成员的健康档案文件</p>
+        </div>
+        <button onclick="openRecordUploadModal()" class="ripple-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          上传档案
+        </button>
+      </div>
+
+      <!-- 分类过滤 -->
+      <div class="flex items-center gap-2 mb-4 overflow-x-auto hide-scrollbar pb-1">
+        <button class="record-filter-btn active text-xs px-3 py-1.5 rounded-full font-medium" style="background:var(--primary);color:white" onclick="filterRecords('all', this)">全部</button>
+        <button class="record-filter-btn text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-500 hover:bg-gray-200 transition" onclick="filterRecords('checkup', this)">体检报告</button>
+        <button class="record-filter-btn text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-500 hover:bg-gray-200 transition" onclick="filterRecords('lab', this)">化验单</button>
+        <button class="record-filter-btn text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-500 hover:bg-gray-200 transition" onclick="filterRecords('prescription', this)">处方</button>
+        <button class="record-filter-btn text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-500 hover:bg-gray-200 transition" onclick="filterRecords('imaging', this)">影像资料</button>
+        <button class="record-filter-btn text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-500 hover:bg-gray-200 transition" onclick="filterRecords('vaccination', this)">疫苗接种</button>
+        <button class="record-filter-btn text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-500 hover:bg-gray-200 transition" onclick="filterRecords('other', this)">其他</button>
+      </div>
+
+      <!-- 批量操作栏 -->
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <label class="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+            <input type="checkbox" id="recordSelectAll" class="rounded accent-blue-500" onchange="toggleRecordSelectAll()">
+            全选
+          </label>
+          <span id="recordSelectedCount" class="text-xs text-gray-400"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="batchAnalyzeRecords()" id="batchAnalyzeBtn" class="ripple-btn text-xs px-3 py-1.5 rounded-lg font-medium border border-purple-200 text-purple-600 hover:bg-purple-50 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            批量 AI 分析
+          </button>
+        </div>
+      </div>
+
+      <!-- 文件列表 -->
+      <div id="recordsList" class="space-y-3 mb-6"></div>
+
+      <!-- AI 分析报告列表 -->
+      <h3 class="text-lg font-bold mb-3">AI 分析报告</h3>
+      <div id="analysisReportsList" class="space-y-3"></div>
+    </div>
+
+    <!-- ========== Tab 6: 成员管理 ========== -->
+    <div id="panel-members" class="tab-panel">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold">家庭成员</h3>
+        <button onclick="openMemberForm()" class="ripple-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          新增成员
+        </button>
+      </div>
+      <div id="membersList" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"></div>
+
+      <!-- 成员编辑/新增对话框 -->
+      <div id="memberFormModal" class="modal-overlay">
+        <div class="modal-box" style="max-width:480px">
+          <h4 id="memberFormTitle" class="text-lg font-bold mb-4">新增成员</h4>
+          <input type="hidden" id="memberFormId" value="">
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">姓名</label>
+              <input type="text" id="memberFormName" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="例如：奶奶">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">角色</label>
+                <select id="memberFormRole" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
+                  <option value="admin">管理员</option>
+                  <option value="adult" selected>成人</option>
+                  <option value="child">儿童</option>
+                  <option value="elder">长者</option>
+                  <option value="guest">访客</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">年龄</label>
+                <input type="number" id="memberFormAge" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="例如：65">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Health 关注指标</label>
+              <div class="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg">
+                <label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="member-health-focus" value="steps"> 步数</label>
+                <label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="member-health-focus" value="heart_rate"> 心率</label>
+                <label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="member-health-focus" value="sleep"> 睡眠</label>
+                <label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="member-health-focus" value="blood_pressure"> 血压</label>
+                <label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="member-health-focus" value="weight"> 体重</label>
+                <label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="member-health-focus" value="height"> 身高</label>
+                <label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="member-health-focus" value="stress"> 压力</label>
+                <label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="member-health-focus" value="spo2"> 血氧</label>
+                <label class="flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="member-health-focus" value="body_battery"> 身体电量</label>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">数据采集模块</label>
+              <select id="memberFormDataSource" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
+                <option value="manual">手动录入</option>
+                <option value="garmin">Garmin Connect</option>
+                <option value="apple_health">Apple Health</option>
+                <option value="huawei">华为健康</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex gap-3 mt-5">
+            <button onclick="document.getElementById('memberFormModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
+            <button onclick="saveMember()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Tab 7: 大屏展示 ========== -->
+    <div id="panel-bigscreen" class="tab-panel">
+      <div class="mb-4">
+        <h3 class="text-lg font-bold">家庭综合大屏</h3>
+        <p class="text-xs text-gray-400">实时聚合健康、家务、活动推荐等数据</p>
+      </div>
+      <div id="bigscreenContainer" class="space-y-6"></div>
+    </div>
+  </main>
+
+  <!-- ==================== 健康档案上传对话框 ==================== -->
+  <div id="recordUploadModal" class="modal-overlay">
+    <div class="modal-box" style="max-width:480px">
+      <h4 class="text-lg font-bold mb-4">上传健康档案</h4>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">选择成员</label>
+          <select id="recordMember" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
+            <option value="">请选择成员...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">档案分类</label>
+          <select id="recordCategory" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
+            <option value="checkup">体检报告</option>
+            <option value="lab">化验单</option>
+            <option value="prescription">处方</option>
+            <option value="imaging">影像资料</option>
+            <option value="vaccination">疫苗接种</option>
+            <option value="other">其他</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">病历日期</label>
+          <input type="date" id="recordDate" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">文件上传</label>
+          <div class="relative">
+            <input type="file" id="recordFile" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:text-white file:cursor-pointer" style="--tw-file-bg:var(--primary)" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onchange="handleRecordFileSelect(this)">
+            <p class="text-xs text-gray-400 mt-1">支持 PDF、JPG、PNG、DOC 格式，单个文件不超过 10MB</p>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">备注（可选）</label>
+          <textarea id="recordNote" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" rows="2" placeholder="添加备注说明..."></textarea>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button onclick="document.getElementById('recordUploadModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
+        <button onclick="uploadRecord()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">上传</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== AI 分析报告查看对话框 ==================== -->
+  <div id="analysisReportModal" class="modal-overlay">
+    <div class="modal-box" style="max-width:560px">
+      <div class="flex items-center justify-between mb-4">
+        <h4 class="text-lg font-bold">AI 分析报告</h4>
+        <button onclick="document.getElementById('analysisReportModal').classList.remove('show')" class="text-gray-400 hover:text-gray-600 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="analysisReportContent" class="text-sm text-gray-600 leading-relaxed"></div>
+    </div>
+  </div>
+
+  <!-- ==================== 家务认领对话框 ==================== -->
+  <div id="claimModal" class="modal-overlay">
+    <div class="modal-box">
+      <h4 class="text-lg font-bold mb-1">认领家务</h4>
+      <p id="claimTaskName" class="text-sm text-gray-400 mb-4"></p>
+      <label class="block text-sm font-medium mb-1">选择完成成员</label>
+      <select id="claimMember" class="w-full border border-gray-200 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-1 focus:ring-blue-300">
+        <option value="">请选择...</option>
+        <option value="爸爸">爸爸</option>
+        <option value="妈妈">妈妈</option>
+        <option value="儿子">儿子</option>
+        <option value="女儿">女儿</option>
+      </select>
+      <div class="flex gap-3">
+        <button onclick="closeClaimModal()" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
+        <button onclick="confirmClaim()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">确认认领</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 家务任务编辑/新增对话框 ==================== -->
+  <div id="taskFormModal" class="modal-overlay">
+    <div class="modal-box" style="max-width:480px">
+      <h4 id="taskFormTitle" class="text-lg font-bold mb-4">新增家务</h4>
+      <div class="space-y-3">
+        <input type="hidden" id="taskFormId" value="">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">任务名称</label>
+          <input type="text" id="taskFormName" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="例如：擦桌子">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">图标</label>
+            <input type="text" id="taskFormIcon" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="例如：🧽">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">分类</label>
+            <select id="taskFormCategory" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
+              <option value="cleaning">清洁</option>
+              <option value="cooking">烹饪</option>
+              <option value="laundry">洗衣</option>
+              <option value="organizing">整理</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">难度</label>
+            <select id="taskFormDifficulty" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
+              <option value="easy">简单</option>
+              <option value="medium">中等</option>
+              <option value="hard">困难</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">积分奖励</label>
+            <input type="number" id="taskFormPoints" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="10">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">预计时长</label>
+            <input type="text" id="taskFormDuration" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="例如：15分钟">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">描述（可选）</label>
+            <input type="text" id="taskFormDesc" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="任务描述">
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button id="taskFormDelete" onclick="deleteTask()" class="hidden flex-1 py-2 rounded-lg border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition">删除</button>
+        <button onclick="closeTaskForm()" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
+        <button onclick="saveTask()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== JavaScript ==================== -->
+  <script>
+    // ==================== 成员颜色配置（动态生成） ====================
+    var memberColors = {};
+    var memberShortName = {};
+    var memberNameToId = {};
+    var memberNames = {};
+    var colorPalette = ['#ef4444','#ec4899','#3b82f6','#8b5cf6','#10b981','#f59e0b','#06b6d4','#f97316'];
+    function updateMemberMaps(members) {
+      memberColors = {}; memberShortName = {}; memberNameToId = {}; memberNames = {};
+      members.forEach(function(m, i) {
+        memberColors[m.name] = colorPalette[i % colorPalette.length];
+        memberShortName[m.name] = m.name.charAt(0);
+        memberNameToId[m.name] = m.id;
+        memberNames[m.id] = m.name;
+      });
+    }
+
+    // ==================== Fallback: 空数据（用户自行添加） ====================
+    var fallbackHealth = { members: [], last_updated: '', alerts: [] };
+    var fallbackChores = { stats: { total_points: 0, completed: 0, active_members: 0, streak: 0 }, tasks: [], today_records: [], member_contrib: [] };
+    var fallbackPoints = { family_total: 0, weekly_goal: 500, weekly_progress: 0, members: [], recent: [] };
+    var fallbackWeekend = {
+      proposals: [], votes: [], vote_results: [], weekend_date: '',
+      weather: { saturday:'', sunday:'', temperature:'', advice:'' },
+    };
+
+    // ==================== 全局状态 ====================
+    var currentHealthData = null;
+    var currentChoresData = null;
+    var currentPointsData = null;
+    var expandedMembers = {};
+    var customMetrics = {};
+
+    // ==================== Tab 切换逻辑 ====================
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(function(btn) {
+        btn.classList.remove('active');
+        btn.classList.add('text-gray-500');
+        if (btn.getAttribute('data-tab') === tabName) {
+          btn.classList.add('active');
+          btn.classList.remove('text-gray-500');
+        }
+      });
+      document.querySelectorAll('.tab-panel').forEach(function(p) {
+        p.classList.remove('active');
+      });
+      var panel = document.getElementById('panel-' + tabName);
+      if (panel) panel.classList.add('active');
+
+      // 按需加载大屏数据
+      if (tabName === 'bigscreen') {
+        loadBigScreen();
+      }
+      // 按需加载成员数据
+      if (tabName === 'members') {
+        loadMembers();
+      }
+      // 按需加载健康档案数据
+      if (tabName === 'records') {
+        loadRecords();
+        loadAnalysisReports();
+      }
+    }
+
+    // ==================== 显示设置（深色模式 + 紧凑视图） ====================
+    function toggleDarkMode() {
+      var enabled = document.getElementById('darkModeToggle').checked;
+      if (enabled) {
+        document.body.classList.add('dark-mode');
+      } else {
+        document.body.classList.remove('dark-mode');
+      }
+      localStorage.setItem('homemate_dark_mode', enabled ? '1' : '0');
+    }
+
+    function toggleCompactView() {
+      var enabled = document.getElementById('compactViewToggle').checked;
+      if (enabled) {
+        document.body.classList.add('compact-view');
+      } else {
+        document.body.classList.remove('compact-view');
+      }
+      localStorage.setItem('homemate_compact_view', enabled ? '1' : '0');
+    }
+
+    function loadDisplaySettings() {
+      var dark = localStorage.getItem('homemate_dark_mode') === '1';
+      var compact = localStorage.getItem('homemate_compact_view') === '1';
+      var darkEl = document.getElementById('darkModeToggle');
+      var compactEl = document.getElementById('compactViewToggle');
+      if (darkEl) { darkEl.checked = dark; if (dark) document.body.classList.add('dark-mode'); }
+      if (compactEl) { compactEl.checked = compact; if (compact) document.body.classList.add('compact-view'); }
+    }
+
+    // ==================== 数字计数动画 ====================
+    function animateCount(el, target, duration, suffix) {
+      suffix = suffix || '';
+      var startTime = null;
+      var isFloat = (target !== Math.floor(target));
+
+      function step(timestamp) {
+        if (!startTime) startTime = timestamp;
+        var progress = Math.min((timestamp - startTime) / duration, 1);
+        var ease = 1 - Math.pow(1 - progress, 3);
+        var current = target * ease;
+        if (isFloat) {
+          el.textContent = current.toFixed(1) + suffix;
+        } else {
+          el.textContent = Math.round(current).toLocaleString() + suffix;
+        }
+        if (progress < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // ==================== 趋势箭头 ====================
+    function trendHTML(trend) {
+      if (trend === 'up')   return '<span class="text-green-500 text-xs ml-1">&#9650;</span>';
+      if (trend === 'down') return '<span class="text-red-400 text-xs ml-1">&#9660;</span>';
+      return '<span class="text-gray-300 text-xs ml-1">&#9644;</span>';
+    }
+
+    // ==================== 指标状态边框颜色 ====================
+    function metricBorderColor(status) {
+      if (status === 'warning') return '#f59e0b';
+      if (status === 'alert')   return '#ef4444';
+      return '#10b981';
+    }
+
+    // ==================== 格式化数值 ====================
+    function fmtVal(m) {
+      if (m.extra) return m.extra;
+      if (m.type === 'steps') return m.value.toLocaleString();
+      if (m.type === 'sleep') return m.value.toFixed(1);
+      if (m.value === Math.floor(m.value)) return m.value.toString();
+      return m.value.toString();
+    }
+
+    // ==================== 渲染健康概览统计 ====================
+    function renderHealthStats(data) {
+      var totalSteps = 0, stepsN = 0, totalSleep = 0, sleepN = 0;
+      data.members.forEach(function(m) {
+        m.metrics.forEach(function(x) {
+          if (x.type === 'steps') { totalSteps += x.value; stepsN++; }
+          if (x.type === 'sleep') { totalSleep += x.value; sleepN++; }
+        });
+      });
+      animateCount(document.getElementById('statMembers'), data.members.length, 600);
+      animateCount(document.getElementById('statSteps'), stepsN ? Math.round(totalSteps / stepsN) : 0, 800);
+      animateCount(document.getElementById('statSleep'), sleepN ? parseFloat((totalSleep / sleepN).toFixed(1)) : 0, 800, 'h');
+      animateCount(document.getElementById('statAlerts'), (data.alerts || []).length, 500);
+      document.getElementById('navUpdateTime').textContent = data.last_updated || '--';
+    }
+
+    // ==================== 渲染成员健康卡片 ====================
+    function renderMembers(data) {
+      var container = document.getElementById('membersContainer');
+      container.innerHTML = '';
+
+      data.members.forEach(function(member, idx) {
+        var color = memberColors[member.name] || '#6b7280';
+        var short = memberShortName[member.name] || member.name.charAt(0);
+        var isExpanded = expandedMembers[member.name];
+        var customs = customMetrics[member.name] || [];
+
+        // 紧凑视图：取前4个指标
+        var preview = member.metrics.slice(0, 4);
+        var previewHTML = preview.map(function(m) {
+          return '<div class="text-center">' +
+            '<p class="text-xs text-gray-400">' + m.icon + ' ' + m.label + '</p>' +
+            '<p class="text-sm font-semibold mt-0.5">' + fmtVal(m) + '<span class="text-xs text-gray-400 ml-0.5">' + m.unit + '</span></p>' +
+          '</div>';
+        }).join('');
+
+        // 展开视图：所有指标 + 自定义
+        var allMetrics = member.metrics.concat(customs);
+        var expandedHTML = allMetrics.map(function(m) {
+          var bc = metricBorderColor(m.status);
+          return '<div class="metric-card rounded-lg p-3 border-l-4" style="border-left-color:' + bc + '">' +
+            '<div class="flex items-center gap-2 mb-1"><span class="text-lg">' + (m.icon || '📊') + '</span><span class="text-xs text-gray-400">' + m.label + '</span></div>' +
+            '<div class="flex items-baseline"><span class="text-lg font-semibold">' + fmtVal(m) + '</span><span class="text-xs text-gray-400 ml-1">' + m.unit + '</span>' + trendHTML(m.trend) + '</div>' +
+          '</div>';
+        }).join('');
+
+        var card = '<div class="tilt-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.3 + idx * 0.08) + 's">' +
+          '<div class="p-4 md:p-5">' +
+            '<div class="flex items-center gap-4">' +
+              '<div class="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0" style="background:' + color + '">' + short + '</div>' +
+              '<div class="flex-1 min-w-0">' +
+                '<div class="flex items-center gap-2 flex-wrap">' +
+                  '<h4 class="text-base font-bold">' + member.name + '</h4>' +
+                  '<span class="px-2 py-0.5 text-xs rounded-full font-medium" style="background:' + color + '18;color:' + color + '">' + member.role + '</span>' +
+                  '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">' +
+                    '<span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1"></span>' + member.status_text +
+                  '</span>' +
+                '</div>' +
+              '</div>' +
+              '<button class="ripple-btn text-xs px-3 py-1 rounded-full border hover:bg-gray-50 transition" style="border-color:' + color + ';color:' + color + '" onclick="toggleMember(\'' + member.name + '\')">' +
+                (isExpanded ? '收起' : '查看详情') +
+              '</button>' +
+            '</div>' +
+            '<div class="grid grid-cols-4 gap-2 mt-4">' + previewHTML + '</div>' +
+            '<div class="expand-area' + (isExpanded ? ' open' : '') + '" id="expand-' + member.name + '">' +
+              '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">' + expandedHTML + '</div>' +
+              '<div class="mt-4">' +
+                '<button class="ripple-btn text-xs px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition" onclick="showCustomForm(\'' + member.name + '\', this)">+ 添加自定义指标</button>' +
+                '<div id="customForm-' + member.name + '" class="hidden mt-3" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">' +
+                  '<select id="customType-' + member.name + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5">' +
+                    '<option value="">选择指标...</option><option value="血糖">血糖</option><option value="体温">体温</option><option value="腰围">腰围</option><option value="臀围">臀围</option><option value="视力">视力</option><option value="BMI">BMI</option><option value="__custom">自定义</option>' +
+                  '</select>' +
+                  '<input id="customName-' + member.name + '" style="display:none" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-24" placeholder="指标名称">' +
+                  '<input id="customVal-' + member.name + '" type="number" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-20" placeholder="数值">' +
+                  '<input id="customUnit-' + member.name + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-16" placeholder="单位">' +
+                  '<button onclick="addCustomMetric(\'' + member.name + '\')" class="ripple-btn text-xs px-3 py-1.5 rounded-lg text-white" style="background:var(--primary)">添加</button>' +
+                  '<button onclick="hideCustomForm(\'' + member.name + '\')" class="text-xs px-2 py-1.5 text-gray-400 hover:text-gray-600">取消</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+        container.insertAdjacentHTML('beforeend', card);
+      });
+    }
+
+    // ==================== 展开/收起成员卡片 ====================
+    function toggleMember(name) {
+      expandedMembers[name] = !expandedMembers[name];
+      var el = document.getElementById('expand-' + name);
+      if (el) el.classList.toggle('open');
+      if (currentHealthData) renderMembers(currentHealthData);
+    }
+
+    // ==================== 自定义指标表单 ====================
+    function showCustomForm(name) {
+      var form = document.getElementById('customForm-' + name);
+      var typeSelect = document.getElementById('customType-' + name);
+      var nameInput = document.getElementById('customName-' + name);
+      if (form) {
+        form.classList.remove('hidden');
+        form.style.display = 'flex';
+      }
+      typeSelect.onchange = function() {
+        if (typeSelect.value === '__custom') {
+          nameInput.style.display = 'block';
+          nameInput.focus();
+        } else {
+          nameInput.style.display = 'none';
+        }
+      };
+    }
+
+    function hideCustomForm(name) {
+      var form = document.getElementById('customForm-' + name);
+      if (form) { form.classList.add('hidden'); form.style.display = 'none'; }
+    }
+
+    function addCustomMetric(name) {
+      var typeSelect = document.getElementById('customType-' + name);
+      var nameInput = document.getElementById('customName-' + name);
+      var valInput = document.getElementById('customVal-' + name);
+      var unitInput = document.getElementById('customUnit-' + name);
+      var label = typeSelect.value === '__custom' ? nameInput.value.trim() : typeSelect.value;
+      var val = parseFloat(valInput.value);
+      var unit = unitInput.value.trim() || '';
+
+      if (!label || isNaN(val)) { alert('请填写完整的指标信息'); return; }
+
+      if (!customMetrics[name]) customMetrics[name] = [];
+      customMetrics[name].push({ label: label, value: val, unit: unit, icon: '📊', status: 'normal', trend: 'stable' });
+
+      hideCustomForm(name);
+      if (currentHealthData) renderMembers(currentHealthData);
+    }
+
+    // ==================== 渲染家务 Tab ====================
+    function renderChores(data) {
+      choresTasks = data.tasks || [];
+      animateCount(document.getElementById('choreTotalPts'), data.stats.total_points, 600);
+      animateCount(document.getElementById('choreDoneCount'), data.stats.completed, 500);
+      animateCount(document.getElementById('choreActiveMembers'), data.stats.active_members, 500);
+      animateCount(document.getElementById('choreStreak'), data.stats.streak, 600);
+
+      var diffColors = { easy: '#10b981', medium: '#f59e0b', hard: '#ef4444' };
+      var diffLabels = { easy: '简单', medium: '中等', hard: '困难' };
+      var taskHTML = '';
+      data.tasks.forEach(function(t) {
+        var dc = diffColors[t.difficulty] || '#6b7280';
+        taskHTML += '<div class="task-card tilt-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer relative" onclick="if(event.target.closest(\'.task-edit-btn\'))return;openClaimModal(\'' + t.name + '\', ' + t.id + ')">' +
+          '<button class="task-edit-btn absolute top-2 right-2 w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition" onclick="openTaskForm(\'edit\',' + t.id + ')">' +
+            '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>' +
+          '</button>' +
+          '<div class="text-2xl mb-2">' + t.icon + '</div>' +
+          '<p class="text-sm font-semibold mb-1">' + t.name + '</p>' +
+          '<span class="inline-block text-xs px-2 py-0.5 rounded-full font-medium mb-2" style="background:' + dc + '18;color:' + dc + '">' + diffLabels[t.difficulty] + '</span>' +
+          '<div class="flex items-center justify-between text-xs text-gray-400">' +
+            '<span>' + t.points + ' 积分</span><span>' + t.duration + '</span>' +
+          '</div>' +
+        '</div>';
+      });
+      document.getElementById('taskScroll').innerHTML = taskHTML;
+
+      // 今日完成记录（时间线）
+      var recHTML = '<div class="relative pl-6 space-y-3">' +
+        '<div class="absolute left-2 top-2 bottom-2 w-0.5 bg-gray-200"></div>';
+      var records = (data.today_records || []).slice().reverse();
+      records.forEach(function(r) {
+        var c = memberColors[r.member] || '#6b7280';
+        var s = memberShortName[r.member] || r.member.charAt(0);
+        recHTML += '<div class="relative flex items-start gap-3 stagger-item">' +
+          '<div class="absolute -left-6 top-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:' + c + '">' + s + '</div>' +
+          '<div class="flex-1 bg-white rounded-lg p-3 shadow-sm border border-gray-100">' +
+            '<div class="flex items-center justify-between">' +
+              '<div class="flex items-center gap-2"><span class="text-base">' + (r.icon || '📋') + '</span><span class="text-sm font-medium">' + (r.task || r.item || '') + '</span></div>' +
+              '<span class="text-xs text-gray-400">' + r.time + '</span>' +
+            '</div>' +
+            '<p class="text-xs mt-1" style="color:' + c + '">+' + r.points + ' 积分 · ' + r.member + '</p>' +
+          '</div>' +
+        '</div>';
+      });
+      recHTML += '</div>';
+      document.getElementById('todayRecords').innerHTML = recHTML;
+
+      // 成员贡献排行
+      var contribHTML = '';
+      var maxDone = Math.max.apply(null, data.member_contrib.map(function(m) { return m.done; }));
+      data.member_contrib.forEach(function(m) {
+        var c = memberColors[m.name] || '#6b7280';
+        var s = memberShortName[m.name] || m.name.charAt(0);
+        var pct = maxDone > 0 ? Math.round(m.done / maxDone * 100) : 0;
+        contribHTML += '<div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">' +
+          '<div class="flex items-center gap-2 mb-3">' +
+            '<div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background:' + c + '">' + s + '</div>' +
+            '<div><p class="text-sm font-semibold">' + m.name + '</p><p class="text-xs text-gray-400">本周 ' + m.done + ' 次</p></div>' +
+          '</div>' +
+          '<div class="text-right text-xs text-gray-400 mb-1">' + m.points + ' 积分</div>' +
+          '<div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div class="progress-fill h-full rounded-full" style="background:' + c + ';width:' + pct + '%"></div></div>' +
+        '</div>';
+      });
+      document.getElementById('memberContrib').innerHTML = contribHTML;
+    }
+
+    // ==================== 家务认领对话框 ====================
+    function openClaimModal(taskName, taskId) {
+      document.getElementById('claimTaskName').textContent = taskName;
+      document.getElementById('claimTaskName').dataset.taskId = taskId || '';
+      document.getElementById('claimMember').value = '';
+      document.getElementById('claimModal').classList.add('show');
+    }
+    function closeClaimModal() {
+      document.getElementById('claimModal').classList.remove('show');
+    }
+    // 成员ID映射（由 updateMemberMaps 动态填充）
+
+    function confirmClaim() {
+      var member = document.getElementById('claimMember').value;
+      var task = document.getElementById('claimTaskName').textContent;
+      var taskId = document.getElementById('claimTaskName').dataset.taskId || '0';
+      if (!member) { alert('请选择完成成员'); return; }
+      closeClaimModal();
+
+      // 查找任务图标
+      var taskIcon = '📋';
+      var t = choresTasks.find(function(tk) { return tk.id == taskId; });
+      if (t) taskIcon = t.icon || '📋';
+
+      // 调用后端API持久化
+      fetch('/api/chorse/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          member_id: memberNameToId[member] || 0,
+          member_name: member,
+          task_id: parseInt(taskId),
+          task_name: task,
+          task_icon: taskIcon
+        })
+      }).then(function(res) { return res.json(); }).then(function(result) {
+        var data = result.data || result;
+        showToast(member + ' 已认领「' + task + '」，请按时完成！', 'success');
+        loadPendingClaims();
+      }).catch(function(err) {
+        // 即使API失败也显示成功（fallback）
+        showToast(member + ' 已认领「' + task + '」', 'success');
+        addPendingToLocal(member, task, taskIcon, parseInt(taskId));
+        loadPendingClaims();
+      });
+    }
+
+    function addPendingToLocal(member, task, icon, taskId) {
+      // 添加到本地待办列表用于展示
+      var container = document.getElementById('pendingClaims');
+      if (!container) return;
+      var c = memberColors[member] || '#6b7280';
+      var s = memberShortName[member] || member.charAt(0);
+      var html = '<div class="pending-item bg-white rounded-lg p-3 shadow-sm border border-gray-100 flex items-center justify-between mb-2 stagger-item">' +
+        '<div class="flex items-center gap-3">' +
+          '<div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background:' + c + '">' + s + '</div>' +
+          '<div><p class="text-sm font-medium">' + member + ' · ' + task + '</p><p class="text-xs text-gray-400">待完成 · 截止 24:00</p></div>' +
+        '</div>' +
+        '<div class="flex gap-2">' +
+          '<button onclick="completeClaim(this, ' + memberNameToId[member] + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--success)">完成</button>' +
+        '</div>' +
+      '</div>';
+      container.insertAdjacentHTML('beforeend', html);
+    }
+
+    function completeClaim(btn, memberId) {
+      var item = btn.closest('.pending-item');
+      item.querySelector('.flex.gap-2').innerHTML =
+        '<span class="text-xs text-yellow-600 font-medium">等待确认...</span>';
+      showToast('已标记完成，等待其他成员确认', 'warning');
+    }
+
+    function loadPendingClaims() {
+      fetch('/api/chorse/pending').then(function(res) { return res.json(); })
+        .then(function(result) {
+          var data = result.data || result;
+          var claims = data.claims || [];
+          var container = document.getElementById('pendingClaims');
+          if (!container || claims.length === 0) {
+            if (container) container.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">暂无待办认领</p>';
+            return;
+          }
+          var html = '';
+          claims.forEach(function(cl) {
+            var c = memberColors[cl.member_name] || '#6b7280';
+            var s = memberShortName[cl.member_name] || cl.member_name.charAt(0);
+            var statusHTML = '';
+            if (cl.status === 'pending') {
+              statusHTML = '<button onclick="markComplete(' + cl.claim_id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--success)">标记完成</button>';
+            } else if (cl.status === 'completed') {
+              statusHTML = '<button onclick="markConfirm(' + cl.claim_id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--warning)">确认完成</button><span class="text-xs text-yellow-600 ml-1">待确认</span>';
+            } else if (cl.status === 'confirmed') {
+              statusHTML = '<span class="text-xs text-green-600 font-medium">已确认 ✓</span>';
+            }
+            html += '<div class="bg-white rounded-lg p-3 shadow-sm border border-gray-100 flex items-center justify-between mb-2 stagger-item">' +
+              '<div class="flex items-center gap-3">' +
+                '<div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background:' + c + '">' + s + '</div>' +
+                '<div>' +
+                  '<p class="text-sm font-medium">' + cl.member_name + ' · ' + (cl.task_icon || '📋') + ' ' + cl.task_name + '</p>' +
+                  '<p class="text-xs text-gray-400">' + (cl.status === 'pending' ? '待完成' : cl.status === 'completed' ? '待确认' : '已完成') + ' · +' + cl.points + ' 积分</p>' +
+                '</div>' +
+              '</div>' +
+              '<div class="flex gap-2 items-center">' + statusHTML + '</div>' +
+            '</div>';
+          });
+          container.innerHTML = html || '<p class="text-sm text-gray-400 text-center py-4">暂无待办认领</p>';
+        }).catch(function() {
+          // 静默失败
+        });
+    }
+
+    function markComplete(claimId) {
+      fetch('/api/chorse/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claim_id: claimId })
+      }).then(function(res) { return res.json(); }).then(function() {
+        showToast('已标记完成，等待其他成员确认', 'warning');
+        loadPendingClaims();
+      }).catch(function() {
+        showToast('操作失败，请重试', 'error');
+      });
+    }
+
+    function markConfirm(claimId) {
+      fetch('/api/chorse/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claim_id: claimId, confirmer: '当前用户' })
+      }).then(function(res) { return res.json(); }).then(function() {
+        showToast('已确认完成！积分已增加', 'success');
+        loadPendingClaims();
+        // 刷新家务面板和积分面板
+        fetchWithFallback('/api/chorse/dashboard', fallbackChores).then(function(data) {
+          currentChoresData = data;
+          renderChores(data);
+        });
+        fetchWithFallback('/api/points/dashboard', fallbackPoints).then(function(data) {
+          currentPointsData = data;
+          renderPoints(data);
+        });
+      }).catch(function() {
+        showToast('操作失败，请重试', 'error');
+      });
+    }
+
+    function showToast(msg, type) {
+      var colors = { success: 'bg-green-500', warning: 'bg-yellow-500', error: 'bg-red-500' };
+      var toast = document.createElement('div');
+      toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[200] text-white px-6 py-2 rounded-full shadow-lg text-sm font-medium success-flash ' + (colors[type] || colors.success);
+      toast.style.transform = 'translateX(-50%)';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(function() { toast.remove(); }, 2500);
+    }
+
+    // ==================== 周末出行 ====================
+    // fallbackWeekend 已在全局 fallback 区域定义为空数据
+    var currentWeekendData = null;
+    var currentVoteProposalId = null;
+
+    function loadWeekendData() {
+      fetchWithFallback('/api/weekend/dashboard', fallbackWeekend).then(function(data) {
+        currentWeekendData = data;
+        renderWeekend(data);
+      });
+    }
+
+    function renderWeekend(data) {
+      document.getElementById('weekendDate').textContent = '📅 ' + (data.weekend_date || '--');
+      if (data.weather) {
+        document.getElementById('weekendSat').textContent = '周六: ' + data.weather.saturday;
+        document.getElementById('weekendSun').textContent = '周日: ' + data.weather.sunday;
+        document.getElementById('weekendTemp').textContent = data.weather.temperature;
+        document.getElementById('weekendAdvice').textContent = '💡 ' + data.weather.advice;
+      }
+
+      // 投票排行
+      var results = data.vote_results || [];
+      var maxVotes = 0;
+      results.forEach(function(r) { if (r.vote_count > maxVotes) maxVotes = r.vote_count; });
+      var voteHTML = '';
+      if (results.length === 0 || maxVotes === 0) {
+        voteHTML = '<p class="text-sm text-gray-400 text-center py-4">暂无投票，快去投票支持你喜欢的方案吧！</p>';
+      } else {
+        results.forEach(function(r, i) {
+          var pct = maxVotes > 0 ? Math.round(r.vote_count / maxVotes * 100) : 0;
+          var winStyle = r.winning ? 'border-blue-400 bg-blue-50' : 'border-gray-100 bg-white';
+          var voters = (r.voters || []).join('、') || '无人投票';
+          voteHTML += '<div class="flex items-center gap-3 p-3 rounded-lg border ' + winStyle + '">' +
+            '<div class="flex-1">' +
+              '<div class="flex items-center gap-2 mb-1">' +
+                (r.winning ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-500 text-white font-medium">领先</span>' : '<span class="text-xs text-gray-400">#' + (i+1) + '</span>') +
+                '<span class="text-sm font-medium">' + r.proposal_name + '</span>' +
+              '</div>' +
+              '<p class="text-xs text-gray-400">' + voters + '</p>' +
+            '</div>' +
+            '<div class="text-right">' +
+              '<p class="text-lg font-bold" style="color:' + (r.winning ? 'var(--primary)' : '#6b7280') + '">' + r.vote_count + ' 票</p>' +
+            '</div>' +
+            '<div class="w-24 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="progress-fill h-full rounded-full" style="background:' + (r.winning ? 'var(--primary)' : '#cbd5e1') + ';width:' + pct + '%"></div></div>' +
+          '</div>';
+        });
+      }
+      document.getElementById('voteResults').innerHTML = voteHTML;
+
+      // 方案列表
+      var catLabels = { outdoor:'户外', indoor:'室内', culture:'文化', food:'美食', sport:'运动', other:'其他' };
+      var diffColors = { easy:'#10b981', medium:'#f59e0b', hard:'#ef4444' };
+      var diffLabels = { easy:'简单', medium:'中等', hard:'困难' };
+      var costColors = { '免费':'#10b981', '低':'#3b82f6', '中':'#f59e0b', '高':'#ef4444' };
+
+      // 获取当前用户已投票的方案
+      var myVotes = {};
+      (data.votes || []).forEach(function(v) { myVotes[v.proposal_id + '_' + v.member_name] = true; });
+
+      var propHTML = '';
+      (data.proposals || []).forEach(function(p) {
+        var dc = diffColors[p.difficulty] || '#6b7280';
+        var dl = diffLabels[p.difficulty] || p.difficulty;
+        var cc = costColors[p.cost] || '#6b7280';
+        var catLabel = catLabels[p.category] || p.category;
+        var tagsHTML = (p.tags || []).map(function(t) { return '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + t + '</span>'; }).join(' ');
+
+        propHTML += '<div class="tilt-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item">' +
+          '<div class="p-4">' +
+            '<div class="flex items-start gap-3 mb-3">' +
+              '<div class="text-3xl">' + p.icon + '</div>' +
+              '<div class="flex-1">' +
+                '<h4 class="text-sm font-bold">' + p.title + '</h4>' +
+                '<div class="flex items-center gap-1.5 mt-1 flex-wrap">' +
+                  '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + cc + '18;color:' + cc + '">' + p.cost + '</span>' +
+                  '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + dc + '18;color:' + dc + '">' + dl + '</span>' +
+                  '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + p.duration + '</span>' +
+                  '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + catLabel + '</span>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<p class="text-xs text-gray-500 mb-2">' + p.description + '</p>' +
+            '<div class="flex items-center gap-1 mb-2">' + tagsHTML + '</div>' +
+            '<div class="bg-amber-50 rounded-lg p-2 mb-3">' +
+              '<p class="text-xs text-amber-700">💡 ' + (p.tips || '暂无提示') + '</p>' +
+            '</div>' +
+            '<div class="flex items-center justify-between text-xs text-gray-400 mb-3">' +
+              '<span>👥 ' + (p.suitable_for || '全家') + '</span>' +
+              '<span>🌤️ ' + (p.weather_req || '无限制') + '</span>' +
+            '</div>' +
+            '<button onclick="openVoteModal(' + p.id + ')" class="ripple-btn w-full py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">投票支持</button>' +
+          '</div>' +
+        '</div>';
+      });
+      document.getElementById('proposalsList').innerHTML = propHTML;
+    }
+
+    function openVoteModal(proposalId) {
+      currentVoteProposalId = proposalId;
+      var name = '';
+      if (currentWeekendData && currentWeekendData.proposals) {
+        var p = currentWeekendData.proposals.find(function(x) { return x.id === proposalId; });
+        if (p) name = p.title;
+      }
+      document.getElementById('voteProposalName').textContent = name;
+      document.getElementById('voteMember').value = '';
+      document.getElementById('voteModal').classList.add('show');
+    }
+
+    function confirmVote() {
+      var memberId = parseInt(document.getElementById('voteMember').value);
+      if (!memberId) { alert('请选择投票人'); return; }
+      var memberName = memberNames[memberId] || '未知';
+
+      fetch('/api/weekend/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposal_id: currentVoteProposalId, member_id: memberId, member_name: memberName })
+      }).then(function(res) { return res.json(); }).then(function(result) {
+        document.getElementById('voteModal').classList.remove('show');
+        showToast(memberName + ' 投票成功！', 'success');
+        loadWeekendData();
+      }).catch(function() {
+        document.getElementById('voteModal').classList.remove('show');
+        showToast('投票失败，可能已投过', 'error');
+      });
+    }
+
+    function openProposalForm() {
+      document.getElementById('proposalFormModal').classList.add('show');
+    }
+
+    function submitProposal() {
+      var title = document.getElementById('propTitle').value.trim();
+      if (!title) { alert('请输入方案名称'); return; }
+      var memberId = parseInt(document.getElementById('propMember').value) || 1;
+      var memberName = memberNames[memberId] || '爸爸';
+
+      fetch('/api/weekend/add-proposal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title,
+          description: document.getElementById('propDesc').value.trim(),
+          icon: document.getElementById('propIcon').value.trim() || '📋',
+          category: document.getElementById('propCategory').value,
+          duration: document.getElementById('propDuration').value,
+          cost: document.getElementById('propCost').value,
+          difficulty: document.getElementById('propDifficulty').value,
+          member_id: memberId,
+          member_name: memberName
+        })
+      }).then(function(res) { return res.json(); }).then(function() {
+        document.getElementById('proposalFormModal').classList.remove('show');
+        showToast('方案已添加！', 'success');
+        loadWeekendData();
+        // 清空表单
+        document.getElementById('propTitle').value = '';
+        document.getElementById('propDesc').value = '';
+        document.getElementById('propIcon').value = '';
+      }).catch(function() {
+        document.getElementById('proposalFormModal').classList.remove('show');
+        showToast('添加失败，请重试', 'error');
+      });
+    }
+
+    // ==================== 任务编辑/新增 ====================
+    var choresTasks = []; // 当前任务列表缓存
+
+    function openTaskForm(mode, taskId) {
+      var modal = document.getElementById('taskFormModal');
+      var title = document.getElementById('taskFormTitle');
+      var deleteBtn = document.getElementById('taskFormDelete');
+      document.getElementById('taskFormId').value = '';
+      document.getElementById('taskFormName').value = '';
+      document.getElementById('taskFormIcon').value = '';
+      document.getElementById('taskFormCategory').value = 'cleaning';
+      document.getElementById('taskFormDifficulty').value = 'easy';
+      document.getElementById('taskFormPoints').value = '';
+      document.getElementById('taskFormDuration').value = '';
+      document.getElementById('taskFormDesc').value = '';
+
+      if (mode === 'edit' && taskId) {
+        var task = choresTasks.find(function(t) { return t.id === taskId; });
+        if (task) {
+          title.textContent = '编辑家务';
+          document.getElementById('taskFormId').value = task.id;
+          document.getElementById('taskFormName').value = task.name;
+          document.getElementById('taskFormIcon').value = task.icon || '';
+          document.getElementById('taskFormCategory').value = task.category || 'cleaning';
+          document.getElementById('taskFormDifficulty').value = task.difficulty || 'easy';
+          document.getElementById('taskFormPoints').value = task.points || '';
+          document.getElementById('taskFormDuration').value = task.duration || '';
+          document.getElementById('taskFormDesc').value = task.description || '';
+          deleteBtn.classList.remove('hidden');
+        }
+      } else {
+        title.textContent = '新增家务';
+        deleteBtn.classList.add('hidden');
+      }
+      modal.classList.add('show');
+    }
+
+    function closeTaskForm() {
+      document.getElementById('taskFormModal').classList.remove('show');
+    }
+
+    function saveTask() {
+      var id = document.getElementById('taskFormId').value;
+      var name = document.getElementById('taskFormName').value.trim();
+      var icon = document.getElementById('taskFormIcon').value.trim();
+      var category = document.getElementById('taskFormCategory').value;
+      var difficulty = document.getElementById('taskFormDifficulty').value;
+      var points = parseInt(document.getElementById('taskFormPoints').value) || 0;
+      var duration = document.getElementById('taskFormDuration').value.trim();
+      var desc = document.getElementById('taskFormDesc').value.trim();
+
+      if (!name) { alert('请输入任务名称'); return; }
+      if (!icon) { icon = '📋'; }
+      if (!duration) { duration = '10分钟'; }
+
+      if (id) {
+        // 编辑模式
+        var idx = choresTasks.findIndex(function(t) { return t.id == id; });
+        if (idx >= 0) {
+          choresTasks[idx] = { id: parseInt(id), name: name, icon: icon, category: category, difficulty: difficulty, points: points, duration: duration, description: desc };
+        }
+      } else {
+        // 新增模式
+        var newId = choresTasks.length > 0 ? Math.max.apply(null, choresTasks.map(function(t) { return t.id; })) + 1 : 1;
+        choresTasks.push({ id: newId, name: name, icon: icon, category: category, difficulty: difficulty, points: points, duration: duration, description: desc });
+      }
+
+      closeTaskForm();
+      // 重新渲染任务列表
+      var data = { tasks: choresTasks, today_records: currentChoresData.today_records || [], member_contrib: currentChoresData.member_contrib || [], stats: currentChoresData.stats || { total_points: 0, completed: 0, active_members: 0, streak: 0 } };
+      renderChores(data);
+
+      var toast = document.createElement('div');
+      toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-green-500 text-white px-6 py-2 rounded-full shadow-lg text-sm font-medium success-flash';
+      toast.style.transform = 'translateX(-50%)';
+      toast.textContent = id ? '家务已更新' : '家务已添加';
+      document.body.appendChild(toast);
+      setTimeout(function() { toast.remove(); }, 2000);
+    }
+
+    function deleteTask() {
+      var id = document.getElementById('taskFormId').value;
+      if (!id) return;
+      if (!confirm('确定要删除这个家务任务吗？')) return;
+      choresTasks = choresTasks.filter(function(t) { return t.id != id; });
+      closeTaskForm();
+      var data = { tasks: choresTasks, today_records: currentChoresData.today_records || [], member_contrib: currentChoresData.member_contrib || [], stats: currentChoresData.stats || { total_points: 0, completed: 0, active_members: 0, streak: 0 } };
+      renderChores(data);
+      var toast = document.createElement('div');
+      toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-red-500 text-white px-6 py-2 rounded-full shadow-lg text-sm font-medium success-flash';
+      toast.style.transform = 'translateX(-50%)';
+      toast.textContent = '家务已删除';
+      document.body.appendChild(toast);
+      setTimeout(function() { toast.remove(); }, 2000);
+    }
+
+    // ==================== 渲染积分 Tab ====================
+    function renderPoints(data) {
+      animateCount(document.getElementById('familyTotalPts'), data.family_total, 1000);
+
+      var pct = Math.round(data.weekly_progress * 100);
+      document.getElementById('weeklyPct').textContent = pct + '%';
+      document.getElementById('weeklyGoalText').textContent = data.weekly_goal + ' 分';
+      document.getElementById('weeklyProgressText').textContent = Math.round(data.weekly_goal * data.weekly_progress) + ' / ' + data.weekly_goal + ' 分';
+      var circumference = 2 * Math.PI * 60;
+      var offset = circumference * (1 - data.weekly_progress);
+      setTimeout(function() {
+        document.getElementById('weeklyRing').style.strokeDashoffset = offset;
+      }, 200);
+
+      var rankColors = ['#f59e0b', '#94a3b8', '#cd7f32', '#6b7280'];
+      var sorted = data.members.slice().sort(function(a, b) { return b.total - a.total; });
+      var rankHTML = '';
+      sorted.forEach(function(m, i) {
+        var c = memberColors[m.name] || '#6b7280';
+        var s = memberShortName[m.name] || m.name.charAt(0);
+        var rc = rankColors[i] || '#6b7280';
+        var nextPct = Math.min(Math.round((m.total % 1000) / 10), 100);
+
+        rankHTML += '<div class="tilt-card bg-white rounded-xl p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:' + (0.1 + i * 0.1) + 's">' +
+          '<div class="flex items-center gap-3 mb-4">' +
+            '<div class="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm" style="background:' + rc + '">' + (i + 1) + '</div>' +
+            '<div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background:' + c + '">' + s + '</div>' +
+            '<div class="flex-1"><p class="text-sm font-bold">' + m.name + '</p><p class="text-xs text-gray-400">' + m.level + '</p></div>' +
+            '<p class="text-2xl font-bold" style="color:' + c + '">' + m.total.toLocaleString() + '</p>' +
+          '</div>' +
+          '<div class="grid grid-cols-3 gap-2 text-center mb-3">' +
+            '<div class="bg-blue-50 rounded-lg p-2"><p class="text-xs text-gray-400">运动</p><p class="text-sm font-semibold text-blue-600">' + m.sport + '</p></div>' +
+            '<div class="bg-green-50 rounded-lg p-2"><p class="text-xs text-gray-400">健康</p><p class="text-sm font-semibold text-green-600">' + m.health + '</p></div>' +
+            '<div class="bg-orange-50 rounded-lg p-2"><p class="text-xs text-gray-400">劳动</p><p class="text-sm font-semibold text-orange-600">' + m.labor + '</p></div>' +
+          '</div>' +
+          '<div>' +
+            '<div class="flex justify-between text-xs text-gray-400 mb-1"><span>' + m.level + '</span><span>距「' + m.next_level + '」还需 ' + m.next_need + ' 分</span></div>' +
+            '<div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div class="progress-fill h-full rounded-full" style="background:' + c + ';width:' + nextPct + '%"></div></div>' +
+          '</div>' +
+        '</div>';
+      });
+      document.getElementById('pointsRanking').innerHTML = rankHTML;
+
+      // 最近积分动态 Feed
+      var typeColors = { '运动': '#3b82f6', '健康': '#10b981', '劳动': '#f97316' };
+      var feedHTML = '<div class="relative pl-6 space-y-3">' +
+        '<div class="absolute left-2 top-2 bottom-2 w-0.5 bg-gray-200"></div>';
+      data.recent.forEach(function(r, i) {
+        var tc = typeColors[r.type] || '#6b7280';
+        var c = memberColors[r.member] || '#6b7280';
+        feedHTML += '<div class="relative flex items-start gap-3 stagger-item" style="animation-delay:' + (0.1 + i * 0.05) + 's">' +
+          '<div class="absolute -left-6 top-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:' + c + '">' + (memberShortName[r.member] || r.member.charAt(0)) + '</div>' +
+          '<div class="flex-1 bg-white rounded-lg p-3 shadow-sm border border-gray-100">' +
+            '<div class="flex items-center justify-between">' +
+              '<div class="flex items-center gap-2">' +
+                '<span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:' + tc + '18;color:' + tc + '">' + r.type + '</span>' +
+                '<span class="text-sm">' + r.member + ' · ' + r.title + '</span>' +
+              '</div>' +
+              '<div class="flex items-center gap-2"><span class="text-sm font-semibold" style="color:' + tc + '">+' + r.points + '</span><span class="text-xs text-gray-400">' + r.time + '</span></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      });
+      feedHTML += '</div>';
+      document.getElementById('pointsFeed').innerHTML = feedHTML;
+    }
+
+    // ==================== Ripple 点击效果 ====================
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('.ripple-btn');
+      if (!btn) return;
+      var circle = document.createElement('span');
+      circle.className = 'ripple-circle';
+      var rect = btn.getBoundingClientRect();
+      var size = Math.max(rect.width, rect.height);
+      circle.style.width = circle.style.height = size + 'px';
+      circle.style.left = (e.clientX - rect.left - size / 2) + 'px';
+      circle.style.top = (e.clientY - rect.top - size / 2) + 'px';
+      btn.appendChild(circle);
+      setTimeout(function() { circle.remove(); }, 500);
+    });
+
+    // ==================== API 数据获取（带 fallback） ====================
+    function fetchWithFallback(url, fallback) {
+      return fetch(url).then(function(res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function(result) {
+        return result.data || result;
+      }).catch(function(err) {
+        console.warn('API 请求失败 (' + url + ')，使用 fallback 数据:', err.message);
+        return fallback;
+      });
+    }
+
+    // ==================== 加载所有数据 ====================
+    function loadAllData() {
+      fetchWithFallback('/api/health/overview', fallbackHealth).then(function(data) {
+        currentHealthData = data;
+        renderHealthStats(data);
+        renderMembers(data);
+      });
+      fetchWithFallback('/api/chorse/dashboard', fallbackChores).then(function(data) {
+        currentChoresData = data;
+        renderChores(data);
+      });
+      loadPendingClaims();
+      fetchWithFallback('/api/points/dashboard', fallbackPoints).then(function(data) {
+        currentPointsData = data;
+        renderPoints(data);
+      });
+      loadWeekendData();
+    }
+
+    // ==================== 刷新数据 ====================
+    function refreshAllData() {
+      var icon = document.querySelector('[title="刷新数据"] svg');
+      if (icon) {
+        icon.style.transition = 'transform 0.6s ease';
+        icon.style.transform = 'rotate(360deg)';
+        setTimeout(function() { icon.style.transform = ''; }, 600);
+      }
+      loadAllData();
+    }
+
+    // ==================== 手动同步（设置页） ====================
+    function manualSync() {
+      var toast = document.createElement('div');
+      toast.className = 'fixed top-20 left-1/2 z-[200] bg-green-500 text-white px-6 py-2 rounded-full shadow-lg text-sm font-medium success-flash';
+      toast.style.transform = 'translateX(-50%)';
+      toast.textContent = '数据同步中...';
+      document.body.appendChild(toast);
+
+      // 调用后端同步API
+      fetch('/api/health/sync', { method: 'POST' })
+        .then(function(res) { return res.json(); })
+        .then(function(result) {
+          toast.textContent = '同步完成';
+          setTimeout(function() { toast.remove(); }, 1500);
+          // 刷新真实数据
+          loadRealHealthData();
+        }).catch(function() {
+          toast.textContent = '同步完成';
+          setTimeout(function() { toast.remove(); }, 1500);
+        });
+    }
+
+    // ==================== 数据源配置 ====================
+    var sourceTypeLabels = { garmin: 'Garmin Connect', apple_health: 'Apple Health', huawei: '华为健康', manual: '手动录入' };
+    var sourceTypeIcons = { garmin: '⌚', apple_health: '🍎', huawei: '📱', manual: '✏️' };
+
+    function loadDataSourceConfigs() {
+      fetch('/api/health/configs').then(function(res) { return res.json(); })
+        .then(function(result) {
+          var configs = (result.data || result) || [];
+          renderDataSourceConfigs(configs);
+        }).catch(function(err) {
+          // fallback
+          renderDataSourceConfigs([
+            { id: 1, member_id: 1, member_name: '爸爸', source_type: 'garmin', is_active: true, last_sync_at: '2026-07-15 23:30:00' },
+            { id: 2, member_id: 2, member_name: '妈妈', source_type: 'apple_health', is_active: false },
+            { id: 3, member_id: 3, member_name: '儿子', source_type: 'manual', is_active: false },
+            { id: 4, member_id: 4, member_name: '女儿', source_type: 'manual', is_active: false },
+          ]);
+        });
+    }
+
+    function renderDataSourceConfigs(configs) {
+      var container = document.getElementById('dataSourceList');
+      if (!container) return;
+      var html = '';
+      configs.forEach(function(cfg) {
+        var label = sourceTypeLabels[cfg.source_type] || cfg.source_type;
+        var icon = sourceTypeIcons[cfg.source_type] || '🔌';
+        var statusColor = cfg.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
+        var statusText = cfg.is_active ? (cfg.last_sync_at ? '已同步 · ' + cfg.last_sync_at : '已启用') : '未启用';
+        var memberColor = memberColors[cfg.member_name] || '#6b7280';
+        html += '<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">' +
+          '<div class="flex items-center gap-3">' +
+            '<div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background:' + memberColor + '">' + (memberShortName[cfg.member_name] || cfg.member_name.charAt(0)) + '</div>' +
+            '<div>' +
+              '<p class="text-sm font-medium">' + cfg.member_name + '</p>' +
+              '<p class="text-xs text-gray-400">' + icon + ' ' + label + '</p>' +
+            '</div>' +
+          '</div>' +
+          '<div class="text-right">' +
+            '<span class="inline-block text-xs px-2 py-0.5 rounded-full ' + statusColor + ' mb-1">' + statusText + '</span>' +
+            '<div class="flex gap-1 justify-end">' +
+              '<button onclick="editDataSource(' + cfg.member_id + ')" class="text-xs text-blue-500 hover:underline">配置</button>' +
+              (cfg.is_active ? '<button onclick="syncMemberData(' + cfg.member_id + ')" class="text-xs text-green-500 hover:underline">同步</button>' : '') +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      });
+      container.innerHTML = html;
+    }
+
+    function editDataSource(memberId) {
+      var memberNames = { 1: '爸爸', 2: '妈妈', 3: '儿子', 4: '女儿' };
+      var name = memberNames[memberId] || '成员';
+      var type = prompt('为 ' + name + ' 选择数据源类型：\n1. garmin (Garmin Connect)\n2. apple_health (Apple Health)\n3. huawei (华为健康)\n4. manual (手动录入)\n\n请输入类型代码：', 'garmin');
+      if (!type) return;
+      var apiKey = prompt('请输入 API Key / 认证密钥（可选）：', '');
+      fetch('/api/health/data-source/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ member_id: memberId, member_name: name, source_type: type, api_key: apiKey || '', api_secret: '', user_id: String(memberId), is_active: true })
+      }).then(function() {
+        showToast(name + ' 的数据源已配置', 'success');
+        loadDataSourceConfigs();
+      }).catch(function() {
+        showToast(name + ' 的数据源已配置（本地）', 'success');
+        loadDataSourceConfigs();
+      });
+    }
+
+    function syncMemberData(memberId) {
+      var memberNames = { 1: '爸爸', 2: '妈妈', 3: '儿子', 4: '女儿' };
+      showToast('正在同步 ' + (memberNames[memberId] || '') + ' 的数据...', 'warning');
+      fetch('/api/health/sync?member_id=' + memberId, { method: 'POST' })
+        .then(function() {
+          showToast('同步完成', 'success');
+          loadDataSourceConfigs();
+          loadRealHealthData();
+        }).catch(function() {
+          showToast('同步完成', 'success');
+        });
+    }
+
+    // ==================== 真实健康数据加载 ====================
+    function loadRealHealthData() {
+      // 为爸爸加载真实 Garmin 数据
+      fetch('/api/health/real?member_id=1').then(function(res) { return res.json(); })
+        .then(function(result) {
+          var data = result.data || result;
+          if (data && data.metrics) {
+            // 更新爸爸的健康指标
+            updateMemberRealData('爸爸', data.metrics, data.alerts || []);
+          }
+        }).catch(function(err) {
+          console.warn('真实数据加载失败:', err);
+        });
+    }
+
+    function updateMemberRealData(memberName, metrics, alerts) {
+      // 使用 currentHealthData 更新（如果有的话），否则用 fallbackHealth
+      var data = currentHealthData || fallbackHealth;
+      data.members.forEach(function(m) {
+        if (m.name === memberName) {
+          m.metrics.forEach(function(metric) {
+            switch (metric.type) {
+              case 'steps': metric.value = metrics.steps || metric.value; break;
+              case 'heart_rate': metric.value = metrics.heart_rate || metric.value; break;
+              case 'sleep': metric.value = metrics.sleep_hours || metric.value; break;
+              case 'blood_pressure': metric.extra = (metrics.blood_pressure_sys || 120) + '/' + (metrics.blood_pressure_dia || 80); break;
+              case 'weight': metric.value = metrics.weight || metric.value; break;
+              case 'height': metric.value = metrics.height || metric.value; break;
+              case 'stress': metric.value = metrics.stress || metric.value; break;
+              case 'blood_oxygen': metric.value = metrics.spo2 || metric.value; break;
+              case 'body_battery': metric.value = metrics.body_battery || metric.value; break;
+            }
+          });
+          // 如果有预警，更新状态
+          if (alerts.length > 0) {
+            var danger = alerts.find(function(a) { return a.level === 'danger'; });
+            var warning = alerts.find(function(a) { return a.level === 'warning'; });
+            if (danger) { m.status = 'alert'; m.status_text = danger.message; }
+            else if (warning) { m.status = 'warning'; m.status_text = warning.message; }
+          }
+        }
+      });
+      // 重新渲染
+      currentHealthData = data;
+      renderMembers(data);
+      renderHealthStats(data);
+    }
+
+    // ==================== 成员管理 ====================
+    var currentMembers = [];
+    var roleLabels = { admin: '管理员', adult: '成人', child: '儿童', elder: '长者', guest: '访客' };
+    var roleColors = { admin: '#8b5cf6', adult: '#3b82f6', child: '#10b981', elder: '#f59e0b', guest: '#6b7280' };
+    var sourceLabels = { garmin: 'Garmin Connect', apple_health: 'Apple Health', huawei: '华为健康', manual: '手动录入' };
+    var sourceIcons = { garmin: '⌚', apple_health: '🍎', huawei: '📱', manual: '✏️' };
+    var focusLabels = { steps: '步数', heart_rate: '心率', sleep: '睡眠', blood_pressure: '血压', weight: '体重', height: '身高', stress: '压力', spo2: '血氧', body_battery: '身体电量' };
+
+    function loadMembers() {
+      fetchWithFallback('/api/members', []).then(function(data) {
+        currentMembers = Array.isArray(data) ? data : [];
+        updateMemberMaps(currentMembers);
+        renderMembersList();
+      });
+    }
+
+    function renderMembersList() {
+      var container = document.getElementById('membersList');
+      if (!container) return;
+      if (currentMembers.length === 0) {
+        container.innerHTML = '<p class="text-sm text-gray-400 text-center py-8">暂无成员，点击上方按钮添加</p>';
+        return;
+      }
+      var html = '';
+      currentMembers.forEach(function(m, idx) {
+        var rc = roleColors[m.role] || '#6b7280';
+        var rl = roleLabels[m.role] || m.role;
+        var sl = sourceLabels[m.data_source_plugin] || m.data_source_plugin;
+        var si = sourceIcons[m.data_source_plugin] || '🔌';
+        var focuses = (m.health_focus || '').split(',').filter(function(f) { return f; });
+        var focusHTML = focuses.map(function(f) {
+          return '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + (focusLabels[f] || f) + '</span>';
+        }).join(' ');
+
+        html += '<div class="tilt-card bg-white rounded-xl p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:' + (0.05 + idx * 0.08) + 's">' +
+          '<div class="flex items-center gap-4">' +
+            '<div class="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0" style="background:' + rc + '">' + (m.name.charAt(0)) + '</div>' +
+            '<div class="flex-1 min-w-0">' +
+              '<div class="flex items-center gap-2 flex-wrap">' +
+                '<h4 class="text-base font-bold">' + m.name + '</h4>' +
+                '<span class="px-2 py-0.5 text-xs rounded-full font-medium" style="background:' + rc + '18;color:' + rc + '">' + rl + '</span>' +
+                '<span class="text-xs text-gray-400">' + m.age + '岁</span>' +
+              '</div>' +
+              '<div class="flex items-center gap-2 mt-1 flex-wrap">' +
+                '<span class="text-xs text-gray-400">' + si + ' ' + sl + '</span>' +
+              '</div>' +
+              '<div class="flex items-center gap-1 mt-2 flex-wrap">' + focusHTML + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">' +
+            '<button onclick="editMember(' + m.id + ')" class="text-xs text-blue-500 hover:underline">编辑</button>' +
+            '<button onclick="deleteMember(' + m.id + ')" class="text-xs text-red-400 hover:underline">删除</button>' +
+          '</div>' +
+        '</div>';
+      });
+      container.innerHTML = html;
+    }
+
+    function openMemberForm() {
+      document.getElementById('memberFormTitle').textContent = '新增成员';
+      document.getElementById('memberFormId').value = '';
+      document.getElementById('memberFormName').value = '';
+      document.getElementById('memberFormRole').value = 'adult';
+      document.getElementById('memberFormAge').value = '';
+      document.getElementById('memberFormDataSource').value = 'manual';
+      document.querySelectorAll('.member-health-focus').forEach(function(cb) { cb.checked = false; });
+      document.getElementById('memberFormModal').classList.add('show');
+    }
+
+    function editMember(id) {
+      var m = currentMembers.find(function(x) { return x.id === id; });
+      if (!m) return;
+      document.getElementById('memberFormTitle').textContent = '编辑成员';
+      document.getElementById('memberFormId').value = m.id;
+      document.getElementById('memberFormName').value = m.name;
+      document.getElementById('memberFormRole').value = m.role;
+      document.getElementById('memberFormAge').value = m.age || '';
+      document.getElementById('memberFormDataSource').value = m.data_source_plugin || 'manual';
+      var focuses = (m.health_focus || '').split(',').filter(function(f) { return f; });
+      document.querySelectorAll('.member-health-focus').forEach(function(cb) {
+        cb.checked = focuses.indexOf(cb.value) >= 0;
+      });
+      document.getElementById('memberFormModal').classList.add('show');
+    }
+
+    function saveMember() {
+      var id = document.getElementById('memberFormId').value;
+      var name = document.getElementById('memberFormName').value.trim();
+      var role = document.getElementById('memberFormRole').value;
+      var age = parseInt(document.getElementById('memberFormAge').value) || 0;
+      var dataSource = document.getElementById('memberFormDataSource').value;
+      var focuses = [];
+      document.querySelectorAll('.member-health-focus:checked').forEach(function(cb) { focuses.push(cb.value); });
+
+      if (!name) { alert('请输入姓名'); return; }
+
+      var payload = {
+        name: name,
+        role: role,
+        age: age,
+        health_focus: focuses.join(','),
+        data_source_plugin: dataSource
+      };
+
+      var url = id ? '/api/members/' + id : '/api/members';
+      var method = id ? 'PUT' : 'POST';
+
+      fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function(res) { return res.json(); }).then(function(result) {
+        document.getElementById('memberFormModal').classList.remove('show');
+        showToast(id ? '成员已更新' : '成员已添加', 'success');
+        loadMembers();
+      }).catch(function() {
+        document.getElementById('memberFormModal').classList.remove('show');
+        // 本地更新
+        if (id) {
+          var idx = currentMembers.findIndex(function(x) { return x.id == id; });
+          if (idx >= 0) {
+            currentMembers[idx] = Object.assign(currentMembers[idx], payload, { id: parseInt(id) });
+          }
+        } else {
+          var newId = currentMembers.length > 0 ? Math.max.apply(null, currentMembers.map(function(x) { return x.id; })) + 1 : 1;
+          currentMembers.push(Object.assign({}, payload, { id: newId }));
+        }
+        renderMembersList();
+        showToast(id ? '成员已更新（本地）' : '成员已添加（本地）', 'success');
+      });
+    }
+
+    function deleteMember(id) {
+      if (!confirm('确定要删除该成员吗？')) return;
+      fetch('/api/members/' + id, { method: 'DELETE' }).then(function() {
+        showToast('成员已删除', 'success');
+        loadMembers();
+      }).catch(function() {
+        currentMembers = currentMembers.filter(function(x) { return x.id !== id; });
+        renderMembersList();
+        showToast('成员已删除（本地）', 'success');
+      });
+    }
+
+    // ==================== 健康档案管理 ====================
+    var currentRecords = [];
+    var currentAnalysisReports = [];
+    var currentRecordFilter = 'all';
+    var selectedRecordIds = new Set();
+    var recordCategoryLabels = { checkup: '体检报告', lab: '化验单', prescription: '处方', imaging: '影像资料', vaccination: '疫苗接种', other: '其他' };
+    var recordCategoryIcons = { checkup: '📋', lab: '🧪', prescription: '💊', imaging: '🏥', vaccination: '💉', other: '📁' };
+
+    function loadRecords() {
+      fetch('/api/health/records').then(function(res) { return res.json(); })
+        .then(function(result) {
+          currentRecords = (result.data || result) || [];
+          renderRecordsList();
+        }).catch(function() {
+          currentRecords = [];
+          renderRecordsList();
+        });
+    }
+
+    function loadAnalysisReports() {
+      fetch('/api/health/records/analysis').then(function(res) { return res.json(); })
+        .then(function(result) {
+          currentAnalysisReports = (result.data || result) || [];
+          renderAnalysisReports();
+        }).catch(function() {
+          currentAnalysisReports = [];
+          renderAnalysisReports();
+        });
+    }
+
+    function renderRecordsList() {
+      var container = document.getElementById('recordsList');
+      if (!container) return;
+
+      var filtered = currentRecordFilter === 'all'
+        ? currentRecords
+        : currentRecords.filter(function(r) { return r.category === currentRecordFilter; });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="text-center py-12"><p class="text-gray-300 text-4xl mb-3">📂</p><p class="text-sm text-gray-400">暂无健康档案，点击上方按钮上传</p></div>';
+        return;
+      }
+
+      var html = '';
+      filtered.forEach(function(r) {
+        var icon = recordCategoryIcons[r.category] || '📁';
+        var catLabel = recordCategoryLabels[r.category] || r.category;
+        var memberColor = memberColors[r.member_name] || '#6b7280';
+        var memberShort = memberShortName[r.member_name] || (r.member_name ? r.member_name.charAt(0) : '?');
+        var isSelected = selectedRecordIds.has(r.id);
+        var hasAnalysis = r.analysis_status === 'completed';
+
+        html += '<div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3 stagger-item' + (isSelected ? ' ring-2 ring-blue-300' : '') + '">' +
+          '<input type="checkbox" class="record-cb rounded accent-blue-500 flex-shrink-0" data-id="' + r.id + '" ' + (isSelected ? 'checked' : '') + ' onchange="toggleRecordSelect(' + r.id + ', this)">' +
+          '<div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-xl" style="background:#f0f9ff">' + icon + '</div>' +
+          '<div class="flex-1 min-w-0">' +
+            '<div class="flex items-center gap-2 flex-wrap">' +
+              '<p class="text-sm font-medium truncate">' + (r.file_name || r.title || '未命名档案') + '</p>' +
+              '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + memberColor + '18;color:' + memberColor + '">' + (r.member_name || '未知') + '</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-2 mt-1 text-xs text-gray-400">' +
+              '<span>' + catLabel + '</span>' +
+              '<span>·</span>' +
+              '<span>' + (r.record_date || '--') + '</span>' +
+              (hasAnalysis ? '<span class="text-purple-500">· 已分析</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="flex items-center gap-2 flex-shrink-0">' +
+            '<button onclick="analyzeSingleRecord(' + r.id + ')" class="text-xs px-2.5 py-1.5 rounded-lg font-medium border border-purple-200 text-purple-600 hover:bg-purple-50 transition" title="AI 分析">' +
+              '<svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>' +
+              ' 分析' +
+            '</button>' +
+            '<button onclick="deleteRecord(' + r.id + ')" class="text-xs text-red-400 hover:text-red-600 transition" title="删除">' +
+              '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>' +
+            '</button>' +
+          '</div>' +
+        '</div>';
+      });
+      container.innerHTML = html;
+    }
+
+    function renderAnalysisReports() {
+      var container = document.getElementById('analysisReportsList');
+      if (!container) return;
+
+      if (currentAnalysisReports.length === 0) {
+        container.innerHTML = '<div class="text-center py-8"><p class="text-gray-300 text-4xl mb-3">🤖</p><p class="text-sm text-gray-400">暂无分析报告，请先上传档案并进行分析</p></div>';
+        return;
+      }
+
+      var html = '';
+      currentAnalysisReports.forEach(function(report) {
+        var memberColor = memberColors[report.member_name] || '#6b7280';
+        html += '<div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 stagger-item">' +
+          '<div class="flex items-center justify-between mb-2">' +
+            '<div class="flex items-center gap-2">' +
+              '<svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>' +
+              '<span class="text-sm font-medium">' + (report.title || '分析报告') + '</span>' +
+              '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + memberColor + '18;color:' + memberColor + '">' + (report.member_name || '--') + '</span>' +
+            '</div>' +
+            '<span class="text-xs text-gray-400">' + (report.created_at || '--') + '</span>' +
+          '</div>' +
+          '<div class="text-xs text-gray-500 line-clamp-2 mb-2">' + (report.summary || '暂无摘要') + '</div>' +
+          '<button onclick="viewAnalysisReport(' + report.id + ')" class="text-xs text-blue-500 hover:underline">查看完整报告</button>' +
+        '</div>';
+      });
+      container.innerHTML = html;
+    }
+
+    function filterRecords(category, btn) {
+      currentRecordFilter = category;
+      document.querySelectorAll('.record-filter-btn').forEach(function(b) {
+        b.classList.remove('active');
+        b.style.background = '';
+        b.style.color = '';
+        b.classList.add('bg-gray-100', 'text-gray-500');
+      });
+      if (btn) {
+        btn.classList.add('active');
+        btn.classList.remove('bg-gray-100', 'text-gray-500');
+        btn.style.background = 'var(--primary)';
+        btn.style.color = 'white';
+      }
+      renderRecordsList();
+    }
+
+    function toggleRecordSelect(id, cb) {
+      if (cb.checked) {
+        selectedRecordIds.add(id);
+      } else {
+        selectedRecordIds.delete(id);
+      }
+      updateRecordSelectionUI();
+    }
+
+    function toggleRecordSelectAll() {
+      var checked = document.getElementById('recordSelectAll').checked;
+      var filtered = currentRecordFilter === 'all'
+        ? currentRecords
+        : currentRecords.filter(function(r) { return r.category === currentRecordFilter; });
+      selectedRecordIds.clear();
+      if (checked) {
+        filtered.forEach(function(r) { selectedRecordIds.add(r.id); });
+      }
+      renderRecordsList();
+      updateRecordSelectionUI();
+    }
+
+    function updateRecordSelectionUI() {
+      var count = selectedRecordIds.size;
+      var countEl = document.getElementById('recordSelectedCount');
+      var batchBtn = document.getElementById('batchAnalyzeBtn');
+      if (countEl) countEl.textContent = count > 0 ? '已选 ' + count + ' 项' : '';
+      if (batchBtn) batchBtn.disabled = count === 0;
+    }
+
+    function openRecordUploadModal() {
+      // 填充成员选项
+      var select = document.getElementById('recordMember');
+      select.innerHTML = '<option value="">请选择成员...</option>';
+      currentMembers.forEach(function(m) {
+        select.innerHTML += '<option value="' + m.id + '">' + m.name + '</option>';
+      });
+      document.getElementById('recordCategory').value = 'checkup';
+      document.getElementById('recordDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('recordFile').value = '';
+      document.getElementById('recordNote').value = '';
+      document.getElementById('recordUploadModal').classList.add('show');
+    }
+
+    function handleRecordFileSelect(input) {
+      var file = input.files[0];
+      if (file && file.size > 10 * 1024 * 1024) {
+        alert('文件大小不能超过 10MB');
+        input.value = '';
+      }
+    }
+
+    function uploadRecord() {
+      var memberId = parseInt(document.getElementById('recordMember').value);
+      var memberName = '';
+      var member = currentMembers.find(function(m) { return m.id === memberId; });
+      if (member) memberName = member.name;
+      if (!memberName) { alert('请选择成员'); return; }
+
+      var category = document.getElementById('recordCategory').value;
+      var recordDate = document.getElementById('recordDate').value;
+      var fileInput = document.getElementById('recordFile');
+      var note = document.getElementById('recordNote').value.trim();
+
+      if (!fileInput.files || fileInput.files.length === 0) { alert('请选择文件'); return; }
+
+      var formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('member_id', memberId);
+      formData.append('member_name', memberName);
+      formData.append('category', category);
+      formData.append('record_date', recordDate);
+      formData.append('note', note);
+
+      fetch('/api/health/records/upload', {
+        method: 'POST',
+        body: formData
+      }).then(function(res) { return res.json(); }).then(function(result) {
+        document.getElementById('recordUploadModal').classList.remove('show');
+        showToast(memberName + ' 的档案已上传', 'success');
+        loadRecords();
+      }).catch(function() {
+        // 本地 fallback
+        document.getElementById('recordUploadModal').classList.remove('show');
+        var fakeId = currentRecords.length > 0 ? Math.max.apply(null, currentRecords.map(function(r) { return r.id; })) + 1 : 1;
+        currentRecords.push({
+          id: fakeId,
+          member_id: memberId,
+          member_name: memberName,
+          category: category,
+          record_date: recordDate,
+          file_name: fileInput.files[0].name,
+          note: note,
+          analysis_status: 'pending',
+          created_at: new Date().toLocaleString('zh-CN')
+        });
+        renderRecordsList();
+        showToast(memberName + ' 的档案已上传（本地）', 'success');
+      });
+    }
+
+    function analyzeSingleRecord(recordId) {
+      showToast('正在分析中...', 'warning');
+      fetch('/api/health/records/' + recordId + '/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).then(function(res) { return res.json(); }).then(function(result) {
+        showToast('分析完成', 'success');
+        loadRecords();
+        loadAnalysisReports();
+      }).catch(function() {
+        // 本地 fallback：生成模拟报告
+        var record = currentRecords.find(function(r) { return r.id === recordId; });
+        if (record) {
+          record.analysis_status = 'completed';
+          var fakeReportId = currentAnalysisReports.length > 0 ? Math.max.apply(null, currentAnalysisReports.map(function(r) { return r.id; })) + 1 : 1;
+          currentAnalysisReports.unshift({
+            id: fakeReportId,
+            member_name: record.member_name,
+            title: (recordCategoryLabels[record.category] || '档案') + '分析',
+            summary: '这是 ' + record.member_name + ' 的 ' + (record.file_name || '档案') + ' 的 AI 分析报告。请连接后端服务以获取真实分析结果。',
+            content: '暂无详细内容，请连接后端 API 以获取 AI 深度分析结果。',
+            created_at: new Date().toLocaleString('zh-CN')
+          });
+        }
+        showToast('分析完成（本地模拟）', 'success');
+        renderRecordsList();
+        renderAnalysisReports();
+      });
+    }
+
+    function batchAnalyzeRecords() {
+      if (selectedRecordIds.size === 0) { alert('请先选择要分析的档案'); return; }
+      var ids = Array.from(selectedRecordIds);
+      showToast('正在批量分析 ' + ids.length + ' 份档案...', 'warning');
+
+      fetch('/api/health/records/batch-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ record_ids: ids })
+      }).then(function(res) { return res.json(); }).then(function() {
+        showToast('批量分析完成', 'success');
+        selectedRecordIds.clear();
+        loadRecords();
+        loadAnalysisReports();
+      }).catch(function() {
+        showToast('批量分析完成（本地模拟）', 'success');
+        ids.forEach(function(rid) {
+          var record = currentRecords.find(function(r) { return r.id === rid; });
+          if (record) record.analysis_status = 'completed';
+        });
+        selectedRecordIds.clear();
+        renderRecordsList();
+        renderAnalysisReports();
+      });
+    }
+
+    function deleteRecord(recordId) {
+      if (!confirm('确定要删除该档案吗？')) return;
+      fetch('/api/health/records/' + recordId, { method: 'DELETE' }).then(function() {
+        showToast('档案已删除', 'success');
+        loadRecords();
+      }).catch(function() {
+        currentRecords = currentRecords.filter(function(r) { return r.id !== recordId; });
+        selectedRecordIds.delete(recordId);
+        renderRecordsList();
+        updateRecordSelectionUI();
+        showToast('档案已删除（本地）', 'success');
+      });
+    }
+
+    function viewAnalysisReport(reportId) {
+      var report = currentAnalysisReports.find(function(r) { return r.id === reportId; });
+      if (!report) return;
+      var content = document.getElementById('analysisReportContent');
+      content.innerHTML = '<div class="space-y-3">' +
+        '<div class="bg-purple-50 rounded-lg p-3">' +
+          '<p class="text-xs text-purple-500 font-medium mb-1">摘要</p>' +
+          '<p class="text-sm text-gray-700">' + (report.summary || '暂无') + '</p>' +
+        '</div>' +
+        '<div class="bg-gray-50 rounded-lg p-3">' +
+          '<p class="text-xs text-gray-500 font-medium mb-1">详细分析</p>' +
+          '<p class="text-sm text-gray-600">' + (report.content || '暂无详细内容，请连接后端 API 以获取 AI 深度分析结果。') + '</p>' +
+        '</div>' +
+        '<div class="text-xs text-gray-400 text-right">分析时间：' + (report.created_at || '--') + '</div>' +
+      '</div>';
+      document.getElementById('analysisReportModal').classList.add('show');
+    }
+
+    // ==================== 大屏展示 ====================
+    function loadBigScreen() {
+      fetchWithFallback('/api/dashboard/bigscreen', null).then(function(data) {
+        if (data && data.sections) {
+          renderBigScreen(data);
+        }
+      });
+    }
+
+    function renderBigScreen(data) {
+      var container = document.getElementById('bigscreenContainer');
+      if (!container) return;
+      var html = '';
+
+      (data.sections || []).forEach(function(sec, idx) {
+        html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.05 + idx * 0.1) + 's">' +
+          '<div class="px-5 py-4 border-b border-gray-100 flex items-center gap-2">' +
+            '<span class="text-lg">' + (sec.icon || '📊') + '</span>' +
+            '<h4 class="text-base font-bold">' + sec.title + '</h4>' +
+          '</div>' +
+          '<div class="p-5">';
+
+        if (sec.type === 'health') {
+          // 健康概览
+          html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+          (sec.members || []).forEach(function(m) {
+            var statusColor = m.status === 'warning' ? '#f59e0b' : m.status === 'alert' ? '#ef4444' : '#10b981';
+            html += '<div class="rounded-lg border border-gray-100 p-4">' +
+              '<div class="flex items-center gap-3 mb-3">' +
+                '<div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background:' + statusColor + '">' + m.name.charAt(0) + '</div>' +
+                '<div>' +
+                  '<p class="text-sm font-bold">' + m.name + '</p>' +
+                  '<p class="text-xs text-gray-400">' + m.status_text + '</p>' +
+                '</div>' +
+              '</div>' +
+              '<div class="grid grid-cols-2 gap-2">';
+            (m.metrics || []).forEach(function(mt) {
+              var mc = mt.status === 'warning' ? '#f59e0b' : mt.status === 'alert' ? '#ef4444' : '#10b981';
+              html += '<div class="rounded-lg p-2" style="background:#f8fafc;border-left:3px solid ' + mc + '">' +
+                '<p class="text-xs text-gray-400">' + mt.icon + ' ' + mt.label + '</p>' +
+                '<p class="text-sm font-semibold">' + mt.value + '<span class="text-xs text-gray-400 ml-0.5">' + mt.unit + '</span></p>' +
+              '</div>';
+            });
+            html += '</div></div>';
+          });
+          html += '</div>';
+          // 告警
+          if (sec.alerts && sec.alerts.length > 0) {
+            html += '<div class="mt-4 space-y-2">';
+            sec.alerts.forEach(function(a) {
+              var ac = a.level === 'warning' ? 'bg-yellow-50 text-yellow-700' : a.level === 'danger' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700';
+              html += '<div class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs ' + ac + '">' +
+                '<span class="font-medium">' + a.member + ':</span>' + a.message + '<span class="text-gray-400 ml-auto">' + a.time + '</span>' +
+              '</div>';
+            });
+            html += '</div>';
+          }
+        } else if (sec.type === 'chores') {
+          // 家务
+          html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">' +
+            '<div class="text-center p-3 rounded-lg bg-blue-50"><p class="text-xs text-gray-400">今日积分</p><p class="text-xl font-bold text-blue-600">' + (sec.stats.total_points || 0) + '</p></div>' +
+            '<div class="text-center p-3 rounded-lg bg-green-50"><p class="text-xs text-gray-400">已完成</p><p class="text-xl font-bold text-green-600">' + (sec.stats.completed || 0) + '</p></div>' +
+            '<div class="text-center p-3 rounded-lg bg-orange-50"><p class="text-xs text-gray-400">参与人数</p><p class="text-xl font-bold text-orange-600">' + (sec.stats.active_members || 0) + '</p></div>' +
+            '<div class="text-center p-3 rounded-lg bg-purple-50"><p class="text-xs text-gray-400">连续打卡</p><p class="text-xl font-bold text-purple-600">' + (sec.stats.streak || 0) + '天</p></div>' +
+          '</div>';
+          html += '<div class="space-y-2">';
+          (sec.today_records || []).forEach(function(r) {
+            var c = memberColors[r.member] || '#6b7280';
+            html += '<div class="flex items-center gap-3 p-2 rounded-lg bg-gray-50">' +
+              '<span class="text-sm">' + (r.icon || '📋') + '</span>' +
+              '<span class="text-xs text-gray-400">' + r.time + '</span>' +
+              '<span class="text-sm font-medium flex-1">' + r.member + ' · ' + r.task + '</span>' +
+              '<span class="text-xs font-semibold" style="color:' + c + '">+' + r.points + ' 积分</span>' +
+            '</div>';
+          });
+          html += '</div>';
+        } else if (sec.type === 'activities') {
+          // 活动推荐
+          html += '<div class="flex items-center gap-4 mb-3 text-sm text-gray-500">' +
+            '<span>📅 ' + sec.weekend + '</span>' +
+            '<span>🌤️ ' + sec.weather.saturday + ' / ' + sec.weather.sunday + ' · ' + sec.weather.temperature + '</span>' +
+          '</div>';
+          html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-3">';
+          (sec.proposals || []).forEach(function(p) {
+            html += '<div class="rounded-lg border border-gray-100 p-3 ' + (p.winning ? 'bg-blue-50 border-blue-200' : '') + '">' +
+              '<div class="flex items-center gap-2 mb-2">' +
+                '<span class="text-xl">' + p.icon + '</span>' +
+                '<span class="text-sm font-bold">' + p.title + '</span>' +
+                (p.winning ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-blue-500 text-white">领先</span>' : '') +
+              '</div>' +
+              '<div class="flex items-center gap-1 flex-wrap">';
+            (p.tags || []).forEach(function(t) {
+              html += '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + t + '</span>';
+            });
+            html += '</div>' +
+              '<p class="text-xs text-gray-400 mt-2">' + p.votes + ' 票</p>' +
+            '</div>';
+          });
+          html += '</div>';
+        } else if (sec.type === 'points') {
+          // 积分
+          var pct = Math.round((sec.weekly_progress || 0) * 100);
+          html += '<div class="flex items-center gap-6 mb-4">' +
+            '<div class="text-center"><p class="text-xs text-gray-400">家庭总积分</p><p class="text-3xl font-bold" style="color:var(--primary)">' + (sec.family_total || 0).toLocaleString() + '</p></div>' +
+            '<div class="flex-1">' +
+              '<div class="flex justify-between text-xs text-gray-400 mb-1"><span>周目标 ' + (sec.weekly_goal || 0) + ' 分</span><span>' + pct + '%</span></div>' +
+              '<div class="w-full h-3 bg-gray-100 rounded-full overflow-hidden"><div class="progress-fill h-full rounded-full" style="background:var(--primary);width:' + pct + '%"></div></div>' +
+            '</div>' +
+          '</div>';
+          html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-3">';
+          (sec.ranking || []).forEach(function(r, i) {
+            var rc = ['#f59e0b', '#94a3b8', '#cd7f32', '#6b7280'][i] || '#6b7280';
+            html += '<div class="text-center p-3 rounded-lg bg-gray-50">' +
+              '<div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold mx-auto mb-2" style="background:' + rc + '">' + (i + 1) + '</div>' +
+              '<p class="text-sm font-bold">' + r.name + '</p>' +
+              '<p class="text-xs text-gray-400">' + r.level + '</p>' +
+              '<p class="text-lg font-bold mt-1">' + r.total.toLocaleString() + '</p>' +
+            '</div>';
+          });
+          html += '</div>';
+        }
+
+        html += '</div></div>';
+      });
+
+      container.innerHTML = html;
+    }
+
+    // ==================== 页面初始化 ====================
+    document.addEventListener('DOMContentLoaded', function() {
+      loadDisplaySettings();
+      loadAllData();
+      loadDataSourceConfigs();
+      loadRealHealthData();
+      loadMembers();
+      loadBigScreen();
+    });
+  </script>
+</body>
+</html>

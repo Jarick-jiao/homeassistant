@@ -1,0 +1,11 @@
+# HomeMate v3.0 示例配置文件
+# 复制为 config.yaml 后修改
+
+server_port: 8080
+jwt_secret: "your-secret-key-change-in-production"
+wechat_app_id: ""
+wechat_app_secret: ""
+database_path: "./homemate.db"
+mcp_timeout: "30s"
+openai_key: ""
+family_name: "My Family"
