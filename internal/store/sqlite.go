@@ -56,6 +56,10 @@ func InitDB(cfg config.DatabaseConfig) (*DB, error) {
 		return nil, fmt.Errorf("创建档案表失败: %w", err)
 	}
 
+	if err := db.seedChorseTasks(context.Background()); err != nil {
+		log.Printf("[WARN] 预置家务任务失败: %v", err)
+	}
+
 	log.Println("[INFO] 数据库初始化完成:", cfg.Path)
 	return db, nil
 }
@@ -1080,4 +1084,38 @@ func splitComma(s string) []string {
 		parts = append(parts, current)
 	}
 	return parts
+}
+
+// seedChorseTasks 预置 10 种常见家务任务（PRD M-17 修复）
+func (db *DB) seedChorseTasks(ctx context.Context) error {
+	// 检查是否已有任务
+	var count int
+	err := db.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM chorse_tasks").Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil // 已有数据，跳过
+	}
+
+	tasks := []model.ChorseTaskDB{
+		{Name: "洗碗", Icon: "🍽️", Category: "厨房", Difficulty: "简单", Points: 10, Duration: "30分钟", Description: "饭后清洗餐具、擦拭灶台"},
+		{Name: "扫地拖地", Icon: "🧹", Category: "清洁", Difficulty: "简单", Points: 15, Duration: "30分钟", Description: "全屋扫地和拖地"},
+		{Name: "倒垃圾", Icon: "🗑️", Category: "清洁", Difficulty: "简单", Points: 5, Duration: "10分钟", Description: "收集并丢弃生活垃圾"},
+		{Name: "洗衣服", Icon: "👕", Category: "洗衣", Difficulty: "简单", Points: 15, Duration: "20分钟", Description: "分类投放、启动洗衣机、晾晒"},
+		{Name: "整理房间", Icon: "🧹", Category: "整理", Difficulty: "中等", Points: 20, Duration: "45分钟", Description: "收拾个人物品、整理桌面和床铺"},
+		{Name: "做饭", Icon: "🍳", Category: "厨房", Difficulty: "中等", Points: 25, Duration: "60分钟", Description: "准备食材、烹饪、收拾厨房"},
+		{Name: "擦窗户", Icon: "🪟", Category: "清洁", Difficulty: "中等", Points: 20, Duration: "40分钟", Description: "擦拭玻璃窗、窗框和窗台"},
+		{Name: "浇花", Icon: "🌸", Category: "园艺", Difficulty: "简单", Points: 5, Duration: "10分钟", Description: "给室内外植物浇水"},
+		{Name: "遛狗", Icon: "🐕", Category: "宠物", Difficulty: "简单", Points: 15, Duration: "30分钟", Description: "带宠物出门散步"},
+		{Name: "整理书桌", Icon: "📚", Category: "整理", Difficulty: "简单", Points: 10, Duration: "20分钟", Description: "整理书桌上的书本和文具"},
+	}
+
+	for _, t := range tasks {
+		if _, err := db.CreateChorseTask(ctx, &t); err != nil {
+			log.Printf("[WARN] 预置任务失败 %s: %v", t.Name, err)
+		}
+	}
+	log.Printf("[INFO] 已预置 %d 种家务任务", len(tasks))
+	return nil
 }

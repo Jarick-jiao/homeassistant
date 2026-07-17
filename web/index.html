@@ -313,13 +313,13 @@
       </div>
       <!-- 中间 Tab 按钮 -->
       <div class="flex items-center gap-1 md:gap-4 overflow-x-auto hide-scrollbar">
-        <button class="tab-btn active text-sm px-2 md:px-3 py-1" data-tab="health" onclick="switchTab('health')">健康总览</button>
+        <button class="tab-btn active text-sm px-2 md:px-3 py-1" data-tab="home" onclick="switchTab('home')">家庭首页</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="health" onclick="switchTab('health')">健康总览</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="chores" onclick="switchTab('chores')">家务劳动</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="points" onclick="switchTab('points')">积分排行</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="weekend" onclick="switchTab('weekend')">周末出行</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="records" onclick="switchTab('records')">健康档案</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="members" onclick="switchTab('members')">成员管理</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="bigscreen" onclick="switchTab('bigscreen')">大屏</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="settings" onclick="switchTab('settings')">设置</button>
       </div>
       <!-- 右侧：更新时间 + 刷新 -->
@@ -337,7 +337,7 @@
   <main class="pt-16 pb-8 px-4 md:px-6 max-w-7xl mx-auto">
 
     <!-- ========== Tab 1: 健康总览 ========== -->
-    <div id="panel-health" class="tab-panel active">
+    <div id="panel-health" class="tab-panel">
       <!-- 概览卡片（4列网格） -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
         <div class="overview-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.05s">
@@ -500,10 +500,6 @@
           <label class="block text-sm font-medium mb-1">选择投票人</label>
           <select id="voteMember" class="w-full border border-gray-200 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-1 focus:ring-blue-300">
             <option value="">请选择...</option>
-            <option value="1">爸爸</option>
-            <option value="2">妈妈</option>
-            <option value="3">儿子</option>
-            <option value="4">女儿</option>
           </select>
           <div class="flex gap-3">
             <button onclick="document.getElementById('voteModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
@@ -571,10 +567,7 @@
             <div>
               <label class="block text-xs text-gray-400 mb-1">推荐人</label>
               <select id="propMember" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
-                <option value="1">爸爸</option>
-                <option value="2">妈妈</option>
-                <option value="3">儿子</option>
-                <option value="4">女儿</option>
+                <option value="">请选择推荐人...</option>
               </select>
             </div>
           </div>
@@ -767,10 +760,10 @@
       </div>
     </div>
 
-    <!-- ========== Tab 7: 大屏展示 ========== -->
-    <div id="panel-bigscreen" class="tab-panel">
+    <!-- ========== Tab: 家庭首页 ========== -->
+    <div id="panel-home" class="tab-panel active">
       <div class="mb-4">
-        <h3 class="text-lg font-bold">家庭综合大屏</h3>
+        <h3 class="text-lg font-bold">家庭首页</h3>
         <p class="text-xs text-gray-400">实时聚合健康、家务、活动推荐等数据</p>
       </div>
       <div id="bigscreenContainer" class="space-y-6"></div>
@@ -843,10 +836,6 @@
       <label class="block text-sm font-medium mb-1">选择完成成员</label>
       <select id="claimMember" class="w-full border border-gray-200 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-1 focus:ring-blue-300">
         <option value="">请选择...</option>
-        <option value="爸爸">爸爸</option>
-        <option value="妈妈">妈妈</option>
-        <option value="儿子">儿子</option>
-        <option value="女儿">女儿</option>
       </select>
       <div class="flex gap-3">
         <button onclick="closeClaimModal()" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
@@ -930,6 +919,42 @@
         memberNameToId[m.name] = m.id;
         memberNames[m.id] = m.name;
       });
+      populateMemberSelects();
+    }
+
+    // 动态填充所有成员选择下拉框
+    function populateMemberSelects() {
+      var ids = Object.keys(memberNames);
+      // voteMember（按ID选择）
+      var voteSel = document.getElementById('voteMember');
+      if (voteSel) {
+        var val = voteSel.value;
+        voteSel.innerHTML = '<option value="">请选择...</option>';
+        ids.forEach(function(id) {
+          voteSel.innerHTML += '<option value="' + id + '">' + escapeHTML(memberNames[id]) + '</option>';
+        });
+        voteSel.value = val;
+      }
+      // propMember（按ID选择）
+      var propSel = document.getElementById('propMember');
+      if (propSel) {
+        var val2 = propSel.value;
+        propSel.innerHTML = '<option value="">请选择推荐人...</option>';
+        ids.forEach(function(id) {
+          propSel.innerHTML += '<option value="' + id + '">' + escapeHTML(memberNames[id]) + '</option>';
+        });
+        propSel.value = val2;
+      }
+      // claimMember（按名称选择）
+      var claimSel = document.getElementById('claimMember');
+      if (claimSel) {
+        var val3 = claimSel.value;
+        claimSel.innerHTML = '<option value="">请选择...</option>';
+        ids.forEach(function(id) {
+          claimSel.innerHTML += '<option value="' + escapeHTML(memberNames[id]) + '">' + escapeHTML(memberNames[id]) + '</option>';
+        });
+        claimSel.value = val3;
+      }
     }
 
     // ==================== Fallback: 空数据（用户自行添加） ====================
@@ -965,7 +990,7 @@
       if (panel) panel.classList.add('active');
 
       // 按需加载大屏数据
-      if (tabName === 'bigscreen') {
+      if (tabName === 'home') {
         loadBigScreen();
       }
       // 按需加载成员数据
@@ -1560,8 +1585,9 @@
     function submitProposal() {
       var title = document.getElementById('propTitle').value.trim();
       if (!title) { alert('请输入方案名称'); return; }
-      var memberId = parseInt(document.getElementById('propMember').value) || 1;
-      var memberName = memberNames[memberId] || '爸爸';
+      var memberId = parseInt(document.getElementById('propMember').value);
+      if (!memberId) { alert('请选择推荐人'); return; }
+      var memberName = memberNames[memberId] || '未知';
 
       fetch('/api/weekend/add-proposal', {
         method: 'POST',
@@ -1844,13 +1870,7 @@
           var configs = (result.data || result) || [];
           renderDataSourceConfigs(configs);
         }).catch(function(err) {
-          // fallback
-          renderDataSourceConfigs([
-            { id: 1, member_id: 1, member_name: '爸爸', source_type: 'garmin', is_active: true, last_sync_at: '2026-07-15 23:30:00' },
-            { id: 2, member_id: 2, member_name: '妈妈', source_type: 'apple_health', is_active: false },
-            { id: 3, member_id: 3, member_name: '儿子', source_type: 'manual', is_active: false },
-            { id: 4, member_id: 4, member_name: '女儿', source_type: 'manual', is_active: false },
-          ]);
+          renderDataSourceConfigs([]);
         });
     }
 
@@ -1885,7 +1905,6 @@
     }
 
     function editDataSource(memberId) {
-      var memberNames = { 1: '爸爸', 2: '妈妈', 3: '儿子', 4: '女儿' };
       var name = memberNames[memberId] || '成员';
       var type = prompt('为 ' + name + ' 选择数据源类型：\n1. garmin (Garmin Connect)\n2. apple_health (Apple Health)\n3. huawei (华为健康)\n4. manual (手动录入)\n\n请输入类型代码：', 'garmin');
       if (!type) return;
@@ -1904,7 +1923,6 @@
     }
 
     function syncMemberData(memberId) {
-      var memberNames = { 1: '爸爸', 2: '妈妈', 3: '儿子', 4: '女儿' };
       showToast('正在同步 ' + (memberNames[memberId] || '') + ' 的数据...', 'warning');
       fetch('/api/health/sync?member_id=' + memberId, { method: 'POST' })
         .then(function() {
