@@ -360,9 +360,23 @@
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="settings" onclick="switchTab('settings')">设置</button>
       </div>
       <!-- 右侧：更新时间 + 刷新 -->
-      <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="flex items-center gap-2 flex-shrink-0 relative">
         <span id="navUpdateTime" class="text-xs text-gray-400 hidden sm:inline">--</span>
-        <span id="userDisplay" class="text-xs text-gray-500 dark:text-gray-400 cursor-pointer hidden" onclick="doLogout()" title="点击退出登录"></span>
+        <span id="userDisplay" class="hidden flex items-center gap-1 cursor-pointer select-none relative" onclick="toggleUserMenu()" title="用户中心">
+          <span id="userAvatar" class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs" style="background:var(--primary)">U</span>
+          <span id="userName" class="text-xs text-gray-700 dark:text-gray-300 max-w-[60px] truncate">用户</span>
+          <span id="userRole" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">adult</span>
+        </span>
+        <div id="userMenu" class="absolute right-2 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border dark:border-gray-700 z-50 hidden" style="min-width:180px">
+          <div class="p-3 border-b dark:border-gray-700">
+            <div id="menuUserName" class="text-sm font-medium text-gray-800 dark:text-white"></div>
+            <div id="menuUserRole" class="text-xs text-gray-500 dark:text-gray-400"></div>
+          </div>
+          <div class="py-1">
+            <button onclick="doResetPassword()" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">修改密码</button>
+            <button onclick="doLogout()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 dark:hover:bg-gray-700">退出登录</button>
+          </div>
+        </div>
         <button id="kidModeBtn" onclick="toggleKidMode()" class="text-xl p-1 rounded-lg hover:bg-gray-100 transition" title="儿童模式">🧒</button>
         <button onclick="refreshAllData()" class="ripple-btn p-1.5 rounded-lg hover:bg-gray-100 transition" title="刷新数据">
           <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -1367,7 +1381,7 @@
       if (t) taskIcon = t.icon || '📋';
 
       // 调用后端API持久化
-      authFetch('/api/chorse/claim', {
+      authFetch('/api/chorse/claims', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1423,7 +1437,7 @@
     }
 
     function loadPendingClaims() {
-      authFetch('/api/chorse/pending').then(function(res) { return res.json(); })
+      authFetch('/api/chorse/claims').then(function(res) { return res.json(); })
         .then(function(result) {
           var data = result.data || result;
           var claims = data.claims || [];
@@ -1462,8 +1476,8 @@
     }
 
     function markComplete(claimId) {
-      authFetch('/api/chorse/complete', {
-        method: 'POST',
+      authFetch('/api/chorse/claims/' + claimId + '/complete', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ claim_id: claimId })
       }).then(function(res) { return res.json(); }).then(function() {
@@ -1476,8 +1490,8 @@
     }
 
     function markConfirm(claimId) {
-      authFetch('/api/chorse/confirm', {
-        method: 'POST',
+      authFetch('/api/chorse/claims/' + claimId + '/confirm', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ claim_id: claimId, confirmer: (currentUser && currentUser.name) ? currentUser.name : '未知' })
       }).then(function(res) { return res.json(); }).then(function() {
@@ -1514,10 +1528,10 @@
     var currentVoteProposalId = null;
 
     function loadWeekendData() {
-      fetchWithFallback('/api/weekend/dashboard', fallbackWeekend).then(function(data) {
-        currentWeekendData = data;
-        renderWeekend(data);
-      });
+      authFetch('/api/weekend/dashboard').then(function(r){return r.json();}).then(function(result){
+        if(result.code===0) { currentWeekendData=result.data; renderWeekend(result.data); }
+        else { currentWeekendData=fallbackWeekend; renderWeekend(fallbackWeekend); }
+      }).catch(function(){ currentWeekendData=fallbackWeekend; renderWeekend(fallbackWeekend); });
     }
 
     function renderWeekend(data) {
@@ -1879,21 +1893,24 @@
           }
           renderMembers(currentHealthData);
         }
-      }).catch(function() { fetchWithFallback('/api/health/overview', fallbackHealth).then(function(data) { currentHealthData = data; renderMembers(data); }); });
+      }).catch(function() { authFetch('/api/health/overview').then(function(r){return r.json();}).then(function(result){
+        if(result.code===0) { currentHealthData=result.data; renderMembers(result.data); }
+        else { currentHealthData=fallbackHealth; renderMembers(fallbackHealth); }
+      }).catch(function(){ currentHealthData=fallbackHealth; renderMembers(fallbackHealth); }); });
     }
 
     // ==================== 加载所有数据 ====================
     function loadAllData() {
       loadHealthData();
-      fetchWithFallback('/api/chorse/dashboard', fallbackChores).then(function(data) {
-        currentChoresData = data;
-        renderChores(data);
-      });
+      authFetch('/api/chorse/dashboard').then(function(r){return r.json();}).then(function(result){
+        if(result.code===0) { currentChoresData=result.data; renderChores(result.data); }
+        else { currentChoresData=fallbackChores; renderChores(fallbackChores); }
+      }).catch(function(){ currentChoresData=fallbackChores; renderChores(fallbackChores); });
       loadPendingClaims();
-      fetchWithFallback('/api/points/dashboard', fallbackPoints).then(function(data) {
-        currentPointsData = data;
-        renderPoints(data);
-      });
+      authFetch('/api/points/dashboard').then(function(r){return r.json();}).then(function(result){
+        if(result.code===0) { currentPointsData=result.data; renderPoints(result.data); }
+        else { currentPointsData=fallbackPoints; renderPoints(fallbackPoints); }
+      }).catch(function(){ currentPointsData=fallbackPoints; renderPoints(fallbackPoints); });
       loadWeekendData();
     }
 
@@ -2770,6 +2787,7 @@
         setAuth(data.token, data.user);
         localStorage.setItem('homemate_last_user', username);
         document.getElementById('authModal').style.display = 'none';
+        updateAuthUI();
         initApp();
       }).catch(function(err) {
         showAuthError(err.message);
@@ -2793,6 +2811,7 @@
         var data = result.data || result;
         setAuth(data.token, data.user);
         document.getElementById('authModal').style.display = 'none';
+        updateAuthUI();
         initApp();
       }).catch(function(err) {
         showAuthError(err.message);
@@ -2800,18 +2819,60 @@
     }
 
     function updateAuthUI() {
-      var userBtn = document.getElementById('userDisplay');
-      if (userBtn && currentUser) {
-        userBtn.textContent = currentUser.name || currentUser.username || '用户';
-        userBtn.style.display = '';
+      if (!currentUser) return;
+      var display = document.getElementById('userDisplay');
+      if (display) {
+        display.style.display = 'flex';
+        display.classList.remove('hidden');
+        document.getElementById('userName').textContent = currentUser.name || currentUser.username || '用户';
+        document.getElementById('userRole').textContent = getRoleLabel(currentUser.role);
+        document.getElementById('userAvatar').textContent = (currentUser.name || currentUser.username || 'U').charAt(0).toUpperCase();
       }
+      document.getElementById('menuUserName').textContent = (currentUser.name || currentUser.username || '用户');
+      document.getElementById('menuUserRole').textContent = getRoleLabel(currentUser.role) + ' · ' + (currentUser.username || '');
     }
+
+    function getRoleLabel(role) {
+      var map = { admin: '管理员', adult: '成人', child: '儿童', elder: '老人', guest: '访客' };
+      return map[role] || role || '未知';
+    }
+
+    function toggleUserMenu() {
+      var menu = document.getElementById('userMenu');
+      menu.classList.toggle('hidden');
+    }
+
+    // 点击页面其他地方关闭菜单
+    document.addEventListener('click', function(e) {
+      var menu = document.getElementById('userMenu');
+      var display = document.getElementById('userDisplay');
+      if (menu && display && !display.contains(e.target) && !menu.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
 
     function doLogout() {
       clearAuth();
       document.getElementById('authModal').style.display = 'flex';
       document.getElementById('authLoginView').style.display = 'block';
       document.getElementById('authRegisterView').style.display = 'none';
+    }
+
+    function doResetPassword() {
+      document.getElementById('userMenu').classList.add('hidden');
+      var oldPass = prompt('请输入原密码：');
+      if (!oldPass) return;
+      var newPass = prompt('请输入新密码（至少6位）：');
+      if (!newPass || newPass.length < 6) { alert('密码至少6位'); return; }
+      var confirmPass = prompt('请再次输入新密码：');
+      if (newPass !== confirmPass) { alert('两次密码不一致'); return; }
+      authFetch('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ username: currentUser.username, old_password: oldPass, new_password: newPass })
+      }).then(function(r) { return r.json(); }).then(function(result) {
+        if (result.code === 0) { alert('密码修改成功'); }
+        else { alert(result.message || '修改失败'); }
+      }).catch(function() { alert('网络错误'); });
     }
 
     document.addEventListener('DOMContentLoaded', function() {
