@@ -11,8 +11,11 @@ import (
 	"github.com/homemate/server/internal/handler/health"
 	"github.com/homemate/server/internal/handler/iot"
 	"github.com/homemate/server/internal/handler/member"
+	"github.com/homemate/server/internal/handler/messageboard"
+	"github.com/homemate/server/internal/handler/notification"
 	"github.com/homemate/server/internal/handler/points"
 	"github.com/homemate/server/internal/handler/records"
+	"github.com/homemate/server/internal/handler/reminder"
 	"github.com/homemate/server/internal/handler/trip"
 	"github.com/homemate/server/internal/handler/wechat"
 	"github.com/homemate/server/internal/handler/weekend"
@@ -22,10 +25,13 @@ import (
 )
 
 // dbInject 将 DB 实例注入到 gin.Context（供各 handler 通过 c.Get("db") 获取）
-func dbInject(db *store.DB, jwtSecret string) gin.HandlerFunc {
+func dbInject(db *store.DB, jwtSecret string, sched *scheduler.Scheduler) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("db", db)
 		c.Set("jwtSecret", jwtSecret)
+		if sched != nil {
+			c.Set("scheduler", sched)
+		}
 		c.Next()
 	}
 }
@@ -39,12 +45,15 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	r.Use(gin.Recovery())
 	r.Use(middleware.LoggerMiddleware())
 	r.Use(middleware.CORSMiddleware())
-	r.Use(dbInject(db, jwtSecret))
+	r.Use(dbInject(db, jwtSecret, sched))
 
 	// 静态文件服务（前端）
 	r.Static("/assets", "./web/assets")
 	r.StaticFile("/", "./web/index.html")
 	r.StaticFile("/favicon.ico", "./web/favicon.ico")
+	// PWA: manifest + service worker
+	r.StaticFile("/manifest.json", "./web/manifest.json")
+	r.StaticFile("/sw.js", "./web/sw.js")
 
 	// 文件上传下载的静态服务
 	r.Static("/uploads", "./uploads")
@@ -77,7 +86,7 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	// --- 健康指标（自定义） ---
 	authed.GET("/health/metrics", health.ListMetricsHandler)
 	authed.POST("/health/metrics", health.AddMetricHandler)
-	authed.DELETE("/health/metrics/:id", health.DeleteMetricHandler)
+	authed.DELETE("/health/metrics/:id", middleware.RequireAdmin(), health.DeleteMetricHandler)
 
 	// --- 健康档案（文件上传/管理/AI分析） ---
 	recordsHandler := records.New(db, "")
@@ -85,7 +94,7 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.GET("/records", recordsHandler.List)
 	authed.GET("/records/:id", recordsHandler.GetDetail)
 	authed.GET("/records/:id/download", recordsHandler.Download)
-	authed.DELETE("/records/:id", recordsHandler.Delete)
+	authed.DELETE("/records/:id", middleware.RequireAdmin(), recordsHandler.Delete)
 	authed.POST("/records/:id/analyze", recordsHandler.Analyze)
 	authed.POST("/records/analyze/batch", recordsHandler.AnalyzeBatch)
 	authed.GET("/records/reports", recordsHandler.ListReports)
@@ -94,6 +103,9 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	// --- 日历 ---
 	authed.GET("/calendar/events", calendar.ListCalendarEventsHandler)
 	authed.POST("/calendar/events", calendar.CreateCalendarEventHandler)
+	authed.PUT("/calendar/events/:id", calendar.UpdateCalendarEventHandler)
+	authed.DELETE("/calendar/events/:id", middleware.RequireAdmin(), calendar.DeleteCalendarEventHandler)
+	authed.GET("/calendar/upcoming", calendar.GetUpcomingEventsHandler)
 
 	// --- 家务任务 ---
 	authed.GET("/chorse/claims", chorse.GetPendingClaimsHandler)
@@ -104,21 +116,45 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	// --- 积分 ---
 	authed.GET("/points/dashboard", points.GetPointsDashboardHandler)
 
-	// --- 周末出行 ---
+	// --- 休闲活动（原周末出行） ---
 	authed.GET("/weekend/dashboard", weekend.GetWeekendDashboardHandler)
 	authed.POST("/weekend/proposals", weekend.AddProposalHandler)
+	authed.GET("/weekend/proposals/:id", weekend.GetProposalHandler)
+	authed.PUT("/weekend/proposals/:id", weekend.UpdateProposalHandler)
+	authed.DELETE("/weekend/proposals/:id", middleware.RequireAdmin(), weekend.DeleteProposalHandler)
 	authed.POST("/weekend/vote", weekend.VoteProposalHandler)
 	authed.DELETE("/weekend/vote", weekend.CancelVoteHandler)
 	authed.POST("/weekend/confirm", weekend.ConfirmPlanHandler)
-	authed.POST("/weekend/import-csv", weekend.ImportCSVHandler)
+	authed.POST("/weekend/import-csv", middleware.RequireAdmin(), weekend.ImportCSVHandler)
 	authed.GET("/weekend/csv-template", weekend.GenerateCSVTemplateHandler)
 
 	// --- 家庭成员 ---
 	authed.GET("/members", member.ListMembersHandler)
 	authed.GET("/members/:id", member.GetMemberDetailHandler)
-	authed.POST("/members", member.CreateMemberHandler)
-	authed.PUT("/members/:id", member.UpdateMemberHandler)
-	authed.DELETE("/members/:id", member.DeleteMemberHandler)
+	authed.POST("/members", middleware.RequireAdmin(), member.CreateMemberHandler)
+	authed.PUT("/members/:id", middleware.RequireAdmin(), member.UpdateMemberHandler)
+	authed.PUT("/members/:id/role", middleware.RequireAdmin(), member.UpdateMemberRoleHandler)
+	authed.DELETE("/members/:id", middleware.RequireAdmin(), member.DeleteMemberHandler)
+
+	// --- 留言板 ---
+	authed.GET("/messages", messageboard.ListMessagesHandler)
+	authed.POST("/messages", messageboard.CreateMessageHandler)
+	authed.GET("/messages/:id", messageboard.GetMessageHandler)
+	authed.PUT("/messages/:id/read", messageboard.MarkMessageReadHandler)
+	authed.DELETE("/messages/:id", middleware.RequireAdmin(), messageboard.DeleteMessageHandler)
+	authed.PUT("/messages/:id/pin", middleware.RequireAdmin(), messageboard.PinMessageHandler)
+
+	// --- 通知中心 ---
+	authed.GET("/notifications", notification.ListNotificationsHandler)
+	authed.GET("/notifications/unread-count", notification.UnreadCountHandler)
+	authed.PUT("/notifications/:id/read", notification.MarkReadHandler)
+	authed.PUT("/notifications/read-all", notification.MarkAllReadHandler)
+
+	// --- 提醒 ---
+	authed.GET("/reminders", reminder.ListRemindersHandler)
+	authed.POST("/reminders", reminder.CreateReminderHandler)
+	authed.PUT("/reminders/:id", reminder.UpdateReminderHandler)
+	authed.DELETE("/reminders/:id", middleware.RequireAdmin(), reminder.DeleteReminderHandler)
 
 	// --- Dashboard ---
 	authed.GET("/dashboard", dashboard.GetDashboardHandler)
@@ -168,6 +204,9 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	})
 	adminGroup.GET("/chorse/tasks", chorse.ListAllChorseTasksHandler)
 	adminGroup.PUT("/chorse/tasks/toggle", chorse.ToggleChorseTaskHandler)
+	// --- 微信机器人（管理员配置） ---
+	adminGroup.PUT("/wechat/test-push", wechat.TestPushHandler)
+	adminGroup.PUT("/wecom/config", wechat.UpdateWeComConfigHandler)
 
 	return r
 }

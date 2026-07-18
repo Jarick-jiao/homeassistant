@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,6 +39,7 @@ type ProposalView struct {
 	SuitableFor string   `json:"suitable_for"`
 	WeatherReq  string   `json:"weather_req"`
 	Tips        string   `json:"tips"`
+	CreatedBy   int64    `json:"created_by"`
 }
 
 // VoteResultItem 投票结果统计
@@ -75,6 +77,7 @@ func toProposalView(p model.WeekendProposalDB) ProposalView {
 		ID: p.ID, Title: p.Title, Description: p.Description, Icon: p.Icon,
 		Category: p.Category, Tags: tags, Duration: p.Duration, Cost: p.Cost,
 		Difficulty: p.Difficulty, SuitableFor: p.SuitableFor, WeatherReq: p.WeatherReq, Tips: p.Tips,
+		CreatedBy: p.CreatedBy,
 	}
 }
 
@@ -426,4 +429,147 @@ func GenerateCSVTemplateHandler(c *gin.Context) {
 	// 添加 BOM 以支持 Excel 中文
 	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 	c.Writer.Write([]byte(template))
+}
+
+// GetProposalHandler 获取单个方案详情
+func GetProposalHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "ID 格式错误")
+		return
+	}
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	p, err := db.GetWeekendProposalByID(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, 404, "方案不存在")
+		return
+	}
+	response.Success(c, toProposalView(*p))
+}
+
+// UpdateProposalHandler 更新方案（作者或 admin）
+func UpdateProposalHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "ID 格式错误")
+		return
+	}
+	var req struct {
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		Icon        string   `json:"icon"`
+		Category    string   `json:"category"`
+		Tags        []string `json:"tags"`
+		Duration    string   `json:"duration"`
+		Cost        string   `json:"cost"`
+		Difficulty  string   `json:"difficulty"`
+		SuitableFor string   `json:"suitable_for"`
+		WeatherReq  string   `json:"weather_req"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数错误: "+err.Error())
+		return
+	}
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	existing, err := db.GetWeekendProposalByID(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, 404, "方案不存在")
+		return
+	}
+	// 作者/admin 校验
+	userIDVal, _ := c.Get("userID")
+	userID, _ := userIDVal.(int64)
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(model.Role)
+	// 通过 created_by 反查 user_id 比较（简化：admin 直接放行；非 admin 需作者是自己）
+	if role != model.RoleAdmin {
+		memberID, _ := db.GetMemberIDByUserID(c.Request.Context(), userID)
+		if existing.CreatedBy != memberID {
+			response.Forbidden(c, "只能修改自己创建的方案")
+			return
+		}
+	}
+	if req.Title != "" {
+		existing.Title = req.Title
+	}
+	if req.Description != "" {
+		existing.Description = req.Description
+	}
+	if req.Icon != "" {
+		existing.Icon = req.Icon
+	}
+	if req.Category != "" {
+		existing.Category = req.Category
+	}
+	if len(req.Tags) > 0 {
+		tagsJSON, _ := json.Marshal(req.Tags)
+		existing.TagsJSON = string(tagsJSON)
+	}
+	if req.Duration != "" {
+		existing.Duration = req.Duration
+	}
+	if req.Cost != "" {
+		existing.Cost = req.Cost
+	}
+	if req.Difficulty != "" {
+		existing.Difficulty = req.Difficulty
+	}
+	if req.SuitableFor != "" {
+		existing.SuitableFor = req.SuitableFor
+	}
+	if req.WeatherReq != "" {
+		existing.WeatherReq = req.WeatherReq
+	}
+	if err := db.UpdateWeekendProposal(c.Request.Context(), existing); err != nil {
+		response.InternalServerError(c, "更新失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"id": id, "message": "方案已更新", "proposal": toProposalView(*existing)})
+}
+
+// DeleteProposalHandler 删除方案（admin 或作者，admin 由中间件保证）
+func DeleteProposalHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "ID 格式错误")
+		return
+	}
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	existing, err := db.GetWeekendProposalByID(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, 404, "方案不存在")
+		return
+	}
+	// 作者校验（admin 已由中间件保证）
+	userIDVal, _ := c.Get("userID")
+	userID, _ := userIDVal.(int64)
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(model.Role)
+	if role != model.RoleAdmin {
+		memberID, _ := db.GetMemberIDByUserID(c.Request.Context(), userID)
+		if existing.CreatedBy != memberID {
+			response.Forbidden(c, "只能删除自己创建的方案")
+			return
+		}
+	}
+	if err := db.DeleteWeekendProposal(c.Request.Context(), id); err != nil {
+		response.InternalServerError(c, "删除失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"deleted": true, "id": id, "message": "方案已删除"})
 }

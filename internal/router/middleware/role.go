@@ -21,6 +21,7 @@ var rolePermissions = map[model.Role][]string{
 		"/api/health/data-source/config",
 		"/api/health/sync",
 		"/api/calendar/events",
+		"/api/calendar/upcoming",
 		"/api/chorse/dashboard",
 		"/api/chorse/claims",
 		"/api/chorse/complete",
@@ -28,16 +29,23 @@ var rolePermissions = map[model.Role][]string{
 		"/api/points/dashboard",
 		"/api/weekend/dashboard",
 		"/api/weekend/proposals",
-		"/api/weekend/vote",
-		"/api/weekend/confirm",
 		"/api/records",
 		"/api/scheduler/status",
+		"/api/messages",
+		"/api/notifications",
+		"/api/reminders",
 	},
 	model.RoleChild: {
 		"/api/health/overview",
 		"/api/chorse/dashboard",
 		"/api/points/dashboard",
 		"/api/calendar/events",
+		"/api/calendar/upcoming",
+		"/api/messages",
+		"/api/notifications",
+		"/api/weekend/dashboard",
+		"/api/weekend/proposals",
+		"/api/weekend/vote",
 	},
 	model.RoleElder: {
 		"/api/health/overview",
@@ -45,11 +53,17 @@ var rolePermissions = map[model.Role][]string{
 		"/api/health/real-data",
 		"/api/health/data-source/configs",
 		"/api/calendar/events",
+		"/api/calendar/upcoming",
 		"/api/records",
 		"/api/records/reports",
+		"/api/messages",
+		"/api/notifications",
+		"/api/reminders",
 	},
 	model.RoleGuest: {
 		"/api/health/overview",
+		"/api/notifications",
+		"/api/calendar/upcoming",
 	},
 }
 
@@ -102,6 +116,11 @@ func RequireRole(roles ...string) gin.HandlerFunc {
 		response.Forbidden(c, "权限不足，需要 "+strings.Join(roles, "/")+" 角色")
 		c.Abort()
 	}
+}
+
+// RequireAdmin 要求管理员角色（用于所有 DELETE 等高危操作）
+func RequireAdmin() gin.HandlerFunc {
+	return RequireRole("admin")
 }
 
 // RoleMiddleware 基于角色的访问控制中间件

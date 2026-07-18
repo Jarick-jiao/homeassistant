@@ -9,17 +9,23 @@ import (
 	"time"
 
 	"github.com/homemate/server/internal/model"
+	"github.com/homemate/server/internal/service/garmin"
+	"github.com/homemate/server/internal/service/weather"
+	botservice "github.com/homemate/server/internal/service/wechat"
 	"github.com/homemate/server/internal/store"
 )
 
 // Scheduler 定时任务调度器
 type Scheduler struct {
-	db        *store.DB
-	stopCh    chan struct{}
-	wg        sync.WaitGroup
-	mu        sync.Mutex
-	running   bool
-	lastRuns  map[string]time.Time // 记录各任务最后执行时间
+	db           *store.DB
+	garminClient garmin.Client
+	weatherClient weather.Client
+	pusher       botservice.Pusher
+	stopCh       chan struct{}
+	wg           sync.WaitGroup
+	mu           sync.Mutex
+	running      bool
+	lastRuns     map[string]time.Time // 记录各任务最后执行时间
 }
 
 // TaskConfig 任务配置
@@ -46,11 +52,18 @@ func DefaultTaskConfig() TaskConfig {
 }
 
 // New 创建调度器
-func New(db *store.DB) *Scheduler {
+// garminClient/weatherClient/pusher 可为 nil（未配置时跳过对应功能）
+func New(db *store.DB, garminClient garmin.Client, weatherClient weather.Client, pusher botservice.Pusher) *Scheduler {
+	if pusher == nil {
+		pusher = botservice.NewPusher("")
+	}
 	return &Scheduler{
-		db:       db,
-		stopCh:   make(chan struct{}),
-		lastRuns: make(map[string]time.Time),
+		db:            db,
+		garminClient:  garminClient,
+		weatherClient: weatherClient,
+		pusher:        pusher,
+		stopCh:        make(chan struct{}),
+		lastRuns:      make(map[string]time.Time),
 	}
 }
 
@@ -80,6 +93,18 @@ func (s *Scheduler) Start(cfg TaskConfig) {
 	// 周末推荐生成
 	s.wg.Add(1)
 	go s.weekendRecommendLoop(cfg.WeekendRecommendWeekday, cfg.WeekendRecommendHour)
+
+	// 提醒扫描（每 5 分钟扫描到期提醒）
+	s.wg.Add(1)
+	go s.reminderScanLoop()
+
+	// 通知推送（每 1 分钟扫描未推送通知，调 WeCom webhook）
+	s.wg.Add(1)
+	go s.notificationPushLoop()
+
+	// 日程提醒（每 1 分钟扫描需要提醒的事件）
+	s.wg.Add(1)
+	go s.calendarReminderLoop()
 }
 
 // Stop 停止调度器
@@ -116,8 +141,157 @@ func (s *Scheduler) TriggerManual(taskName string) error {
 	case "weekend_recommend":
 		go s.runWeekendRecommend()
 		return nil
+	case "reminder_scan":
+		go s.runReminderScan()
+		return nil
+	case "notification_push":
+		go s.runNotificationPush()
+		return nil
+	case "calendar_reminder":
+		go s.runCalendarReminders()
+		return nil
 	default:
 		return fmt.Errorf("未知任务: %s", taskName)
+	}
+}
+
+// ============ 提醒扫描 ============
+
+func (s *Scheduler) reminderScanLoop() {
+	defer s.wg.Done()
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.runReminderScan()
+		case <-s.stopCh:
+			return
+		}
+	}
+}
+
+func (s *Scheduler) runReminderScan() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	now := time.Now()
+	reminders, err := s.db.ListDueReminders(ctx, now)
+	if err != nil {
+		log.Printf("[SCHEDULER] 提醒扫描失败: %v", err)
+		return
+	}
+	for _, r := range reminders {
+		notif := &model.Notification{
+			MemberID: r.MemberID,
+			Type:     model.NotificationTypeReminder,
+			Title:    "提醒: " + r.Title,
+			Body:     r.Content,
+		}
+		if _, err := s.db.CreateNotification(ctx, notif); err != nil {
+			log.Printf("[SCHEDULER] 创建提醒通知失败 (reminder=%d): %v", r.ID, err)
+			continue
+		}
+		if err := s.db.MarkReminderSent(ctx, r.ID); err != nil {
+			log.Printf("[SCHEDULER] 标记提醒已发送失败 (reminder=%d): %v", r.ID, err)
+		}
+		log.Printf("[SCHEDULER] 提醒触发 (reminder=%d, member=%d): %s", r.ID, r.MemberID, r.Title)
+	}
+}
+
+// ============ 通知推送 ============
+
+func (s *Scheduler) notificationPushLoop() {
+	defer s.wg.Done()
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.runNotificationPush()
+		case <-s.stopCh:
+			return
+		}
+	}
+}
+
+func (s *Scheduler) runNotificationPush() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	notifications, err := s.db.ListUnpushedNotifications(ctx, 50)
+	if err != nil || len(notifications) == 0 {
+		return
+	}
+	for _, n := range notifications {
+		err := s.pusher.Push(ctx, n.Title, n.Body)
+		if err != nil {
+			log.Printf("[SCHEDULER] 通知推送失败 (notif=%d): %v", n.ID, err)
+			// 推送失败标记为已处理避免无限重试（本期简化）
+			_ = s.db.MarkNotificationFailed(ctx, n.ID)
+			continue
+		}
+		_ = s.db.MarkNotificationPushed(ctx, n.ID)
+		log.Printf("[SCHEDULER] 通知已推送 (notif=%d, member=%d): %s", n.ID, n.MemberID, n.Title)
+	}
+}
+
+// ============ 日程提醒 ============
+
+func (s *Scheduler) calendarReminderLoop() {
+	defer s.wg.Done()
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.runCalendarReminders()
+		case <-s.stopCh:
+			return
+		}
+	}
+}
+
+func (s *Scheduler) runCalendarReminders() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	now := time.Now()
+	events, err := s.db.ListUpcomingEventsWithReminders(ctx, now, 24*time.Hour)
+	if err != nil {
+		log.Printf("[SCHEDULER] 日程提醒扫描失败: %v", err)
+		return
+	}
+	for _, e := range events {
+		if e.StartTime.IsZero() {
+			continue
+		}
+		remindAt := e.StartTime.Add(-time.Duration(e.ReminderMinutes) * time.Minute)
+		if now.Before(remindAt) {
+			continue
+		}
+		if e.LastRemindedAt != nil && e.LastRemindedAt.After(remindAt) {
+			continue
+		}
+		targetMember := e.CreatedBy
+		if targetMember == 0 {
+			targetMember = e.MemberID
+		}
+		if targetMember == 0 {
+			continue
+		}
+		notif := &model.Notification{
+			MemberID: targetMember,
+			Type:     model.NotificationTypeCalendar,
+			Title:    "日程提醒: " + e.Title,
+			Body:     fmt.Sprintf("%s 将于 %s 开始", e.Title, e.StartTime.Format("01-02 15:04")),
+			DataJSON: fmt.Sprintf(`{"event_id":%d,"start_time":"%s"}`, e.ID, e.StartTime.Format(time.RFC3339)),
+		}
+		if _, err := s.db.CreateNotification(ctx, notif); err != nil {
+			log.Printf("[SCHEDULER] 创建日程通知失败 (event=%d): %v", e.ID, err)
+			continue
+		}
+		if err := s.db.MarkEventReminded(ctx, e.ID, now); err != nil {
+			log.Printf("[SCHEDULER] 标记事件已提醒失败 (event=%d): %v", e.ID, err)
+		}
+		log.Printf("[SCHEDULER] 日程提醒触发 (event=%d, member=%d): %s", e.ID, targetMember, e.Title)
 	}
 }
 
@@ -156,7 +330,14 @@ func (s *Scheduler) runHealthSync() {
 
 	log.Println("[SCHEDULER] 开始同步健康数据...")
 
-	// 获取所有配置了数据源的成员
+	// 1. 同步天气数据（用于周末出行面板）
+	if s.weatherClient != nil {
+		s.syncWeatherData(ctx)
+	} else {
+		log.Println("[SCHEDULER] 天气客户端未配置，跳过天气同步")
+	}
+
+	// 2. 获取所有配置了数据源的成员
 	configs, err := s.db.GetDataSourceConfigs(ctx)
 	if err != nil {
 		log.Printf("[SCHEDULER] 获取数据源配置失败: %v", err)
@@ -186,24 +367,74 @@ func (s *Scheduler) runHealthSync() {
 	log.Printf("[SCHEDULER] 健康数据同步完成，共同步 %d 条记录", synced)
 }
 
-// syncGarminData 同步 Garmin 健康数据（框架实现）
+// syncWeatherData 同步天气数据到周末推荐缓存
+func (s *Scheduler) syncWeatherData(ctx context.Context) {
+	// 默认北京 adcode，后续可从 config 读取
+	adcode := "110100"
+	w, err := s.weatherClient.GetWeather(ctx, adcode)
+	if err != nil {
+		log.Printf("[SCHEDULER] 天气同步失败: %v", err)
+		return
+	}
+	if w == nil {
+		return
+	}
+	// 写入 weekend_recommendation 的 weather_data 字段（最新一条）
+	// 此处仅记录日志，weekend handler 调用时实时查 AMAP 更准
+	log.Printf("[SCHEDULER] 天气同步成功: %s %s %s", w.City, w.Condition, w.Temperature)
+}
+
+// syncGarminData 同步 Garmin 健康数据
+// cfg.UserID=用户名, cfg.APISecret=密码, cfg.APIKey=token（可空）
 func (s *Scheduler) syncGarminData(ctx context.Context, cfg model.DataSourceConfig, date string) int {
-	// TODO: 集成 Garmin MCP Server 或 Garmin Connect API
-	// 当前为框架实现，当 garmin-health MCP Server 连接后替换
+	if s.garminClient == nil {
+		log.Printf("[SCHEDULER] Garmin 客户端未配置，跳过 (member=%d)", cfg.MemberID)
+		return 0
+	}
 	memberID := cfg.MemberID
+	username := cfg.UserID
+	password := cfg.APISecret
+
+	if username == "" || password == "" {
+		log.Printf("[SCHEDULER] Garmin 凭证不完整 (member=%d, user=%s)", memberID, username)
+		return 0
+	}
 
 	// 检查今天是否已同步
 	existing, err := s.db.GetHealthDataCache(ctx, memberID, date)
-	if err == nil && existing != nil && existing.Source == "garmin" {
-		return 0 // 已同步
+	if err == nil && existing != nil && existing.Source == "garmin" && existing.Steps > 0 {
+		log.Printf("[SCHEDULER] 今日已同步 Garmin 数据 (member=%d)", memberID)
+		return 0
 	}
 
-	// 占位数据 - 实际部署时替换为 Garmin API 调用
+	// 登录 Garmin
+	if err := s.garminClient.Login(ctx, username, password); err != nil {
+		log.Printf("[SCHEDULER] Garmin 登录失败 (member=%d): %v", memberID, err)
+		// 登录失败保留旧 cache，不写空值
+		return 0
+	}
+
+	// 获取当日健康数据
+	health, err := s.garminClient.GetDailyHealth(ctx, date)
+	if err != nil {
+		log.Printf("[SCHEDULER] Garmin 获取数据失败 (member=%d, date=%s): %v", memberID, date, err)
+		return 0
+	}
+
+	// 映射到 HealthDataCache
 	cache := &model.HealthDataCache{
-		MemberID:  memberID,
-		Date:      date,
-		Source:    "garmin",
-		SyncedAt:  time.Now().Format(time.RFC3339),
+		MemberID:   memberID,
+		Date:       date,
+		Source:     "garmin",
+		Steps:      health.Steps,
+		HeartRate:  health.HeartRate,
+		SleepHours: health.SleepHours,
+		SleepScore: health.SleepScore,
+		Stress:     health.Stress,
+		SpO2:       health.SpO2,
+		BodyBattery: health.BodyBattery,
+		Calories:   health.Calories,
+		SyncedAt:   time.Now().Format(time.RFC3339),
 	}
 
 	if err := s.db.UpsertHealthDataCache(ctx, cache); err != nil {
@@ -211,7 +442,8 @@ func (s *Scheduler) syncGarminData(ctx context.Context, cfg model.DataSourceConf
 		return 0
 	}
 
-	log.Printf("[SCHEDULER] Garmin 数据同步完成 (member=%d, date=%s)", memberID, date)
+	log.Printf("[SCHEDULER] Garmin 数据同步完成 (member=%d, date=%s, steps=%d, hr=%d)",
+		memberID, date, health.Steps, health.HeartRate)
 	return 1
 }
 
@@ -262,7 +494,7 @@ func (s *Scheduler) runAIAnalysis() {
 
 	unanalyzed := 0
 	for _, f := range files {
-		if f.AnalyzedAt.IsZero() {
+		if f.AnalyzedAt == nil {
 			unanalyzed++
 		}
 	}
@@ -288,7 +520,7 @@ func (s *Scheduler) runAIAnalysis() {
 	analyzedFiles, _ := s.db.GetHealthRecordFiles(ctx, 0, "", 50)
 	var fileSummaries []string
 	for _, f := range analyzedFiles {
-		if !f.AnalyzedAt.IsZero() && f.Summary != "" {
+		if f.AnalyzedAt != nil && f.Summary != "" {
 			fileSummaries = append(fileSummaries, fmt.Sprintf("- [%s] %s: %s", f.RecordDate, f.Title, f.Summary))
 		}
 	}

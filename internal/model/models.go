@@ -78,17 +78,32 @@ type HealthRecord struct {
 
 // CalendarEvent 日历事件表
 type CalendarEvent struct {
-	ID          int64     `json:"id"`
-	MemberID    int64     `json:"member_id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	StartTime   time.Time `json:"start_time,omitempty"`
-	EndTime     time.Time `json:"end_time,omitempty"`
-	Date        string    `json:"date,omitempty"`
-	Time        string    `json:"time,omitempty"`
-	Location    string    `json:"location"`
-	EventType   string    `json:"event_type,omitempty"`
-	Type        string    `json:"type,omitempty"`
+	ID              int64      `json:"id"`
+	MemberID        int64      `json:"member_id"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description"`
+	StartTime       time.Time  `json:"start_time,omitempty"`
+	EndTime         time.Time  `json:"end_time,omitempty"`
+	Date            string     `json:"date,omitempty"`
+	Time            string     `json:"time,omitempty"`
+	Location        string     `json:"location"`
+	EventType       string     `json:"event_type,omitempty"`
+	Type            string     `json:"type,omitempty"`
+	IsImportant     bool       `json:"is_important"`
+	RecurrenceRule  string     `json:"recurrence_rule,omitempty"`
+	ReminderMinutes int        `json:"reminder_minutes"`
+	LastRemindedAt  *time.Time `json:"last_reminded_at,omitempty"`
+	CreatedBy       int64      `json:"created_by"`
+	Color           string     `json:"color,omitempty"`
+}
+
+// RecurrenceRule 周期规则（简单子集，不实现完整 RFC 5545 RRULE）
+type RecurrenceRule struct {
+	Freq      string `json:"freq"`                // daily/weekly/monthly/yearly
+	Interval  int    `json:"interval"`             // 间隔，默认 1
+	Until     string `json:"until,omitempty"`     // YYYY-MM-DD 截止日期
+	Count     int    `json:"count,omitempty"`     // 重复次数（与 until 二选一）
+	ByWeekday []int  `json:"byweekday,omitempty"` // 0=周日..6=周六，仅 weekly 用
 }
 
 // TripPlan 出行计划表
@@ -191,8 +206,8 @@ type DataSourceConfig struct {
 	MemberID   int64  `json:"member_id"`
 	MemberName string `json:"member_name"`
 	SourceType string `json:"source_type"`
-	APIKey     string `json:"-"`
-	APISecret  string `json:"-"`
+	APIKey     string `json:"api_key,omitempty"`
+	APISecret  string `json:"api_secret,omitempty"`
 	UserID     string `json:"user_id,omitempty"`
 	IsActive   bool   `json:"is_active"`
 	LastSyncAt string `json:"last_sync_at,omitempty"`

@@ -205,3 +205,63 @@ func DeleteMemberHandler(c *gin.Context) {
 
 	response.Error(c, 500, "数据库不可用，无法删除成员")
 }
+
+// UpdateMemberRoleHandler 更新成员角色（管理员委派/撤销）
+// 不允许操作自己的角色（防零管理员锁死）
+func UpdateMemberRoleHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "成员ID格式错误")
+		return
+	}
+
+	var req struct {
+		Role string `json:"role" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	// 校验角色合法性
+	validRoles := map[string]bool{
+		"admin": true, "adult": true, "child": true, "elder": true, "guest": true,
+	}
+	if !validRoles[req.Role] {
+		response.BadRequest(c, "非法角色: "+req.Role)
+		return
+	}
+
+	// 禁止操作自己的角色
+	currentUserID, _ := c.Get("userID")
+	uid, _ := currentUserID.(int64)
+	dbVal, _ := c.Get("db")
+	db, ok := dbVal.(*store.DB)
+	if !ok || db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	member, err := db.GetMemberByID(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, 404, "成员不存在")
+		return
+	}
+	if member.UserID == uid {
+		response.BadRequest(c, "不能修改自己的角色")
+		return
+	}
+	// 若将管理员撤销为非 admin，检查是否是最后一个管理员
+	if member.Role == "admin" && req.Role != "admin" {
+		count, err := db.CountAdmins(c.Request.Context())
+		if err == nil && count <= 1 {
+			response.BadRequest(c, "不能撤销最后一个管理员，请先委派其他管理员")
+			return
+		}
+	}
+	if err := db.UpdateMemberRole(c.Request.Context(), id, req.Role); err != nil {
+		response.InternalServerError(c, "更新角色失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"id": id, "role": req.Role, "message": "角色已更新"})
+}

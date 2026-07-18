@@ -2,8 +2,13 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HomeMate 家庭健康总览 v3.0</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="HomeMate">
+  <link rel="manifest" href="/manifest.json">
+  <title>HomeMate 家庭健康总览 v3.1</title>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;">
   <!-- Google Fonts 中文字体 -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -272,6 +277,61 @@
     body.dark-mode input, body.dark-mode select {
       background: #334155; color: var(--text); border-color: var(--border) !important;
     }
+    /* 健康总览成员卡片透明化（黑暗模式下避免白色块刺眼） */
+    .health-member-card {
+      background: transparent !important;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    body.dark-mode .health-member-card {
+      background: rgba(30, 41, 59, 0.55) !important;
+      border-color: rgba(148, 163, 184, 0.15) !important;
+    }
+    body:not(.dark-mode) .health-member-card {
+      background: rgba(255, 255, 255, 0.6) !important;
+    }
+    /* 指标卡片透明化 */
+    .metric-card {
+      background: transparent !important;
+      backdrop-filter: blur(4px);
+    }
+    body.dark-mode .metric-card {
+      background: rgba(51, 65, 85, 0.35) !important;
+      border-color: rgba(148, 163, 184, 0.12) !important;
+    }
+    body:not(.dark-mode) .metric-card {
+      background: rgba(255, 255, 255, 0.5) !important;
+    }
+    body.dark-mode .metric-card:hover { background: rgba(51, 65, 85, 0.6) !important; }
+    /* 展开区域 */
+    .metric-expand-area {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease, opacity 0.3s ease;
+      opacity: 0;
+    }
+    .metric-expand-area.open {
+      max-height: 2000px;
+      opacity: 1;
+    }
+    /* 指标详情弹窗 */
+    .metric-detail-popover {
+      position: fixed;
+      z-index: 60;
+      max-width: 320px;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+    }
+    body.dark-mode .metric-detail-popover {
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      color: #e2e8f0;
+    }
+    body:not(.dark-mode) .metric-detail-popover {
+      background: rgba(255, 255, 255, 0.98);
+      border: 1px solid #e5e7eb;
+    }
     body.dark-mode .modal-box { background: var(--card); }
     body.dark-mode .bg-gray-50 { background: #1e293b !important; }
     body.dark-mode .bg-gray-100 { background: #334155 !important; }
@@ -370,6 +430,43 @@
       75% { transform: rotate(3deg); }
     }
     body.kid-friendly .tilt-card:hover { animation: wiggle 0.4s ease-in-out; }
+
+    /* ==================== 移动端 / 触控优化 ==================== */
+    @media (max-width: 768px) {
+      /* 增大触控目标到 44px+，避免误触 */
+      .tab-btn, .ripple-btn, button { min-height: 40px; }
+      .tab-btn { font-size: 13px; padding: 6px 8px; }
+      /* 导航栏可横向滚动，隐藏滚动条 */
+      .glass-nav .overflow-x-auto { -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
+      .hide-scrollbar::-webkit-scrollbar { display: none; }
+      .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      /* 卡片内边距收窄 */
+      .overview-card, .section-card { padding: 12px; border-radius: 12px; }
+      .metric-card { padding: 10px; }
+      /* 模态框撑满屏宽 */
+      .modal-box { width: 94vw !important; max-width: none !important; margin: 0; border-radius: 16px; }
+      .modal-overlay { padding: 8px; align-items: center; }
+      /* 表单输入框增高 */
+      input[type="text"], input[type="password"], input[type="number"], input[type="email"], select, textarea {
+        min-height: 40px; font-size: 15px; /* 防止 iOS 缩放 */
+      }
+      /* 顶部 Tab 文字更紧凑 */
+      .max-w-7xl { padding-left: 8px; padding-right: 8px; }
+      /* 详情弹窗适配窄屏 */
+      .metric-detail-popover { width: 90vw; max-width: 360px; padding: 16px; }
+      /* 底部安全区域（iPhone X+） */
+      .tab-panel { padding-bottom: env(safe-area-inset-bottom, 0); }
+    }
+
+    /* 触控设备：去除 hover 闪烁 */
+    @media (hover: none) {
+      .hover\:bg-gray-50:hover, .hover\:shadow-md:hover { background: transparent; box-shadow: none; }
+      .tilt-card:hover { animation: none; transform: none; }
+    }
+
+    /* 大字体模式（可访问性）：跟随儿童模式放大触控目标 */
+    body.kid-friendly button, body.kid-friendly .ripple-btn { min-height: 52px; }
+    body.kid-friendly .modal-box { border-radius: 20px; }
   </style>
 </head>
 <body class="font-sans min-h-screen">
@@ -380,7 +477,7 @@
       <!-- 左侧 Logo -->
       <div class="flex items-center gap-2 flex-shrink-0">
         <span class="text-xl font-bold" style="color:var(--primary)">HomeMate</span>
-        <span class="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">v3.0</span>
+        <span class="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">v3.1</span>
       </div>
       <!-- 中间 Tab 按钮 -->
       <div class="flex items-center gap-1 md:gap-4 overflow-x-auto hide-scrollbar">
@@ -388,9 +485,8 @@
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="health" onclick="switchTab('health')">健康总览</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="chores" onclick="switchTab('chores')">家务劳动</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="points" onclick="switchTab('points')">积分排行</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="weekend" onclick="switchTab('weekend')">周末出行</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="weekend" onclick="switchTab('weekend')">休闲活动</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="records" onclick="switchTab('records')">健康档案</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="members" onclick="switchTab('members')">成员管理</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="settings" onclick="switchTab('settings')">设置</button>
       </div>
       <!-- 右侧：更新时间 + 刷新 -->
@@ -546,13 +642,13 @@
       <div id="pointsFeed"></div>
     </div>
 
-    <!-- ========== Tab 5: 周末出行 ========== -->
+    <!-- ========== Tab 5: 休闲活动 ========== -->
     <div id="panel-weekend" class="tab-panel">
-      <!-- 周末信息栏 -->
+      <!-- 休闲活动信息栏 -->
       <div class="bg-gradient-to-r from-blue-500 to-cyan-400 rounded-xl p-5 mb-6 text-white stagger-item">
         <div class="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h3 class="text-lg font-bold">🏔️ 本周末出行计划</h3>
+            <h3 class="text-lg font-bold">🎯 休闲活动计划</h3>
             <p id="weekendDate" class="text-sm opacity-90 mt-1">--</p>
           </div>
           <div id="weekendWeather" class="text-right text-sm">
@@ -679,6 +775,18 @@
     <!-- ========== Tab 4: 设置 ========== -->
     <div id="panel-settings" class="tab-panel">
       <div class="max-w-lg mx-auto space-y-6">
+        <!-- 成员管理（原独立 Tab，已并入设置） -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-bold">👥 成员管理</h3>
+            <button onclick="openMemberForm()" class="ripple-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              新增成员
+            </button>
+          </div>
+          <div id="membersList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </div>
+
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h3 class="text-base font-bold mb-4">通知设置</h3>
           <div class="flex items-center justify-between py-2">
@@ -730,8 +838,11 @@
 
         <!-- 家务任务管理 -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 mb-4">
-          <h4 class="text-base font-bold mb-3">家务任务管理</h4>
-          <p class="text-xs text-gray-400 mb-3">勾选后任务才会出现在"家务劳动"页面中供认领</p>
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-base font-bold">家务任务管理</h4>
+            <button onclick="toggleAllChorseGroups()" class="text-xs text-blue-500 hover:text-blue-600 font-medium" id="chorseGroupToggleAll">全部收起</button>
+          </div>
+          <p class="text-xs text-gray-400 mb-3">按分类分组，勾选后任务才会出现在"家务劳动"页面中供认领</p>
           <div id="adminTaskList" class="space-y-2">
             <p class="text-sm text-gray-400">加载中...</p>
           </div>
@@ -748,6 +859,42 @@
           </div>
           <div class="mt-4 pt-3 border-t border-gray-100">
             <p class="text-xs text-gray-400 mb-2">支持的数据源：Garmin Connect、Apple Health、华为健康、手动录入</p>
+          </div>
+        </div>
+
+        <!-- 数据源配置 Modal（替代 prompt） -->
+        <div id="dataSourceModal" class="modal-overlay">
+          <div class="modal-box" style="max-width:460px">
+            <h4 class="text-lg font-bold mb-1">配置数据源</h4>
+            <p id="dataSourceModalSubtitle" class="text-xs text-gray-400 mb-4">为成员配置健康数据采集来源</p>
+            <input type="hidden" id="dataSourceMemberId" value="">
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">数据源类型</label>
+                <select id="dataSourceType" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                  <option value="garmin"> Garmin Connect（佳明手表）</option>
+                  <option value="apple_health">Apple Health（苹果健康）</option>
+                  <option value="huawei">华为健康</option>
+                  <option value="manual">手动录入</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">API Key / 认证密钥（可选）</label>
+                <input type="text" id="dataSourceApiKey" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="留空则使用全局配置">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">用户标识 / User ID（可选）</label>
+                <input type="text" id="dataSourceUserId" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="如 Garmin 账号邮箱">
+              </div>
+              <label class="flex items-center gap-2 text-sm cursor-pointer pt-1">
+                <input type="checkbox" id="dataSourceActive" class="rounded accent-blue-500" checked>
+                <span>启用该数据源</span>
+              </label>
+            </div>
+            <div class="flex gap-3 mt-5">
+              <button onclick="document.getElementById('dataSourceModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
+              <button onclick="submitDataSourceConfig()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">保存配置</button>
+            </div>
           </div>
         </div>
       </div>
@@ -803,17 +950,8 @@
       <div id="analysisReportsList" class="space-y-3"></div>
     </div>
 
-    <!-- ========== Tab 6: 成员管理 ========== -->
-    <div id="panel-members" class="tab-panel">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold">家庭成员</h3>
-        <button onclick="openMemberForm()" class="ripple-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          新增成员
-        </button>
-      </div>
-      <div id="membersList" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"></div>
-
+    <!-- ========== 成员管理（已并入设置 Tab，此处仅保留编辑模态框） ========== -->
+    <div id="panel-members" class="tab-panel hidden">
       <!-- 成员编辑/新增对话框 -->
       <div id="memberFormModal" class="modal-overlay">
         <div class="modal-box" style="max-width:480px">
@@ -1118,8 +1256,9 @@
         loadRecords();
         loadAnalysisReports();
       }
-      // 按需加载设置页管理数据
+      // 按需加载设置页管理数据（含成员管理）
       if (tabName === 'settings') {
+        loadMembers();
         loadAdminTasks();
         loadDataSourceConfigs();
         loadNotifySettings();
@@ -1201,6 +1340,92 @@
       return m.value.toString();
     }
 
+    // ==================== HTML 转义（防 XSS） ====================
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // ==================== 指标详情弹窗 ====================
+    var _metricPopover = null;
+    function closeMetricDetail() {
+      if (_metricPopover) { _metricPopover.remove(); _metricPopover = null; }
+    }
+    function showMetricDetail(memberName, metric) {
+      closeMetricDetail();
+      if (!metric) return;
+
+      var bc = metricBorderColor(metric.status);
+      var statusText = metric.status === 'warning' ? '偏高' : (metric.status === 'alert' || metric.status === 'danger') ? '异常' : '正常';
+      var trendText = metric.trend === 'up' ? '上升' : metric.trend === 'down' ? '下降' : '平稳';
+      var valDisplay = fmtVal(metric);
+
+      var html = '<div class="metric-detail-popover" id="metricDetailPopover">' +
+        '<div class="flex items-start justify-between mb-3">' +
+          '<div class="flex items-center gap-2 min-w-0">' +
+            '<span class="text-2xl flex-shrink-0">' + (metric.icon || '📊') + '</span>' +
+            '<div class="min-w-0">' +
+              '<div class="text-sm font-semibold truncate">' + escapeHtml(metric.label) + '</div>' +
+              '<div class="text-xs opacity-70 truncate">' + escapeHtml(memberName) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<button onclick="closeMetricDetail()" class="opacity-60 hover:opacity-100 text-2xl leading-none flex-shrink-0 ml-2">&times;</button>' +
+        '</div>' +
+        '<div class="flex items-baseline gap-1 mb-3">' +
+          '<span class="text-3xl font-bold" style="color:' + bc + '">' + escapeHtml(valDisplay) + '</span>' +
+          '<span class="text-sm opacity-70">' + escapeHtml(metric.unit || '') + '</span>' +
+        '</div>' +
+        '<div class="grid grid-cols-2 gap-2 text-xs">' +
+          '<div class="rounded-lg p-2" style="background:' + bc + '22">' +
+            '<div class="opacity-70 mb-0.5">状态</div>' +
+            '<div class="font-semibold" style="color:' + bc + '">' + statusText + '</div>' +
+          '</div>' +
+          '<div class="rounded-lg p-2" style="background:rgba(148,163,184,0.18)">' +
+            '<div class="opacity-70 mb-0.5">趋势</div>' +
+            '<div class="font-semibold">' + trendText + trendHTML(metric.trend) + '</div>' +
+          '</div>' +
+        '</div>';
+      if (metric.ref) {
+        html += '<div class="mt-3 text-xs"><span class="opacity-70">参考范围：</span>' + escapeHtml(metric.ref) + '</div>';
+      }
+      if (metric.type) {
+        html += '<div class="mt-1 text-xs opacity-60">类型：' + escapeHtml(metric.type) + '</div>';
+      }
+      if (metric.recorded_at || metric.created_at) {
+        html += '<div class="mt-1 text-xs opacity-60">记录时间：' + escapeHtml(metric.recorded_at || metric.created_at) + '</div>';
+      }
+      if (metric.source) {
+        html += '<div class="mt-1 text-xs opacity-60">数据来源：' + escapeHtml(metric.source) + '</div>';
+      }
+      html += '</div>';
+
+      // 背景遮罩 + 弹窗
+      var overlay = document.createElement('div');
+      overlay.id = 'metricDetailOverlay';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:55;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);backdrop-filter:blur(2px)';
+      var div = document.createElement('div');
+      div.innerHTML = html;
+      var popover = div.firstElementChild;
+      overlay.appendChild(popover);
+      document.body.appendChild(overlay);
+      _metricPopover = overlay;
+
+      // 点击遮罩关闭
+      overlay.addEventListener('mousedown', function(e) {
+        if (e.target === overlay) closeMetricDetail();
+      });
+      // ESC 关闭
+      var escHandler = function(e) {
+        if (e.key === 'Escape') { closeMetricDetail(); document.removeEventListener('keydown', escHandler); }
+      };
+      document.addEventListener('keydown', escHandler);
+    }
+
     // ==================== 渲染健康概览统计 ====================
     function renderHealthStats(data) {
       var totalSteps = 0, stepsN = 0, totalSleep = 0, sleepN = 0;
@@ -1257,56 +1482,62 @@
         var preview = member.metrics.slice(0, 4);
         var previewHTML = '';
         if (preview.length === 0) {
-          // metrics 为空：显示引导文案
           previewHTML = '<div class="col-span-4 text-center py-2">' +
             '<p class="text-xs text-gray-400">暂无数据，点击下方添加自定义指标或配置数据源</p>' +
           '</div>';
         } else {
           previewHTML = preview.map(function(m) {
-            return '<div class="text-center">' +
-              '<p class="text-xs text-gray-400">' + m.icon + ' ' + m.label + '</p>' +
+            var bc = metricBorderColor(m.status);
+            return '<div class="text-center cursor-pointer metric-mini" onclick="showMetricDetail(\'' + escapeHtml(member.name) + '\',' + JSON.stringify(m).replace(/"/g,'&quot;') + ')" style="padding:6px 4px;border-radius:8px;border-left:3px solid ' + bc + ';">' +
+              '<p class="text-xs text-gray-400">' + m.icon + ' ' + escapeHtml(m.label) + '</p>' +
               '<p class="text-sm font-semibold mt-0.5">' + fmtVal(m) + '<span class="text-xs text-gray-400 ml-0.5">' + m.unit + '</span></p>' +
             '</div>';
           }).join('');
         }
 
-        // 展开视图：所有指标 + 自定义
+        // 展开视图：所有指标 + 自定义（带详情点击）
         var allMetrics = member.metrics.concat(customs);
         var expandedHTML = allMetrics.map(function(m) {
           var bc = metricBorderColor(m.status);
-          return '<div class="metric-card rounded-lg p-3 border-l-4" style="border-left-color:' + bc + '">' +
-            '<div class="flex items-center gap-2 mb-1"><span class="text-lg">' + (m.icon || '📊') + '</span><span class="text-xs text-gray-400">' + m.label + '</span></div>' +
+          var statusBadge = m.status && m.status !== 'normal' ? '<span class="ml-1 text-xs px-1.5 py-0.5 rounded" style="background:' + bc + '22;color:' + bc + '">' + (m.status==='warning'?'偏高':m.status==='danger'?'异常':'') + '</span>' : '';
+          return '<div class="metric-card rounded-lg p-3 border-l-4 cursor-pointer" style="border-left-color:' + bc + '" onclick="showMetricDetail(\'' + escapeHtml(member.name) + '\',' + JSON.stringify(m).replace(/"/g,'&quot;') + ')">' +
+            '<div class="flex items-center gap-2 mb-1"><span class="text-lg">' + (m.icon || '📊') + '</span><span class="text-xs text-gray-400 flex-1">' + escapeHtml(m.label) + '</span>' + statusBadge + '</div>' +
             '<div class="flex items-baseline"><span class="text-lg font-semibold">' + fmtVal(m) + '</span><span class="text-xs text-gray-400 ml-1">' + m.unit + '</span>' + trendHTML(m.trend) + '</div>' +
+            (m.ref ? '<div class="text-xs text-gray-400 mt-1">参考: ' + escapeHtml(m.ref) + '</div>' : '') +
           '</div>';
         }).join('');
 
-        var card = '<div class="tilt-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.3 + idx * 0.08) + 's">' +
+        var metricCount = allMetrics.length;
+        var hiddenCount = Math.max(0, member.metrics.length - 4);
+        var expandLabel = isExpanded ? '收起' : (metricCount > 4 ? '查看全部 ' + metricCount + ' 项' : (metricCount > 0 ? '查看详情' : '添加指标'));
+
+        var card = '<div class="tilt-card health-member-card rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.3 + idx * 0.08) + 's">' +
           '<div class="p-4 md:p-5">' +
             '<div class="flex items-center gap-4">' +
               '<div class="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0" style="background:' + color + '">' + roleEmoji + '</div>' +
               '<div class="flex-1 min-w-0">' +
                 '<div class="flex items-center gap-2 flex-wrap">' +
-                  '<h4 class="text-base font-bold">' + member.name + '</h4>' +
-                  '<span class="px-2 py-0.5 text-xs rounded-full font-medium" style="background:' + color + '18;color:' + color + '">' + member.role + '</span>' +
+                  '<h4 class="text-base font-bold">' + escapeHtml(member.name) + '</h4>' +
+                  '<span class="px-2 py-0.5 text-xs rounded-full font-medium" style="background:' + color + '18;color:' + color + '">' + escapeHtml(member.role) + '</span>' +
                   '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">' +
-                    '<span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1"></span>' + member.status_text +
+                    '<span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1"></span>' + escapeHtml(member.status_text) +
                   '</span>' +
                 '</div>' +
               '</div>' +
-              '<button class="ripple-btn text-xs px-3 py-1 rounded-full border hover:bg-gray-50 transition" style="border-color:' + color + ';color:' + color + '" onclick="toggleMember(\'' + member.name + '\')">' +
-                (isExpanded ? '收起' : '查看详情') +
+              '<button class="ripple-btn text-xs px-3 py-1 rounded-full border hover:bg-gray-50 transition" style="border-color:' + color + ';color:' + color + '" onclick="toggleMember(\'' + escapeHtml(member.name) + '\')">' +
+                expandLabel +
               '</button>' +
             '</div>' +
             '<div class="grid grid-cols-4 gap-2 mt-4">' + previewHTML + '</div>' +
-            '<div class="expand-area' + (isExpanded ? ' open' : '') + '" id="expand-' + member.name + '">' +
+            '<div class="metric-expand-area' + (isExpanded ? ' open' : '') + '" id="expand-' + escapeHtml(member.name) + '">' +
               '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">' + expandedHTML + '</div>' +
               '<div class="mt-4">' +
-                '<button class="ripple-btn text-xs px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition" onclick="showCustomForm(\'' + member.name + '\', this)">+ 添加自定义指标</button>' +
-                '<div id="customForm-' + member.name + '" class="hidden mt-3" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">' +
-                  '<select id="customType-' + member.name + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5">' +
+                '<button class="ripple-btn text-xs px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition" onclick="showCustomForm(\'' + escapeHtml(member.name) + '\', this)">+ 添加自定义指标</button>' +
+                '<div id="customForm-' + escapeHtml(member.name) + '" class="hidden mt-3" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">' +
+                  '<select id="customType-' + escapeHtml(member.name) + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5">' +
                     '<option value="">选择指标...</option><option value="血糖">血糖</option><option value="体温">体温</option><option value="腰围">腰围</option><option value="臀围">臀围</option><option value="视力">视力</option><option value="BMI">BMI</option><option value="__custom">自定义</option>' +
                   '</select>' +
-                  '<input id="customName-' + member.name + '" style="display:none" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-24" placeholder="指标名称">' +
+                  '<input id="customName-' + escapeHtml(member.name) + '" style="display:none" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-24" placeholder="指标名称">' +
                   '<input id="customVal-' + member.name + '" type="number" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-20" placeholder="数值">' +
                   '<input id="customUnit-' + member.name + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-16" placeholder="单位">' +
                   '<button onclick="addCustomMetric(\'' + member.name + '\')" class="ripple-btn text-xs px-3 py-1.5 rounded-lg text-white" style="background:var(--primary)">添加</button>' +
@@ -1643,7 +1874,7 @@
       setTimeout(function() { toast.remove(); }, 2500);
     }
 
-    // ==================== 周末出行 ====================
+    // ==================== 休闲活动 ====================
     // fallbackWeekend 已在全局 fallback 区域定义为空数据
     var currentWeekendData = null;
     var currentVoteProposalId = null;
@@ -1922,17 +2153,18 @@
     function deleteTask() {
       var id = document.getElementById('taskFormId').value;
       if (!id) return;
-      if (!confirm('确定要删除这个家务任务吗？')) return;
-      choresTasks = choresTasks.filter(function(t) { return t.id != id; });
-      closeTaskForm();
-      var data = { tasks: choresTasks, today_records: currentChoresData.today_records || [], member_contrib: currentChoresData.member_contrib || [], stats: currentChoresData.stats || { total_points: 0, completed: 0, active_members: 0, streak: 0 } };
-      renderChores(data);
-      var toast = document.createElement('div');
-      toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-red-500 text-white px-6 py-2 rounded-full shadow-lg text-sm font-medium success-flash';
-      toast.style.transform = 'translateX(-50%)';
-      toast.textContent = '家务已删除';
-      document.body.appendChild(toast);
-      setTimeout(function() { toast.remove(); }, 2000);
+      confirmDialog('确定要删除这个家务任务吗？', function() {
+        choresTasks = choresTasks.filter(function(t) { return t.id != id; });
+        closeTaskForm();
+        var data = { tasks: choresTasks, today_records: currentChoresData.today_records || [], member_contrib: currentChoresData.member_contrib || [], stats: currentChoresData.stats || { total_points: 0, completed: 0, active_members: 0, streak: 0 } };
+        renderChores(data);
+        var toast = document.createElement('div');
+        toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-red-500 text-white px-6 py-2 rounded-full shadow-lg text-sm font-medium success-flash';
+        toast.style.transform = 'translateX(-50%)';
+        toast.textContent = '家务已删除';
+        document.body.appendChild(toast);
+        setTimeout(function() { toast.remove(); }, 2000);
+      });
     }
 
     // ==================== 渲染积分 Tab ====================
@@ -2119,6 +2351,31 @@
     }
 
     // ==================== 家务任务管理（设置页） ====================
+    // 家务任务分组折叠状态
+    var chorseGroupCollapsed = {}; // {category: true/false}
+    function chorseCategoryLabel(cat) {
+      var map = { cleaning: '🧹 清洁打扫', cooking: '🍳 厨房烹饪', shopping: '🛒 采购跑腿', outdoor: '🌿 户外整理', care: '💖 照护陪伴', other: '📋 其他任务' };
+      return map[cat] || '📋 ' + (cat || '其他');
+    }
+    function toggleChorseGroup(cat) {
+      chorseGroupCollapsed[cat] = !chorseGroupCollapsed[cat];
+      var body = document.getElementById('chorseGroupBody-' + cat);
+      var arrow = document.getElementById('chorseGroupArrow-' + cat);
+      if (body) body.style.display = chorseGroupCollapsed[cat] ? 'none' : 'block';
+      if (arrow) arrow.style.transform = chorseGroupCollapsed[cat] ? 'rotate(-90deg)' : 'rotate(0deg)';
+    }
+    function toggleAllChorseGroups() {
+      var allCollapsed = Object.keys(chorseGroupCollapsed).every(function(k){ return chorseGroupCollapsed[k]; });
+      Object.keys(chorseGroupCollapsed).forEach(function(k){ chorseGroupCollapsed[k] = !allCollapsed; });
+      Object.keys(chorseGroupCollapsed).forEach(function(k){
+        var body = document.getElementById('chorseGroupBody-' + k);
+        var arrow = document.getElementById('chorseGroupArrow-' + k);
+        if (body) body.style.display = chorseGroupCollapsed[k] ? 'none' : 'block';
+        if (arrow) arrow.style.transform = chorseGroupCollapsed[k] ? 'rotate(-90deg)' : 'rotate(0deg)';
+      });
+      document.getElementById('chorseGroupToggleAll').textContent = allCollapsed ? '全部收起' : '全部展开';
+    }
+
     function loadAdminTasks() {
       if (!currentUser || currentUser.role !== 'admin') {
         var container = document.getElementById('adminTaskList');
@@ -2131,19 +2388,39 @@
         var container = document.getElementById('adminTaskList');
         if (!container) return;
         if (tasks.length === 0) { container.innerHTML = '<p class="text-sm text-gray-400">暂无任务</p>'; return; }
-        var html = '';
+        // 按分类分组
+        var groups = {};
+        var order = [];
         tasks.forEach(function(t) {
-          html += '<div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">' +
-            '<div class="flex items-center gap-2">' +
-              '<span>' + (t.icon || '📋') + '</span>' +
-              '<span class="text-sm">' + t.name + '</span>' +
-              '<span class="text-xs text-gray-400">' + t.category + ' · ' + t.points + '分</span>' +
-            '</div>' +
-            '<label class="relative inline-flex items-center cursor-pointer">' +
-              '<input type="checkbox" ' + (t.enabled ? 'checked' : '') + ' onchange="toggleTask(' + t.id + ', this.checked)" class="sr-only peer">' +
-              '<div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\\\'\\\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>' +
-            '</label>' +
-          '</div>';
+          var cat = t.category || 'other';
+          if (!groups[cat]) { groups[cat] = []; order.push(cat); }
+          groups[cat].push(t);
+        });
+        var html = '';
+        order.forEach(function(cat) {
+          if (chorseGroupCollapsed[cat] === undefined) chorseGroupCollapsed[cat] = false;
+          var list = groups[cat];
+          var enabledCount = list.filter(function(t){ return t.enabled; }).length;
+          html += '<div class="border border-gray-100 dark:border-gray-700 rounded-lg overflow-hidden">' +
+            '<button onclick="toggleChorseGroup(\'' + cat + '\')" class="w-full flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition">' +
+              '<span class="text-sm font-medium">' + chorseCategoryLabel(cat) + ' <span class="text-xs text-gray-400">(' + enabledCount + '/' + list.length + ')</span></span>' +
+              '<svg id="chorseGroupArrow-' + cat + '" class="w-4 h-4 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>' +
+            '</button>' +
+            '<div id="chorseGroupBody-' + cat + '" style="display:' + (chorseGroupCollapsed[cat] ? 'none' : 'block') + '">';
+          list.forEach(function(t) {
+            html += '<div class="flex items-center justify-between py-2 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 border-t border-gray-50 dark:border-gray-700/50">' +
+              '<div class="flex items-center gap-2 min-w-0">' +
+                '<span>' + (t.icon || '📋') + '</span>' +
+                '<span class="text-sm truncate">' + escapeHtml(t.name) + '</span>' +
+                '<span class="text-xs text-gray-400 flex-shrink-0">' + escapeHtml(t.difficulty || '') + ' · ' + t.points + '分</span>' +
+              '</div>' +
+              '<label class="relative inline-flex items-center cursor-pointer flex-shrink-0">' +
+                '<input type="checkbox" ' + (t.enabled ? 'checked' : '') + ' onchange="toggleTask(' + t.id + ', this.checked)" class="sr-only peer">' +
+                '<div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\\\'\\\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>' +
+              '</label>' +
+            '</div>';
+          });
+          html += '</div></div>';
         });
         container.innerHTML = html;
       });
@@ -2209,18 +2486,38 @@
 
     function editDataSource(memberId) {
       var name = memberNames[memberId] || '成员';
-      var type = prompt('为 ' + name + ' 选择数据源类型：\n1. garmin (Garmin Connect)\n2. apple_health (Apple Health)\n3. huawei (华为健康)\n4. manual (手动录入)\n\n请输入类型代码：', 'garmin');
-      if (!type) return;
-      var apiKey = prompt('请输入 API Key / 认证密钥（可选）：', '');
+      document.getElementById('dataSourceMemberId').value = memberId;
+      document.getElementById('dataSourceModalSubtitle').textContent = '为 ' + name + ' 配置健康数据采集来源';
+      document.getElementById('dataSourceType').value = 'garmin';
+      document.getElementById('dataSourceApiKey').value = '';
+      document.getElementById('dataSourceUserId').value = String(memberId);
+      document.getElementById('dataSourceActive').checked = true;
+      document.getElementById('dataSourceModal').classList.add('show');
+    }
+
+    function submitDataSourceConfig() {
+      var memberId = parseInt(document.getElementById('dataSourceMemberId').value, 10);
+      var name = memberNames[memberId] || '成员';
+      var type = document.getElementById('dataSourceType').value;
+      var apiKey = document.getElementById('dataSourceApiKey').value.trim();
+      var userId = document.getElementById('dataSourceUserId').value.trim();
+      var isActive = document.getElementById('dataSourceActive').checked;
+      if (!memberId) { showToast('参数错误', 'error'); return; }
       authFetch('/api/health/data-source/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ member_id: memberId, member_name: name, source_type: type, api_key: apiKey || '', api_secret: '', user_id: String(memberId), is_active: true })
-      }).then(function() {
-        showToast(name + ' 的数据源已配置', 'success');
-        loadDataSourceConfigs();
+        body: JSON.stringify({ member_id: memberId, member_name: name, source_type: type, api_key: apiKey || '', api_secret: '', user_id: userId || String(memberId), is_active: isActive })
+      }).then(function(r) { return r.json(); }).then(function(result) {
+        if (result.code === 0 || result.code === undefined) {
+          showToast(name + ' 的数据源已配置', 'success');
+          document.getElementById('dataSourceModal').classList.remove('show');
+          loadDataSourceConfigs();
+        } else {
+          showToast(result.message || '配置失败', 'error');
+        }
       }).catch(function() {
         showToast(name + ' 的数据源已配置（本地）', 'success');
+        document.getElementById('dataSourceModal').classList.remove('show');
         loadDataSourceConfigs();
       });
     }
@@ -2441,21 +2738,30 @@
     }
 
     function deleteMember(id) {
-      if (!confirm('确定要删除该成员吗？')) return;
-      authFetch('/api/members/' + id, { method: 'DELETE' }).then(function() {
-        showToast('成员已删除', 'success');
-        loadMembers();
-      }).catch(function() {
-        currentMembers = currentMembers.filter(function(x) { return x.id !== id; });
-        renderMembersList();
-        showToast('成员已删除（本地）', 'success');
-      });
+      confirmDialog('确定要删除该成员吗？删除后不可恢复。', function() {
+        authFetch('/api/members/' + id, { method: 'DELETE' }).then(function() {
+          showToast('成员已删除', 'success');
+          loadMembers();
+        }).catch(function() {
+          currentMembers = currentMembers.filter(function(x) { return x.id !== id; });
+          renderMembersList();
+          showToast('成员已删除（本地）', 'success');
+        });
+      }, { title: '删除成员', danger: true, okText: '删除', icon: '🗑️' });
     }
 
     // ==================== 健康档案管理 ====================
     var currentRecords = [];
     var currentAnalysisReports = [];
     var currentRecordFilter = 'all';
+    var recordGroupCollapsed = {}; // 健康档案分类折叠状态
+    function toggleRecordGroup(cat) {
+      recordGroupCollapsed[cat] = !recordGroupCollapsed[cat];
+      var body = document.getElementById('recordGroupBody-' + cat);
+      var arrow = document.getElementById('recordGroupArrow-' + cat);
+      if (body) body.style.display = recordGroupCollapsed[cat] ? 'none' : 'block';
+      if (arrow) arrow.style.transform = recordGroupCollapsed[cat] ? 'rotate(-90deg)' : 'rotate(0deg)';
+    }
     var selectedRecordIds = new Set();
     var recordCategoryLabels = { checkup: '体检报告', lab: '化验单', prescription: '处方', imaging: '影像资料', vaccination: '疫苗接种', other: '其他' };
     var recordCategoryIcons = { checkup: '📋', lab: '🧪', prescription: '💊', imaging: '🏥', vaccination: '💉', other: '📁' };
@@ -2489,27 +2795,25 @@
         return;
       }
 
-      var html = '';
-      filtered.forEach(function(r) {
+      // 单条记录卡片渲染函数
+      function recordCardHtml(r) {
         var icon = recordCategoryIcons[r.category] || '📁';
         var catLabel = recordCategoryLabels[r.category] || r.category;
         var memberColor = memberColors[r.member_name] || '#6b7280';
-        var memberShort = memberShortName[r.member_name] || (r.member_name ? r.member_name.charAt(0) : '?');
         var isSelected = selectedRecordIds.has(r.id);
         var hasAnalysis = r.is_analyzed === true || r.analysis_status === 'completed';
-
-        html += '<div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3 stagger-item' + (isSelected ? ' ring-2 ring-blue-300' : '') + '">' +
+        return '<div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3 stagger-item' + (isSelected ? ' ring-2 ring-blue-300' : '') + '">' +
           '<input type="checkbox" class="record-cb rounded accent-blue-500 flex-shrink-0" data-id="' + r.id + '" ' + (isSelected ? 'checked' : '') + ' onchange="toggleRecordSelect(' + r.id + ', this)">' +
           '<div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-xl" style="background:#f0f9ff">' + icon + '</div>' +
           '<div class="flex-1 min-w-0">' +
             '<div class="flex items-center gap-2 flex-wrap">' +
-              '<p class="text-sm font-medium truncate">' + (r.file_name || r.title || '未命名档案') + '</p>' +
-              '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + memberColor + '18;color:' + memberColor + '">' + (r.member_name || '未知') + '</span>' +
+              '<p class="text-sm font-medium truncate">' + escapeHtml(r.file_name || r.title || '未命名档案') + '</p>' +
+              '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + memberColor + '18;color:' + memberColor + '">' + escapeHtml(r.member_name || '未知') + '</span>' +
             '</div>' +
             '<div class="flex items-center gap-2 mt-1 text-xs text-gray-400">' +
-              '<span>' + catLabel + '</span>' +
+              '<span>' + escapeHtml(catLabel) + '</span>' +
               '<span>·</span>' +
-              '<span>' + (r.record_date || '--') + '</span>' +
+              '<span>' + escapeHtml(r.record_date || '--') + '</span>' +
               (hasAnalysis ? '<span class="text-purple-500">· 已分析</span>' : '') +
             '</div>' +
           '</div>' +
@@ -2523,8 +2827,47 @@
             '</button>' +
           '</div>' +
         '</div>';
-      });
-      container.innerHTML = html;
+      }
+
+      // 全部模式：按分类分区折叠
+      if (currentRecordFilter === 'all') {
+        var groups = {};
+        var order = ['checkup','lab','prescription','imaging','vaccination','other'];
+        filtered.forEach(function(r) {
+          var cat = r.category || 'other';
+          if (!groups[cat]) groups[cat] = [];
+          groups[cat].push(r);
+        });
+        var presentCats = order.filter(function(c){ return groups[c] && groups[c].length > 0; });
+        if (presentCats.length === 0) {
+          container.innerHTML = '<div class="text-center py-12"><p class="text-gray-300 text-4xl mb-3">📂</p><p class="text-sm text-gray-400">暂无健康档案</p></div>';
+          return;
+        }
+        var html = '';
+        presentCats.forEach(function(cat) {
+          if (recordGroupCollapsed[cat] === undefined) recordGroupCollapsed[cat] = false;
+          var list = groups[cat];
+          var icon = recordCategoryIcons[cat] || '📁';
+          var label = recordCategoryLabels[cat] || cat;
+          html += '<div class="border border-gray-100 rounded-xl overflow-hidden">' +
+            '<button onclick="toggleRecordGroup(\'' + cat + '\')" class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition">' +
+              '<span class="flex items-center gap-2 text-sm font-semibold">' +
+                '<span class="text-lg">' + icon + '</span>' + escapeHtml(label) +
+                '<span class="text-xs text-gray-400">(' + list.length + ' 份)</span>' +
+              '</span>' +
+              '<svg id="recordGroupArrow-' + cat + '" class="w-4 h-4 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transform:' + (recordGroupCollapsed[cat] ? 'rotate(-90deg)' : 'rotate(0deg)') + '"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>' +
+            '</button>' +
+            '<div id="recordGroupBody-' + cat + '" style="display:' + (recordGroupCollapsed[cat] ? 'none' : 'block') + '" class="p-3 space-y-3">';
+          list.forEach(function(r){ html += recordCardHtml(r); });
+          html += '</div></div>';
+        });
+        container.innerHTML = html;
+      } else {
+        // 单分类模式：直接列出
+        var html2 = '';
+        filtered.forEach(function(r){ html2 += recordCardHtml(r); });
+        container.innerHTML = html2;
+      }
     }
 
     function renderAnalysisReports() {
@@ -2734,17 +3077,18 @@
     }
 
     function deleteRecord(recordId) {
-      if (!confirm('确定要删除该档案吗？')) return;
-      authFetch('/api/records/' + recordId, { method: 'DELETE' }).then(function() {
-        showToast('档案已删除', 'success');
-        loadRecords();
-      }).catch(function() {
-        currentRecords = currentRecords.filter(function(r) { return r.id !== recordId; });
-        selectedRecordIds.delete(recordId);
-        renderRecordsList();
-        updateRecordSelectionUI();
-        showToast('档案已删除（本地）', 'success');
-      });
+      confirmDialog('确定要删除该档案吗？删除后不可恢复。', function() {
+        authFetch('/api/records/' + recordId, { method: 'DELETE' }).then(function() {
+          showToast('档案已删除', 'success');
+          loadRecords();
+        }).catch(function() {
+          currentRecords = currentRecords.filter(function(r) { return r.id !== recordId; });
+          selectedRecordIds.delete(recordId);
+          renderRecordsList();
+          updateRecordSelectionUI();
+          showToast('档案已删除（本地）', 'success');
+        });
+      }, { title: '删除档案', danger: true, okText: '删除', icon: '🗑️' });
     }
 
     function viewAnalysisReport(reportId) {
@@ -2842,30 +3186,53 @@
           });
           html += '</div>';
         } else if (sec.type === 'activities') {
-          // 活动推荐
+          // 活动推荐 TOP3 + 跳转
           var w = sec.weather || {};
           var wText = (w.saturday || w.sunday || w.temperature) ? ('🌤️ ' + (w.saturday || '-') + ' / ' + (w.sunday || '-') + ' · ' + (w.temperature || '-')) : '🌤️ 天气数据未配置';
           html += '<div class="flex items-center gap-4 mb-3 text-sm text-gray-500">' +
             '<span>📅 ' + (sec.weekend || '-') + '</span>' +
             '<span>' + wText + '</span>' +
           '</div>';
-          html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-3">';
-          (sec.proposals || []).forEach(function(p) {
-            html += '<div class="rounded-lg border border-gray-100 p-3 ' + (p.winning ? 'bg-blue-50 border-blue-200' : '') + '">' +
-              '<div class="flex items-center gap-2 mb-2">' +
-                '<span class="text-xl">' + p.icon + '</span>' +
-                '<span class="text-sm font-bold">' + p.title + '</span>' +
-                (p.winning ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-blue-500 text-white">领先</span>' : '') +
-              '</div>' +
-              '<div class="flex items-center gap-1 flex-wrap">';
-            (p.tags || []).forEach(function(t) {
-              html += '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + t + '</span>';
-            });
-            html += '</div>' +
-              '<p class="text-xs text-gray-400 mt-2">' + p.votes + ' 票</p>' +
+          var allProps = sec.proposals || [];
+          // 按票数降序取 TOP3
+          var sortedProps = allProps.slice().sort(function(a,b){ return (b.votes||0) - (a.votes||0); });
+          var top3 = sortedProps.slice(0, 3);
+          if (top3.length === 0) {
+            html += '<div class="text-center py-4">' +
+              '<p class="text-sm text-gray-400 mb-2">暂无推荐方案</p>' +
+              '<button onclick="switchTab(\'weekend\')" class="text-xs text-blue-500 hover:text-blue-600 font-medium">去生成活动方案 →</button>' +
             '</div>';
-          });
-          html += '</div>';
+          } else {
+            html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-3">';
+            top3.forEach(function(p, idx) {
+              var rankBadge = idx === 0 ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-yellow-400 text-white">🥇 1</span>' :
+                              idx === 1 ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-gray-300 text-white">🥈 2</span>' :
+                                          '<span class="text-xs px-1.5 py-0.5 rounded-full bg-orange-400 text-white">🥉 3</span>';
+              html += '<div class="rounded-lg border border-gray-100 p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition ' + (p.winning ? 'bg-blue-50 border-blue-200' : '') + '" onclick="switchTab(\'weekend\')">' +
+                '<div class="flex items-center gap-2 mb-2">' +
+                  '<span class="text-xl">' + (p.icon || '🎯') + '</span>' +
+                  '<span class="text-sm font-bold flex-1 truncate">' + escapeHtml(p.title || '') + '</span>' +
+                  rankBadge +
+                  (p.winning ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-blue-500 text-white">领先</span>' : '') +
+                '</div>' +
+                '<div class="flex items-center gap-1 flex-wrap mb-2">';
+              (p.tags || []).slice(0, 3).forEach(function(t) {
+                html += '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + escapeHtml(t) + '</span>';
+              });
+              html += '</div>' +
+                '<div class="flex items-center justify-between text-xs">' +
+                  '<span class="text-gray-400">👍 ' + (p.votes || 0) + ' 票</span>' +
+                  '<span class="text-blue-500 font-medium">查看详情 →</span>' +
+                '</div>' +
+              '</div>';
+            });
+            html += '</div>';
+            if (allProps.length > 3) {
+              html += '<div class="mt-3 text-center">' +
+                '<button onclick="switchTab(\'weekend\')" class="text-xs text-blue-500 hover:text-blue-600 font-medium">查看全部 ' + allProps.length + ' 个方案 →</button>' +
+              '</div>';
+            }
+          }
         } else if (sec.type === 'points') {
           // 积分
           var pct = Math.round((sec.weekly_progress || 0) * 100);
@@ -3157,6 +3524,90 @@
       loadSyncSettings();
       loadSoundSetting();
     }
+
+    // ==================== PWA Service Worker 注册 ====================
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js').then(function(reg) {
+          console.log('[PWA] Service Worker 注册成功');
+        }).catch(function(err) {
+          console.warn('[PWA] Service Worker 注册失败:', err);
+        });
+      });
+    }
+
+    // ==================== 防抖工具函数 ====================
+    function debounce(fn, wait) {
+      var t;
+      return function() {
+        var ctx = this, args = arguments;
+        clearTimeout(t);
+        t = setTimeout(function() { fn.apply(ctx, args); }, wait || 300);
+      };
+    }
+    // 通用刷新防抖（避免频繁点击）
+    var _refreshAllDebounced = debounce(function() {
+      loadAllData();
+      loadHealthMetrics();
+    }, 400);
+
+    // ==================== 确认对话框（替代 confirm） ====================
+    function confirmDialog(message, onConfirm, opts) {
+      opts = opts || {};
+      var overlay = document.createElement('div');
+      overlay.className = 'modal-overlay show';
+      overlay.style.cssText = 'display:flex;align-items:center;justify-content:center;z-index:60';
+      var box = document.createElement('div');
+      box.className = 'modal-box';
+      box.style.maxWidth = '400px';
+      box.innerHTML =
+        '<div class="flex items-start gap-3 mb-4">' +
+          '<div class="text-2xl flex-shrink-0">' + (opts.icon || '⚠️') + '</div>' +
+          '<div class="flex-1">' +
+            '<h4 class="text-base font-bold mb-1">' + escapeHtml(opts.title || '请确认') + '</h4>' +
+            '<p class="text-sm text-gray-500 dark:text-gray-300">' + escapeHtml(message) + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="flex gap-3">' +
+          '<button id="confirmCancelBtn" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">' + escapeHtml(opts.cancelText || '取消') + '</button>' +
+          '<button id="confirmOkBtn" class="flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:' + (opts.danger ? '#ef4444' : 'var(--primary)') + '">' + escapeHtml(opts.okText || '确定') + '</button>' +
+        '</div>';
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      var close = function() { overlay.remove(); };
+      overlay.addEventListener('mousedown', function(e) { if (e.target === overlay) close(); });
+      box.querySelector('#confirmCancelBtn').onclick = close;
+      box.querySelector('#confirmOkBtn').onclick = function() {
+        close();
+        if (typeof onConfirm === 'function') onConfirm();
+      };
+      var escHandler = function(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', escHandler); } };
+      document.addEventListener('keydown', escHandler);
+      setTimeout(function(){ box.querySelector('#confirmOkBtn').focus(); }, 50);
+    }
+
+    // ==================== 全局快捷键 ====================
+    document.addEventListener('keydown', function(e) {
+      // 输入框中不触发
+      var tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      var keyMap = { '1':'home', '2':'health', '3':'chores', '4':'points', '5':'weekend', '6':'records', '7':'settings' };
+      if (keyMap[e.key]) {
+        e.preventDefault();
+        switchTab(keyMap[e.key]);
+      } else if (e.key === 'r' || e.key === 'R') {
+        // R 键刷新数据（防抖）
+        e.preventDefault();
+        _refreshAllDebounced();
+        showToast('数据已刷新', 'success');
+      } else if (e.key === '/') {
+        // / 键聚焦到 AI 聊天输入
+        e.preventDefault();
+        var chatInput = document.getElementById('chatInput');
+        if (chatInput) chatInput.focus();
+      }
+    });
   </script>
   <!-- 登录/注册弹窗 -->
   <div id="authModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" style="display:none">

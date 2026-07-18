@@ -179,6 +179,38 @@ CREATE TABLE IF NOT EXISTS feedback_records (
     FOREIGN KEY (member_id) REFERENCES family_members(id)
 );
 
+CREATE TABLE IF NOT EXISTS message_board (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_member_id INTEGER NOT NULL,
+    to_member_id INTEGER,
+    content TEXT NOT NULL,
+    parent_id INTEGER,
+    pinned INTEGER DEFAULT 0,
+    read_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (from_member_id) REFERENCES family_members(id),
+    FOREIGN KEY (to_member_id) REFERENCES family_members(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_board_to ON message_board(to_member_id, read_at);
+CREATE INDEX IF NOT EXISTS idx_message_board_created ON message_board(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT,
+    data_json TEXT,
+    read_at DATETIME,
+    pushed_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (member_id) REFERENCES family_members(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_member_read ON notifications(member_id, read_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_pushed ON notifications(pushed_at);
+
 CREATE TABLE IF NOT EXISTS data_source_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     member_id INTEGER NOT NULL,
@@ -330,6 +362,13 @@ func (db *DB) migrate() error {
 		{"chorse_tasks", "enabled", "ALTER TABLE chorse_tasks ADD COLUMN enabled INTEGER NOT NULL DEFAULT 0"},
 		{"chorse_claims", "verifier_id", "ALTER TABLE chorse_claims ADD COLUMN verifier_id INTEGER DEFAULT 0"},
 		{"chorse_claims", "verifier_name", "ALTER TABLE chorse_claims ADD COLUMN verifier_name TEXT DEFAULT ''"},
+		{"family_members", "wechat_openid", "ALTER TABLE family_members ADD COLUMN wechat_openid TEXT DEFAULT ''"},
+		{"calendar_events", "is_important", "ALTER TABLE calendar_events ADD COLUMN is_important INTEGER DEFAULT 0"},
+		{"calendar_events", "recurrence_rule", "ALTER TABLE calendar_events ADD COLUMN recurrence_rule TEXT"},
+		{"calendar_events", "reminder_minutes", "ALTER TABLE calendar_events ADD COLUMN reminder_minutes INTEGER DEFAULT 30"},
+		{"calendar_events", "last_reminded_at", "ALTER TABLE calendar_events ADD COLUMN last_reminded_at DATETIME"},
+		{"calendar_events", "created_by", "ALTER TABLE calendar_events ADD COLUMN created_by INTEGER"},
+		{"calendar_events", "color", "ALTER TABLE calendar_events ADD COLUMN color TEXT DEFAULT ''"},
 	}
 	for _, m := range migrations {
 		var count int
@@ -415,6 +454,28 @@ func (db *DB) UpdateMember(ctx context.Context, m *model.FamilyMember) error {
 		"UPDATE family_members SET name=?, role=?, age=?, preferences_json=?, health_focus=?, data_source_plugin=? WHERE id=?",
 		m.Name, m.Role, m.Age, m.PreferencesJSON, m.HealthFocus, m.DataSourcePlugin, m.ID)
 	return err
+}
+
+// UpdateMemberRole 仅更新成员角色（管理员委派用）
+func (db *DB) UpdateMemberRole(ctx context.Context, id int64, role string) error {
+	res, err := db.conn.ExecContext(ctx,
+		"UPDATE family_members SET role=? WHERE id=?", role, id)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("成员不存在")
+	}
+	return nil
+}
+
+// CountAdmins 统计当前管理员数量（防止零管理员锁死）
+func (db *DB) CountAdmins(ctx context.Context) (int, error) {
+	var count int
+	err := db.conn.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM family_members WHERE role='admin'").Scan(&count)
+	return count, err
 }
 
 // GetMemberByID 根据ID获取家庭成员
@@ -987,7 +1048,7 @@ func (db *DB) CreateWeekendProposal(ctx context.Context, p *model.WeekendProposa
 // ListWeekendProposals 列出周末方案
 func (db *DB) ListWeekendProposals(ctx context.Context) ([]model.WeekendProposalDB, error) {
 	rows, err := db.conn.QueryContext(ctx,
-		"SELECT id, title, description, icon, category, tags_json, duration, cost, difficulty, suitable_for, weather_req, tips FROM weekend_proposals ORDER BY id DESC")
+		"SELECT id, title, description, icon, category, tags_json, duration, cost, difficulty, suitable_for, weather_req, tips, created_by FROM weekend_proposals ORDER BY id DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -995,12 +1056,61 @@ func (db *DB) ListWeekendProposals(ctx context.Context) ([]model.WeekendProposal
 	var proposals []model.WeekendProposalDB
 	for rows.Next() {
 		var p model.WeekendProposalDB
-		if err := rows.Scan(&p.ID, &p.Title, &p.Description, &p.Icon, &p.Category, &p.TagsJSON, &p.Duration, &p.Cost, &p.Difficulty, &p.SuitableFor, &p.WeatherReq, &p.Tips); err != nil {
+		if err := rows.Scan(&p.ID, &p.Title, &p.Description, &p.Icon, &p.Category, &p.TagsJSON, &p.Duration, &p.Cost, &p.Difficulty, &p.SuitableFor, &p.WeatherReq, &p.Tips, &p.CreatedBy); err != nil {
 			return nil, err
 		}
 		proposals = append(proposals, p)
 	}
 	return proposals, rows.Err()
+}
+
+// GetWeekendProposalByID 单个方案详情
+func (db *DB) GetWeekendProposalByID(ctx context.Context, id int64) (*model.WeekendProposalDB, error) {
+	var p model.WeekendProposalDB
+	err := db.conn.QueryRowContext(ctx,
+		"SELECT id, title, description, icon, category, tags_json, duration, cost, difficulty, suitable_for, weather_req, tips, created_by FROM weekend_proposals WHERE id=?", id).
+		Scan(&p.ID, &p.Title, &p.Description, &p.Icon, &p.Category, &p.TagsJSON, &p.Duration, &p.Cost, &p.Difficulty, &p.SuitableFor, &p.WeatherReq, &p.Tips, &p.CreatedBy)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// UpdateWeekendProposal 更新方案
+func (db *DB) UpdateWeekendProposal(ctx context.Context, p *model.WeekendProposalDB) error {
+	res, err := db.conn.ExecContext(ctx,
+		`UPDATE weekend_proposals SET title=?, description=?, icon=?, category=?, tags_json=?, duration=?, cost=?, difficulty=?, suitable_for=?, weather_req=?, tips=? WHERE id=?`,
+		p.Title, p.Description, p.Icon, p.Category, p.TagsJSON, p.Duration, p.Cost,
+		p.Difficulty, p.SuitableFor, p.WeatherReq, p.Tips, p.ID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("方案不存在")
+	}
+	return nil
+}
+
+// DeleteWeekendProposal 删除方案（级联删除投票记录）
+func (db *DB) DeleteWeekendProposal(ctx context.Context, id int64) error {
+	tx, err := db.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM weekend_votes WHERE proposal_id=?`, id); err != nil {
+		return err
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM weekend_proposals WHERE id=?`, id)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("方案不存在")
+	}
+	return tx.Commit()
 }
 
 // AddWeekendVote 添加投票
@@ -1203,11 +1313,19 @@ func (db *DB) seedAdminUser(ctx context.Context) error {
 	}
 	// 默认管理员: admin / admin123
 	hash, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
-	_, err = db.conn.ExecContext(ctx,
+	res, err := db.conn.ExecContext(ctx,
 		"INSERT INTO users (username, password_hash, role, name, family_id) VALUES (?, ?, ?, ?, ?)",
 		"admin", string(hash), "admin", "管理员", 1)
 	if err != nil {
 		return err
+	}
+	userID, _ := res.LastInsertId()
+	// 同时创建对应 family_member，user_id 关联
+	_, err = db.conn.ExecContext(ctx,
+		"INSERT INTO family_members (user_id, name, role, age, preferences_json) VALUES (?, ?, ?, ?, ?)",
+		userID, "管理员", "admin", 0, "")
+	if err != nil {
+		log.Printf("[WARN] 创建默认管理员成员失败: %v", err)
 	}
 	log.Println("[INFO] 已创建默认管理员账户: admin / admin123（请及时修改密码）")
 	return nil

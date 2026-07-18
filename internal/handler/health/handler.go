@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/homemate/server/internal/model"
 	"github.com/homemate/server/internal/pkg/response"
+	"github.com/homemate/server/internal/service/scheduler"
 	"github.com/homemate/server/internal/store"
 )
 
@@ -197,6 +198,20 @@ func SaveDataSourceConfigHandler(c *gin.Context) {
 
 // SyncHealthDataHandler 手动触发健康数据同步
 func SyncHealthDataHandler(c *gin.Context) {
+	schedVal, exists := c.Get("scheduler")
+	if !exists || schedVal == nil {
+		response.InternalServerError(c, "调度器未初始化")
+		return
+	}
+	sched, ok := schedVal.(*scheduler.Scheduler)
+	if !ok || sched == nil {
+		response.InternalServerError(c, "调度器类型错误")
+		return
+	}
+	if err := sched.TriggerManual("health_sync"); err != nil {
+		response.BadRequest(c, "触发同步失败: "+err.Error())
+		return
+	}
 	response.Success(c, gin.H{
 		"message":        "同步已触发，请稍后刷新查看",
 		"metrics_synced": []string{"steps", "heart_rate", "sleep", "spo2", "body_battery", "stress"},

@@ -1,4 +1,5 @@
 # 构建产物
+homemate
 homemate-server
 *.exe
 *.dll
@@ -9,11 +10,13 @@ homemate-server
 *.db
 *.db-wal
 *.db-shm
+data/
 
 # 环境变量和密钥
 .env
 .env.local
 .env.*.local
+config.yaml
 
 # 上传文件（运行时生成）
 uploads/

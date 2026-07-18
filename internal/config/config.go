@@ -18,6 +18,9 @@ type Config struct {
 	MCP      MCPConfig      `yaml:"mcp"`
 	OpenAI   OpenAIConfig   `yaml:"openai"`
 	Family   FamilyConfig   `yaml:"family"`
+	Amap     AmapConfig     `yaml:"amap"`
+	Garmin   GarminConfig   `yaml:"garmin"`
+	WeCom    WeComConfig    `yaml:"wecom"`
 }
 
 // ServerConfig HTTP 服务配置
@@ -84,6 +87,27 @@ type FamilyConfig struct {
 	Name string `yaml:"name"`
 }
 
+// AmapConfig 高德地图配置（天气/地理）
+type AmapConfig struct {
+	APIKey  string `yaml:"api_key"`
+	City    string `yaml:"city"`    // adcode 区域编码，默认 110100（北京）
+	BaseURL string `yaml:"base_url"`
+}
+
+// GarminConfig Garmin Connect 配置
+type GarminConfig struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	TokenDir string `yaml:"token_dir"` // token 持久化目录
+	BaseURL  string `yaml:"base_url"`
+}
+
+// WeComConfig 企业微信群机器人配置
+type WeComConfig struct {
+	WebhookURL  string `yaml:"webhook_url"`
+	EnablePush bool   `yaml:"enable_push"`
+}
+
 // setDefaults 设置默认值
 func (c *Config) setDefaults() {
 	if c.Server.Port == "" {
@@ -133,6 +157,18 @@ func (c *Config) setDefaults() {
 	if c.Family.Name == "" {
 		c.Family.Name = "My Family"
 	}
+	if c.Amap.BaseURL == "" {
+		c.Amap.BaseURL = "https://restapi.amap.com/v3"
+	}
+	if c.Amap.City == "" {
+		c.Amap.City = "110100" // 北京
+	}
+	if c.Garmin.BaseURL == "" {
+		c.Garmin.BaseURL = "https://connect.garmin.com"
+	}
+	if c.Garmin.TokenDir == "" {
+		c.Garmin.TokenDir = "./data"
+	}
 }
 
 // applyEnv 用环境变量覆盖配置
@@ -163,6 +199,21 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("HOMEMATE_WECHAT_APP_SECRET"); v != "" {
 		c.Wechat.AppSecret = v
+	}
+	if v := os.Getenv("HOMEMATE_AMAP_API_KEY"); v != "" {
+		c.Amap.APIKey = v
+	}
+	if v := os.Getenv("HOMEMATE_GARMIN_USERNAME"); v != "" {
+		c.Garmin.Username = v
+	}
+	if v := os.Getenv("HOMEMATE_GARMIN_PASSWORD"); v != "" {
+		c.Garmin.Password = v
+	}
+	if v := os.Getenv("HOMEMATE_WECOM_WEBHOOK"); v != "" {
+		c.WeCom.WebhookURL = v
+	}
+	if v := os.Getenv("HOMEMATE_WECOM_ENABLE_PUSH"); v == "true" || v == "1" {
+		c.WeCom.EnablePush = true
 	}
 }
 
