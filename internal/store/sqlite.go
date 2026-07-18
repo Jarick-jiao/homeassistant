@@ -1414,9 +1414,18 @@ func (db *DB) GetDataSourceConfigs(ctx context.Context) ([]model.DataSourceConfi
 	var configs []model.DataSourceConfig
 	for rows.Next() {
 		var c model.DataSourceConfig
-		if err := rows.Scan(&c.ID, &c.MemberID, &c.MemberName, &c.SourceType, &c.APIKey, &c.APISecret, &c.UserID, &c.IsActive, &c.LastSyncAt, &c.CreatedAt); err != nil {
+		// v3.6.4: member_name/source_type/api_key/api_secret/user_id/last_sync_at 可能为 NULL，
+		// 用 sql.NullString 接收避免 "converting NULL to string is unsupported"
+		var memberName, sourceType, apiKey, apiSecret, userID, lastSyncAt sql.NullString
+		if err := rows.Scan(&c.ID, &c.MemberID, &memberName, &sourceType, &apiKey, &apiSecret, &userID, &c.IsActive, &lastSyncAt, &c.CreatedAt); err != nil {
 			return nil, err
 		}
+		c.MemberName = memberName.String
+		c.SourceType = sourceType.String
+		c.APIKey = apiKey.String
+		c.APISecret = apiSecret.String
+		c.UserID = userID.String
+		c.LastSyncAt = lastSyncAt.String
 		configs = append(configs, c)
 	}
 	return configs, rows.Err()
