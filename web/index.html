@@ -781,6 +781,28 @@
         </div>
       </div>
 
+      <!-- 积分口径说明卡（v3.3.6 爸爸视角：消除"今日积分 vs 总积分"口径困惑） -->
+      <div class="grid grid-cols-3 gap-3 mb-5">
+        <div class="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-center border border-green-100 dark:border-green-800">
+          <p class="text-xs text-gray-400 dark:text-gray-500 mb-1">✅ 已入账积分</p>
+          <p id="ptsSettled" class="text-2xl font-bold text-green-600 dark:text-green-400">0</p>
+          <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">验收确认后正式计入</p>
+        </div>
+        <div class="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3 text-center border border-amber-100 dark:border-amber-800">
+          <p class="text-xs text-gray-400 dark:text-gray-500 mb-1">⏳ 待验收积分</p>
+          <p id="ptsPending" class="text-2xl font-bold text-amber-600 dark:text-amber-400">0</p>
+          <p id="ptsPendingHint" class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">认领/已完成待验收</p>
+        </div>
+        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-center border border-blue-100 dark:border-blue-800">
+          <p class="text-xs text-gray-400 dark:text-gray-500 mb-1">🔥 今日已得</p>
+          <p id="ptsToday" class="text-2xl font-bold text-blue-600 dark:text-blue-400">0</p>
+          <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">含待验收部分</p>
+        </div>
+      </div>
+      <div id="ptsExpHint" class="hidden text-xs text-gray-400 dark:text-gray-500 mb-4 -mt-3 leading-relaxed">
+        💡 <b>积分口径说明</b>：家务认领后需经家人「验收确认」才正式入账。待验收积分验收后将自动转入「已入账积分」，并计入周目标进度。
+      </div>
+
       <!-- 成员积分排行榜（卡片式） -->
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-lg font-bold">积分排行榜</h3>
@@ -1521,6 +1543,10 @@
         loadCalendarList();
         updateCalendarAdminBar();
       }
+      // v3.3.6 爸爸视角：按需加载积分数据（含待验收积分口径三卡）
+      if (tabName === 'points') {
+        loadPointsData();
+      }
     }
 
     // ==================== 显示设置（深色模式 + 紧凑视图） ====================
@@ -1904,7 +1930,9 @@
       animateCount(document.getElementById('choreTotalPts'), data.stats.total_points, 600);
       animateCount(document.getElementById('choreDoneCount'), data.stats.completed, 500);
       animateCount(document.getElementById('choreActiveMembers'), data.stats.active_members, 500);
-      animateCount(document.getElementById('choreStreak'), data.stats.streak, 600);
+      // v3.3.6 爸爸视角：后端 streak 未填充时兜底——今日有完成记录则至少显示1天，避免"今日做了家务却显示0天"的困惑
+      var displayStreak = (data.stats.streak > 0) ? data.stats.streak : ((data.stats.completed > 0) ? 1 : 0);
+      animateCount(document.getElementById('choreStreak'), displayStreak, 600);
 
       var diffColors = { easy: '#10b981', medium: '#f59e0b', hard: '#ef4444', '简单': '#10b981', '中等': '#f59e0b', '困难': '#ef4444' };
       var diffLabels = { easy: '简单', medium: '中等', hard: '困难', '简单': '简单', '中等': '中等', '困难': '困难' };
@@ -2533,11 +2561,25 @@
     }
 
     // 加载积分数据（独立函数，供周目标/删除等场景复用）
+    // v3.3.6 爸爸视角：并行拉取家务待办认领，计算"待验收积分"，消除口径困惑
     function loadPointsData() {
-      authFetch('/api/points/dashboard').then(function(r){return r.json();}).then(function(result){
-        if(result.code===0) { currentPointsData=result.data; renderPoints(result.data); }
-        else { currentPointsData=fallbackPoints; renderPoints(fallbackPoints); }
-      }).catch(function(){ currentPointsData=fallbackPoints; renderPoints(fallbackPoints); });
+      Promise.all([
+        authFetch('/api/points/dashboard').then(function(r){return r.json();}),
+        authFetch('/api/chorse/claims').then(function(r){return r.json();}).catch(function(){return {data:{claims:[]}};}),
+        authFetch('/api/chorse/dashboard').then(function(r){return r.json();}).catch(function(){return {data:{stats:{total_points:0}}};})
+      ]).then(function(results){
+        var ptsRes = results[0], claimsRes = results[1], chorseRes = results[2];
+        var ptsData = (ptsRes && ptsRes.code===0) ? ptsRes.data : fallbackPoints;
+        // 统计待验收积分：pending + completed 状态（尚未 confirmed 入账）
+        var claims = (claimsRes && claimsRes.data && claimsRes.data.claims) || [];
+        var pending = 0, pendingCnt = 0;
+        claims.forEach(function(cl){
+          if (cl.status === 'pending' || cl.status === 'completed') { pending += (cl.points||0); pendingCnt++; }
+        });
+        var today = (chorseRes && chorseRes.data && chorseRes.data.stats && chorseRes.data.stats.total_points) || 0;
+        currentPointsData = ptsData;
+        renderPoints(ptsData, { pending: pending, pendingCnt: pendingCnt, today: today });
+      }).catch(function(){ currentPointsData=fallbackPoints; renderPoints(fallbackPoints, {pending:0,today:0}); });
     }
 
     // === 积分兑换商店（v3.3.5 妈妈体验优化）===
@@ -2589,8 +2631,25 @@
     }
 
     // ==================== 渲染积分 Tab ====================
-    function renderPoints(data) {
+    function renderPoints(data, extras) {
+      extras = extras || { pending: 0, today: 0 };
       animateCount(document.getElementById('familyTotalPts'), data.family_total, 1000);
+
+      // v3.3.6 爸爸视角：三卡积分口径（已入账/待验收/今日已得）
+      var settled = data.family_total || 0;
+      var pending = extras.pending || 0;
+      var today = extras.today || 0;
+      var elSettled = document.getElementById('ptsSettled');
+      var elPending = document.getElementById('ptsPending');
+      var elToday = document.getElementById('ptsToday');
+      var elHint = document.getElementById('ptsExpHint');
+      var elPendingHint = document.getElementById('ptsPendingHint');
+      if (elSettled) elSettled.textContent = settled.toLocaleString();
+      if (elPending) elPending.textContent = pending.toLocaleString();
+      if (elToday) elToday.textContent = today.toLocaleString();
+      if (elPendingHint) elPendingHint.textContent = extras.pendingCnt ? (extras.pendingCnt + ' 项待验收') : '认领/已完成待验收';
+      // 有待验收或今日有得分但总积分为0时，展开口径说明
+      if (elHint) elHint.classList.toggle('hidden', !(pending > 0 || (today > 0 && settled === 0)));
 
       var pct = Math.round(data.weekly_progress * 100);
       document.getElementById('weeklyPct').textContent = pct + '%';
@@ -2674,6 +2733,11 @@
           '</div>' +
         '</div>';
       });
+      // v3.3.6 爸爸视角：Feed 空状态友好提示，解释为何暂时没有动态
+      if (!data.recent || data.recent.length === 0) {
+        document.getElementById('pointsFeed').innerHTML = '<div class="text-center py-10 text-sm text-gray-400 dark:text-gray-500"><div class="text-3xl mb-2">📋</div>暂无已入账的积分动态<br><span class="text-xs">家务经家人「验收确认」后，积分记录会显示在这里</span></div>';
+        return;
+      }
       feedHTML += '</div>';
       document.getElementById('pointsFeed').innerHTML = feedHTML;
     }
