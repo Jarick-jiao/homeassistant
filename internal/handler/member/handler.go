@@ -26,13 +26,15 @@ func ListMembersHandler(c *gin.Context) {
 				members := make([]model.Member, 0, len(familyMembers))
 				for _, fm := range familyMembers {
 					members = append(members, model.Member{
-						ID:               fm.ID,
-						Name:             fm.Name,
-						Role:             model.Role(fm.Role),
-						Age:              fm.Age,
-						HealthFocus:      fm.HealthFocus,
-						DataSourcePlugin: fm.DataSourcePlugin,
-					})
+					ID:               fm.ID,
+					Name:             fm.Name,
+					Role:             model.Role(fm.Role),
+					Age:              fm.Age,
+					HealthFocus:      fm.HealthFocus,
+					DataSourcePlugin: fm.DataSourcePlugin,
+					AvatarURL:        fm.AvatarURL,
+					Bio:              fm.Bio,
+				})
 				}
 				response.Success(c, members)
 				return
@@ -65,6 +67,8 @@ func GetMemberDetailHandler(c *gin.Context) {
 					Age:              fm.Age,
 					HealthFocus:      fm.HealthFocus,
 					DataSourcePlugin: fm.DataSourcePlugin,
+					AvatarURL:        fm.AvatarURL,
+					Bio:              fm.Bio,
 				})
 				return
 			}
@@ -104,6 +108,8 @@ func CreateMemberHandler(c *gin.Context) {
 				Age:              req.Age,
 				HealthFocus:      req.HealthFocus,
 				DataSourcePlugin: req.DataSourcePlugin,
+				AvatarURL:        req.AvatarURL,
+				Bio:              req.Bio,
 			}
 			id, err := db.CreateMember(c.Request.Context(), fm)
 			if err != nil {
@@ -165,6 +171,8 @@ func UpdateMemberHandler(c *gin.Context) {
 				Age:              req.Age,
 				HealthFocus:      req.HealthFocus,
 				DataSourcePlugin: req.DataSourcePlugin,
+				AvatarURL:        req.AvatarURL,
+				Bio:              req.Bio,
 			}
 			if err := db.UpdateMember(c.Request.Context(), fm); err == nil {
 				response.Success(c, req)

@@ -57,6 +57,12 @@ func InitDB(cfg config.DatabaseConfig) (*DB, error) {
 		return nil, fmt.Errorf("创建档案表失败: %w", err)
 	}
 
+	// 档案表迁移（必须在 createRecordTables 之后执行，否则全新库 ALTER 会报 no such table）
+	if err := db.RunRecordMigrations(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("档案表迁移失败: %w", err)
+	}
+
 	if err := db.createHealthMetricTables(); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("创建健康指标表失败: %w", err)
@@ -391,6 +397,51 @@ CREATE TABLE IF NOT EXISTS anniversaries (
 );
 
 CREATE INDEX IF NOT EXISTS idx_anniversaries_date ON anniversaries(date);
+
+-- ==================== 归档表（v3.3.1：清理前搬移，保留历史可查） ====================
+-- 结构 = 原表所有列 + archived_at
+CREATE TABLE IF NOT EXISTS news_archive (
+    id INTEGER, category TEXT, title TEXT, summary TEXT, content TEXT,
+    source TEXT, source_url TEXT, image_url TEXT, published_at DATETIME,
+    is_hot INTEGER, created_at DATETIME,
+    archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_news_archive_archived ON news_archive(archived_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_archive_source ON news_archive(source_url);
+
+CREATE TABLE IF NOT EXISTS points_records_archive (
+    id INTEGER, member_name TEXT, pts_type TEXT, type_label TEXT, title TEXT,
+    points INTEGER, created_at DATETIME,
+    archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_points_archive_archived ON points_records_archive(archived_at DESC);
+
+CREATE TABLE IF NOT EXISTS chat_messages_archive (
+    id INTEGER, member_id INTEGER, content TEXT, role TEXT, timestamp INTEGER,
+    session_id TEXT,
+    archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_chat_archive_archived ON chat_messages_archive(archived_at DESC);
+
+CREATE TABLE IF NOT EXISTS device_data_archive (
+    id INTEGER, member_id INTEGER, device_type TEXT, data_json TEXT, received_at DATETIME,
+    archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_device_archive_archived ON device_data_archive(archived_at DESC);
+
+CREATE TABLE IF NOT EXISTS notifications_archive (
+    id INTEGER, member_id INTEGER, type TEXT, title TEXT, body TEXT, data_json TEXT,
+    read_at DATETIME, pushed_at DATETIME, created_at DATETIME,
+    archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_archive_archived ON notifications_archive(archived_at DESC);
+
+CREATE TABLE IF NOT EXISTS message_board_archive (
+    id INTEGER, from_member_id INTEGER, to_member_id INTEGER, content TEXT,
+    parent_id INTEGER, pinned INTEGER, read_at DATETIME, created_at DATETIME,
+    archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_message_board_archive_archived ON message_board_archive(archived_at DESC);
 `
 	if _, err := db.conn.Exec(schema); err != nil {
 		return fmt.Errorf("执行建表语句失败: %w", err)
@@ -407,6 +458,8 @@ func (db *DB) migrate() error {
 	}{
 		{"family_members", "health_focus", "ALTER TABLE family_members ADD COLUMN health_focus TEXT DEFAULT ''"},
 		{"family_members", "data_source_plugin", "ALTER TABLE family_members ADD COLUMN data_source_plugin TEXT DEFAULT 'manual'"},
+		{"family_members", "avatar_url", "ALTER TABLE family_members ADD COLUMN avatar_url TEXT DEFAULT ''"},
+		{"family_members", "bio", "ALTER TABLE family_members ADD COLUMN bio TEXT DEFAULT ''"},
 		{"calendar_events", "date", "ALTER TABLE calendar_events ADD COLUMN date TEXT"},
 		{"calendar_events", "time", "ALTER TABLE calendar_events ADD COLUMN time TEXT"},
 		{"calendar_events", "type", "ALTER TABLE calendar_events ADD COLUMN type TEXT"},
@@ -421,9 +474,8 @@ func (db *DB) migrate() error {
 		{"calendar_events", "last_reminded_at", "ALTER TABLE calendar_events ADD COLUMN last_reminded_at DATETIME"},
 		{"calendar_events", "created_by", "ALTER TABLE calendar_events ADD COLUMN created_by INTEGER"},
 		{"calendar_events", "color", "ALTER TABLE calendar_events ADD COLUMN color TEXT DEFAULT ''"},
-		{"health_record_files", "description", "ALTER TABLE health_record_files ADD COLUMN description TEXT DEFAULT ''"},
-		{"health_record_files", "hospital", "ALTER TABLE health_record_files ADD COLUMN hospital TEXT DEFAULT ''"},
-		{"health_record_files", "clinic", "ALTER TABLE health_record_files ADD COLUMN clinic TEXT DEFAULT ''"},
+		// 注：health_record_files 的迁移由 runRecordMigrations() 负责
+		// 必须在 createRecordTables() 建表之后执行，否则全新库会报 no such table
 	}
 	for _, m := range migrations {
 		var count int
@@ -495,8 +547,8 @@ func (db *DB) GetUserByID(ctx context.Context, id int64) (*model.User, error) {
 // CreateMember 创建家庭成员
 func (db *DB) CreateMember(ctx context.Context, m *model.FamilyMember) (int64, error) {
 	res, err := db.conn.ExecContext(ctx,
-		"INSERT INTO family_members (user_id, name, role, age, preferences_json, health_focus, data_source_plugin, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		m.UserID, m.Name, m.Role, m.Age, m.PreferencesJSON, m.HealthFocus, m.DataSourcePlugin, time.Now())
+		"INSERT INTO family_members (user_id, name, role, age, preferences_json, health_focus, data_source_plugin, avatar_url, bio, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		m.UserID, m.Name, m.Role, m.Age, m.PreferencesJSON, m.HealthFocus, m.DataSourcePlugin, m.AvatarURL, m.Bio, time.Now())
 	if err != nil {
 		return 0, err
 	}
@@ -506,8 +558,8 @@ func (db *DB) CreateMember(ctx context.Context, m *model.FamilyMember) (int64, e
 // UpdateMember 更新家庭成员
 func (db *DB) UpdateMember(ctx context.Context, m *model.FamilyMember) error {
 	_, err := db.conn.ExecContext(ctx,
-		"UPDATE family_members SET name=?, role=?, age=?, preferences_json=?, health_focus=?, data_source_plugin=? WHERE id=?",
-		m.Name, m.Role, m.Age, m.PreferencesJSON, m.HealthFocus, m.DataSourcePlugin, m.ID)
+		"UPDATE family_members SET name=?, role=?, age=?, preferences_json=?, health_focus=?, data_source_plugin=?, avatar_url=?, bio=? WHERE id=?",
+		m.Name, m.Role, m.Age, m.PreferencesJSON, m.HealthFocus, m.DataSourcePlugin, m.AvatarURL, m.Bio, m.ID)
 	return err
 }
 
@@ -536,9 +588,9 @@ func (db *DB) CountAdmins(ctx context.Context) (int, error) {
 // GetMemberByID 根据ID获取家庭成员
 func (db *DB) GetMemberByID(ctx context.Context, id int64) (*model.FamilyMember, error) {
 	row := db.conn.QueryRowContext(ctx,
-		"SELECT id, user_id, name, role, age, preferences_json, health_focus, data_source_plugin, created_at FROM family_members WHERE id=?", id)
+		"SELECT id, user_id, name, role, age, preferences_json, health_focus, data_source_plugin, avatar_url, bio, created_at FROM family_members WHERE id=?", id)
 	var m model.FamilyMember
-	err := row.Scan(&m.ID, &m.UserID, &m.Name, &m.Role, &m.Age, &m.PreferencesJSON, &m.HealthFocus, &m.DataSourcePlugin, &m.CreatedAt)
+	err := row.Scan(&m.ID, &m.UserID, &m.Name, &m.Role, &m.Age, &m.PreferencesJSON, &m.HealthFocus, &m.DataSourcePlugin, &m.AvatarURL, &m.Bio, &m.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -548,7 +600,7 @@ func (db *DB) GetMemberByID(ctx context.Context, id int64) (*model.FamilyMember,
 // GetMembers 获取所有家庭成员
 func (db *DB) GetMembers(ctx context.Context) ([]model.FamilyMember, error) {
 	rows, err := db.conn.QueryContext(ctx,
-		"SELECT id, user_id, name, role, age, preferences_json, health_focus, data_source_plugin, created_at FROM family_members ORDER BY id")
+		"SELECT id, user_id, name, role, age, preferences_json, health_focus, data_source_plugin, avatar_url, bio, created_at FROM family_members ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -556,7 +608,7 @@ func (db *DB) GetMembers(ctx context.Context) ([]model.FamilyMember, error) {
 	members := make([]model.FamilyMember, 0)
 	for rows.Next() {
 		var m model.FamilyMember
-		if err := rows.Scan(&m.ID, &m.UserID, &m.Name, &m.Role, &m.Age, &m.PreferencesJSON, &m.HealthFocus, &m.DataSourcePlugin, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.UserID, &m.Name, &m.Role, &m.Age, &m.PreferencesJSON, &m.HealthFocus, &m.DataSourcePlugin, &m.AvatarURL, &m.Bio, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		members = append(members, m)

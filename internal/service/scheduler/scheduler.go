@@ -732,7 +732,7 @@ func (s *Scheduler) cleanupLoop(hour int) {
 // runCleanup 执行历史数据清理
 func (s *Scheduler) runCleanup() {
 	s.lastRuns["cleanup"] = time.Now()
-	log.Println("[CLEANUP] 开始清理历史数据...")
+	log.Println("[CLEANUP] 开始清理历史数据（归档模式）...")
 
 	if s.db == nil {
 		log.Println("[CLEANUP] 数据库不可用，跳过")
@@ -741,44 +741,52 @@ func (s *Scheduler) runCleanup() {
 
 	ctx := context.Background()
 	now := time.Now()
-	var totalDeleted int64
+	var totalArchived int64
 
-	// 1. 新闻：30 天前的非热点
-	if n, err := s.db.DeleteNewsBefore(ctx, now.AddDate(0, 0, -30)); err == nil {
-		log.Printf("[CLEANUP] 新闻清理: %d 条", n)
-		totalDeleted += n
+	// TTL 映射：表 → 保留天数（归档后从活跃表删除）
+	ttls := map[string]int{
+		"news":          30,
+		"notifications": 90,
+		"points_records": 180,
+		"chat_messages":  365,
+		"message_board": 180,
+		"device_data":   90,
+	}
+	// 表 → 日志名
+	names := map[string]string{
+		"news": "新闻", "notifications": "通知", "points_records": "积分记录",
+		"chat_messages": "聊天消息", "message_board": "留言板", "device_data": "设备数据",
+	}
+	// 1. 时间驱动：归档超 TTL 的记录（搬移到 *_archive 后从原表删除）
+	for _, spec := range store.ArchiveTableSpecs() {
+		days, ok := ttls[spec.Table]
+		if !ok {
+			continue
+		}
+		before := now.AddDate(0, 0, -days)
+		n, err := s.db.ArchiveAndDeleteBefore(ctx, spec.Table, before)
+		if err != nil {
+			log.Printf("[CLEANUP] %s 归档失败: %v", names[spec.Table], err)
+			continue
+		}
+		log.Printf("[CLEANUP] %s 归档: %d 条", names[spec.Table], n)
+		totalArchived += n
 	}
 
-	// 2. 通知：90 天前已读
-	if n, err := s.db.DeleteNotificationsBefore(ctx, now.AddDate(0, 0, -90)); err == nil {
-		log.Printf("[CLEANUP] 通知清理: %d 条", n)
-		totalDeleted += n
+	// 2. 容量驱动：活跃表超上限则归档最旧部分
+	var capArchived int64
+	for _, spec := range store.ArchiveTableSpecs() {
+		n, err := s.db.EnforceArchiveCap(ctx, spec.Table, spec.Cap)
+		if err != nil {
+			log.Printf("[CLEANUP] %s 容量归档失败: %v", names[spec.Table], err)
+			continue
+		}
+		if n > 0 {
+			log.Printf("[CLEANUP] %s 容量归档: %d 条（上限 %d）", names[spec.Table], n, spec.Cap)
+			capArchived += n
+		}
 	}
 
-	// 3. 积分记录：180 天前
-	if n, err := s.db.DeletePointsRecordsBefore(ctx, now.AddDate(0, 0, -180)); err == nil {
-		log.Printf("[CLEANUP] 积分记录清理: %d 条", n)
-		totalDeleted += n
-	}
-
-	// 4. 聊天消息：365 天前
-	if n, err := s.db.DeleteChatMessagesBefore(ctx, now.AddDate(0, 0, -365)); err == nil {
-		log.Printf("[CLEANUP] 聊天消息清理: %d 条", n)
-		totalDeleted += n
-	}
-
-	// 5. 留言板：180 天前已读
-	if n, err := s.db.DeleteMessagesBefore(ctx, now.AddDate(0, 0, -180)); err == nil {
-		log.Printf("[CLEANUP] 留言板清理: %d 条", n)
-		totalDeleted += n
-	}
-
-	// 6. 设备数据：90 天前
-	if n, err := s.db.DeleteDeviceDataBefore(ctx, now.AddDate(0, 0, -90)); err == nil {
-		log.Printf("[CLEANUP] 设备数据清理: %d 条", n)
-		totalDeleted += n
-	}
-
-	log.Printf("[CLEANUP] 清理完成，共删除 %d 条历史记录", totalDeleted)
+	log.Printf("[CLEANUP] 清理完成，时间归档 %d 条 + 容量归档 %d 条 = 共归档 %d 条历史记录", totalArchived, capArchived, totalArchived+capArchived)
 }
 

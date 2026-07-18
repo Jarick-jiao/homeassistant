@@ -1,7 +1,12 @@
 package calendar
 
 import (
+	"encoding/csv"
+	"fmt"
+	"io"
+	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -342,4 +347,163 @@ func DeleteCalendarEventHandler(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"deleted": true, "id": id})
+}
+
+// DeleteAllEventsHandler 清空全部日历事件（管理员）
+func DeleteAllEventsHandler(c *gin.Context) {
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	count, err := db.DeleteAllEvents(c.Request.Context())
+	if err != nil {
+		response.InternalServerError(c, "清空失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"deleted": count})
+}
+
+// SeedDemoEventsHandler 初始化 Demo 日程（管理员）
+func SeedDemoEventsHandler(c *gin.Context) {
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	count, err := db.SeedDemoEvents(c.Request.Context())
+	if err != nil {
+		response.InternalServerError(c, "初始化失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"seeded": count, "message": fmt.Sprintf("已初始化 %d 条 Demo 日程", count)})
+}
+
+// ImportCSVHandler CSV 批量导入日历事件（管理员）
+// CSV 格式: title,description,date,time,location,event_type,type,is_important,reminder_minutes,color
+func ImportCSVHandler(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.BadRequest(c, "请上传CSV文件")
+		return
+	}
+	f, err := file.Open()
+	if err != nil {
+		response.InternalServerError(c, "文件读取失败")
+		return
+	}
+	defer f.Close()
+
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+
+	reader := csv.NewReader(f)
+	reader.LazyQuotes = true
+	header, err := reader.Read()
+	if err != nil {
+		response.BadRequest(c, "CSV格式错误: 无法读取表头")
+		return
+	}
+
+	colMap := make(map[string]int)
+	for i, h := range header {
+		colMap[strings.TrimSpace(strings.ToLower(h))] = i
+	}
+
+	titleIdx, hasTitle := colMap["title"]
+	if !hasTitle {
+		titleIdx, hasTitle = colMap["标题"]
+	}
+	if !hasTitle {
+		response.BadRequest(c, "CSV必须包含 title（标题）列")
+		return
+	}
+
+	imported, skipped := 0, 0
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			skipped++
+			continue
+		}
+		if len(record) <= titleIdx {
+			skipped++
+			continue
+		}
+		title := strings.TrimSpace(record[titleIdx])
+		if title == "" {
+			skipped++
+			continue
+		}
+
+		getCol := func(keys ...string) string {
+			for _, k := range keys {
+				if idx, ok := colMap[k]; ok && idx < len(record) {
+					return strings.TrimSpace(record[idx])
+				}
+			}
+			return ""
+		}
+
+		dateStr := getCol("date", "日期")
+		timeStr := getCol("time", "时间")
+		if dateStr == "" {
+			dateStr = time.Now().Format("2006-01-02")
+		}
+		if timeStr == "" {
+			timeStr = "09:00"
+		}
+		startTime, perr := time.Parse("2006-01-02 15:04", dateStr+" "+timeStr)
+		if perr != nil {
+			startTime = time.Now()
+		}
+		isImportantStr := strings.ToLower(getCol("is_important", "isimportant", "重要"))
+		isImportant := isImportantStr == "1" || isImportantStr == "true" || isImportantStr == "yes" || isImportantStr == "是"
+		reminder, _ := strconv.Atoi(getCol("reminder_minutes", "reminderminutes", "提醒分钟"))
+		if reminder == 0 {
+			reminder = 30
+		}
+
+		e := &model.CalendarEvent{
+			Title:           title,
+			Description:     getCol("description", "描述"),
+			StartTime:       startTime,
+			EndTime:         startTime.Add(2 * time.Hour),
+			Date:            dateStr,
+			Time:            timeStr,
+			Location:        getCol("location", "地点"),
+			EventType:       strDefault(getCol("event_type", "事件类型"), "imported"),
+			Type:            strDefault(getCol("type", "类型"), "other"),
+			IsImportant:     isImportant,
+			ReminderMinutes: reminder,
+			Color:           getCol("color", "颜色"),
+		}
+		if _, err := db.CreateCalendarEvent(c.Request.Context(), e); err != nil {
+			log.Printf("[WARN] CSV导入日程失败 [%s]: %v", title, err)
+			skipped++
+			continue
+		}
+		imported++
+	}
+
+	log.Printf("[CALENDAR] CSV 导入完成: %d 成功, %d 跳过", imported, skipped)
+	response.Success(c, gin.H{
+		"imported": imported,
+		"skipped":  skipped,
+		"message":  fmt.Sprintf("成功导入 %d 条日程，跳过 %d 条", imported, skipped),
+	})
+}
+
+// strDefault 空字符串返回默认值
+func strDefault(s, def string) string {
+	if s == "" {
+		return def
+	}
+	return s
 }

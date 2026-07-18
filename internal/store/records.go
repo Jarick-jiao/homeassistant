@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/homemate/server/internal/model"
@@ -207,6 +208,27 @@ func RecordExtraMigrations() []struct {
 		{"health_record_files", "hospital", "ALTER TABLE health_record_files ADD COLUMN hospital TEXT DEFAULT ''"},
 		{"health_record_files", "clinic", "ALTER TABLE health_record_files ADD COLUMN clinic TEXT DEFAULT ''"},
 	}
+}
+
+// RunRecordMigrations 执行档案相关列迁移（必须在 createRecordTables 之后调用）
+func (db *DB) RunRecordMigrations() error {
+	for _, m := range RecordExtraMigrations() {
+		var count int
+		err := db.conn.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info(?) WHERE name=?",
+			m.Table, m.Column,
+		).Scan(&count)
+		if err != nil {
+			return fmt.Errorf("检查列 %s.%s 失败: %w", m.Table, m.Column, err)
+		}
+		if count == 0 {
+			if _, err := db.conn.Exec(m.DDL); err != nil {
+				return fmt.Errorf("添加列 %s.%s 失败: %w", m.Table, m.Column, err)
+			}
+			log.Printf("[MIGRATE] 已添加列 %s.%s", m.Table, m.Column)
+		}
+	}
+	return nil
 }
 
 // CreateRecordTables 创建档案相关表

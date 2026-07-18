@@ -1,8 +1,10 @@
 package dashboard
 
 import (
+	"context"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -116,6 +118,93 @@ func GetDashboardHandler(c *gin.Context) {
 	}
 
 	response.Success(c, data)
+}
+
+// getUpcomingWeekendLabel 返回即将到来的周末日期标签（如 "周六 07-19"）
+func getUpcomingWeekendLabel() string {
+	now := time.Now()
+	daysUntilSaturday := int(time.Saturday - now.Weekday())
+	if daysUntilSaturday < 0 {
+		daysUntilSaturday += 7
+	}
+	sat := now.AddDate(0, 0, daysUntilSaturday)
+	sun := sat.AddDate(0, 0, 1)
+	return "周六 " + sat.Format("01-02") + " / 周日 " + sun.Format("01-02")
+}
+
+// buildBigscreenActivities 构建首页大屏活动推荐区块：合并方案与投票结果
+func buildBigscreenActivities(db *store.DB) []gin.H {
+	if db == nil {
+		return []gin.H{}
+	}
+	ctx := context.Background()
+	proposals, err := db.ListWeekendProposals(ctx)
+	if err != nil {
+		return []gin.H{}
+	}
+	voteResults, _ := db.GetWeekendVoteResults(ctx)
+
+	// 投票数映射
+	voteMap := make(map[int64]int)
+	winningMap := make(map[int64]bool)
+	votersMap := make(map[int64][]string)
+	for i, v := range voteResults {
+		voteMap[v.ProposalID] = v.VoteCount
+		if i == 0 && v.VoteCount > 0 {
+			winningMap[v.ProposalID] = true
+		}
+		if len(v.Voters) > 0 {
+			votersMap[v.ProposalID] = v.Voters
+		}
+	}
+
+	// 按票数降序排序
+	sort.Slice(proposals, func(i, j int) bool {
+		return voteMap[proposals[i].ID] > voteMap[proposals[j].ID]
+	})
+
+	// 转为 gin.H（前端期望的字段：id/title/icon/tags/votes/winning）
+	result := make([]gin.H, 0, len(proposals))
+	for _, p := range proposals {
+		tags := []string{}
+		if p.TagsJSON != "" {
+			// 简单解析 JSON 数组（避免引入 encoding/json）
+			tags = parseTagsJSON(p.TagsJSON)
+		}
+		result = append(result, gin.H{
+			"id":      p.ID,
+			"title":   p.Title,
+			"icon":    p.Icon,
+			"tags":    tags,
+			"votes":   voteMap[p.ID],
+			"winning": winningMap[p.ID],
+			"voters":  votersMap[p.ID],
+		})
+	}
+	return result
+}
+
+// parseTagsJSON 简单解析 ["a","b"] 格式的 JSON 数组
+func parseTagsJSON(s string) []string {
+	s = strings.TrimSpace(s)
+	if len(s) < 2 || s[0] != '[' || s[len(s)-1] != ']' {
+		return []string{}
+	}
+	inner := s[1 : len(s)-1]
+	if strings.TrimSpace(inner) == "" {
+		return []string{}
+	}
+	parts := strings.Split(inner, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		p = strings.Trim(p, "\"")
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 // GetBigScreenHandler 大屏综合展示
@@ -306,13 +395,13 @@ func GetBigScreenHandler(c *gin.Context) {
 				"member_contrib": bigscreenContrib,
 			},
 			{
-				"type":      "activities",
-				"title":     "活动推荐",
-				"icon":      "🎯",
-				"weekend":   "",
-				"weather":   "",
-				"proposals": []gin.H{},
-			},
+			"type":      "activities",
+			"title":     "活动推荐",
+			"icon":      "🎯",
+			"weekend":   getUpcomingWeekendLabel(),
+			"weather":   "",
+			"proposals": buildBigscreenActivities(db),
+		},
 			{
 				"type":            "points",
 				"title":           "积分动态",

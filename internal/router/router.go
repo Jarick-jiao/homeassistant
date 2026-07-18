@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/homemate/server/internal/handler/anniversary"
+	"github.com/homemate/server/internal/handler/archive"
 	"github.com/homemate/server/internal/handler/auth"
 	"github.com/homemate/server/internal/handler/calendar"
 	"github.com/homemate/server/internal/handler/chat"
@@ -108,6 +109,9 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.PUT("/calendar/events/:id", calendar.UpdateCalendarEventHandler)
 	authed.DELETE("/calendar/events/:id", middleware.RequireAdmin(), calendar.DeleteCalendarEventHandler)
 	authed.GET("/calendar/upcoming", calendar.GetUpcomingEventsHandler)
+	authed.DELETE("/calendar/events/all", middleware.RequireAdmin(), calendar.DeleteAllEventsHandler)
+	authed.POST("/calendar/demo", middleware.RequireAdmin(), calendar.SeedDemoEventsHandler)
+	authed.POST("/calendar/import", middleware.RequireAdmin(), calendar.ImportCSVHandler)
 
 	// --- 家务任务 ---
 	authed.GET("/chorse/claims", chorse.GetPendingClaimsHandler)
@@ -184,6 +188,10 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	// --- 时事新闻（公开读取） ---
 	api.GET("/news", news.ListNewsHandler)
 	authed.DELETE("/news/:id", middleware.RequireAdmin(), news.DeleteNewsHandler)
+	authed.DELETE("/news/all", middleware.RequireAdmin(), news.DeleteAllNewsHandler)
+	authed.POST("/news/demo", middleware.RequireAdmin(), news.SeedDemoNewsHandler)
+	authed.POST("/news/import-csv", middleware.RequireAdmin(), news.ImportCSVHandler)
+	authed.GET("/news/csv-template", middleware.RequireAdmin(), news.GenerateCSVTemplateHandler)
 
 	// --- 纪念日（公开读取） ---
 	api.GET("/anniversaries", anniversary.ListAnniversariesHandler)
@@ -198,6 +206,9 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	adminGroup.GET("/tokens", auth.ListAPITokensHandler)
 	adminGroup.POST("/tokens", auth.CreateAPITokenHandler)
 	adminGroup.DELETE("/tokens/:id", auth.DeleteAPITokenHandler)
+	// 归档查询（v3.3.1）
+	adminGroup.GET("/archive", archive.ListArchiveTablesHandler)
+	adminGroup.GET("/archive/:table", archive.ListArchivedHandler)
 
 	// --- 外部数据写入接口（需 API Token） ---
 	external := api.Group("/external")

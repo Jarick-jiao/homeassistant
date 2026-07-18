@@ -157,13 +157,14 @@
       box-shadow: 0 12px 28px rgba(0,0,0,0.08);
     }
 
-    /* ==================== 3D 微倾斜悬停 ==================== */
+    /* ==================== 卡片悬停（纯位移，不跳变） ==================== */
     .tilt-card {
-      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      will-change: transform;
     }
     .tilt-card:hover {
-      transform: perspective(800px) rotateX(2deg) rotateY(-2deg) translateY(-3px);
-      box-shadow: 0 14px 32px rgba(0,0,0,0.10);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 24px -8px rgba(0,0,0,0.15);
     }
 
     /* ==================== 指标卡片左边框 ==================== */
@@ -581,6 +582,8 @@
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="points" onclick="switchTab('points')">积分排行</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="weekend" onclick="switchTab('weekend')">休闲活动</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="records" onclick="switchTab('records')">健康档案</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="news" onclick="switchTab('news')">时事新闻</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="calendar" onclick="switchTab('calendar')">日历行程</button>
       </div>
       <!-- 右侧：更新时间 + 刷新 -->
       <div class="flex items-center gap-2 flex-shrink-0 relative">
@@ -793,24 +796,6 @@
           <div class="flex gap-3">
             <button onclick="document.getElementById('voteModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
             <button onclick="confirmVote()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">确认投票</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 周目标设置对话框 -->
-      <div id="weeklyGoalModal" class="modal-overlay">
-        <div class="modal-box" style="max-width:380px">
-          <h4 class="text-lg font-bold mb-4">设置家庭周目标</h4>
-          <div class="space-y-3">
-            <div>
-              <label class="text-sm text-gray-500 dark:text-gray-300 mb-1 block">每周目标积分</label>
-              <input id="weeklyGoalInput" type="number" min="1" max="100000" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold text-center" placeholder="如 500"/>
-              <p class="text-xs text-gray-400 mt-1">建议 200~2000 分，全家每周共同努力的目标</p>
-            </div>
-          </div>
-          <div class="flex gap-3 mt-5">
-            <button onclick="document.getElementById('weeklyGoalModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">取消</button>
-            <button onclick="saveWeeklyGoal()" class="flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">保存</button>
           </div>
         </div>
       </div>
@@ -1115,6 +1100,14 @@
                 <option value="huawei">华为健康</option>
               </select>
             </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">头像照片 URL（自画像）</label>
+              <input type="text" id="memberFormAvatar" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="https://...图片链接">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">自我介绍</label>
+              <textarea id="memberFormBio" rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="一句话介绍自己"></textarea>
+            </div>
               <div class="mb-2">
                 <label class="text-xs text-gray-500">登录密码（可选，填写后可用此名称登录）</label>
                 <input id="memberPassword" type="password" placeholder="设置登录密码" class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm mt-1">
@@ -1128,15 +1121,71 @@
       </div>
     </div>
 
+    <!-- ========== Tab: 时事新闻 ========== -->
+    <div id="panel-news" class="tab-panel">
+      <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <div>
+          <h3 class="text-lg font-bold">📰 时事新闻</h3>
+          <p class="text-xs text-gray-400">家庭关注的资讯动态</p>
+        </div>
+        <div id="newsAdminBar" class="flex items-center gap-2 hidden">
+          <a href="/api/news/csv-template" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">📥 下载模板</a>
+          <button onclick="importNewsCSV()" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">📤 导入CSV</button>
+          <button onclick="seedDemoNews()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#10b981">🌱 初始化Demo</button>
+          <button onclick="clearAllNews()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#ef4444">🗑️ 清空全部</button>
+        </div>
+      </div>
+      <div id="newsCategoryFilter" class="flex items-center gap-2 mb-4 flex-wrap text-xs"></div>
+      <div id="newsList" class="space-y-3"></div>
+      <div id="newsPager" class="flex items-center justify-between mt-4 text-xs text-gray-400"></div>
+      <input type="file" id="newsCSVInput" accept=".csv" class="hidden" onchange="doImportNewsCSV(this)">
+    </div>
+
+    <!-- ========== Tab: 日历行程 ========== -->
+    <div id="panel-calendar" class="tab-panel">
+      <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <div>
+          <h3 class="text-lg font-bold">📅 日历行程</h3>
+          <p class="text-xs text-gray-400">家庭日程与提醒</p>
+        </div>
+        <div id="calendarAdminBar" class="flex items-center gap-2 hidden">
+          <button onclick="importCalendar()" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">📤 导入CSV</button>
+          <button onclick="seedDemoCalendar()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#10b981">🌱 初始化Demo</button>
+          <button onclick="clearAllCalendar()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#ef4444">🗑️ 清空全部</button>
+        </div>
+      </div>
+      <div id="calendarList" class="space-y-2"></div>
+      <input type="file" id="calendarCSVInput" accept=".csv" class="hidden" onchange="doImportCalendarCSV(this)">
+    </div>
+
     <!-- ========== Tab: 家庭首页 ========== -->
     <div id="panel-home" class="tab-panel active">
       <div class="mb-4">
         <h3 class="text-lg font-bold">家庭首页</h3>
         <p class="text-xs text-gray-400">实时聚合健康、家务、活动推荐等数据</p>
       </div>
+      <div id="memberShowcase" class="mb-6"></div>
       <div id="bigscreenContainer" class="space-y-6"></div>
     </div>
   </main>
+
+  <!-- ==================== 周目标设置对话框（全局，避免被 panel display:none 影响） ==================== -->
+  <div id="weeklyGoalModal" class="modal-overlay">
+    <div class="modal-box" style="max-width:380px">
+      <h4 class="text-lg font-bold mb-4">设置家庭周目标</h4>
+      <div class="space-y-3">
+        <div>
+          <label class="text-sm text-gray-500 dark:text-gray-300 mb-1 block">每周目标积分</label>
+          <input id="weeklyGoalInput" type="number" min="1" max="100000" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-lg font-bold text-center" placeholder="如 500"/>
+          <p class="text-xs text-gray-400 mt-1">建议 200~2000 分，全家每周共同努力的目标</p>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button onclick="document.getElementById('weeklyGoalModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">取消</button>
+        <button onclick="saveWeeklyGoal()" class="flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">保存</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ==================== 健康档案上传对话框 ==================== -->
   <div id="recordUploadModal" class="modal-overlay">
@@ -1373,6 +1422,7 @@
 
       // 按需加载大屏数据
       if (tabName === 'home') {
+        loadMemberShowcase();
         loadBigScreen();
       }
       // 按需加载成员数据
@@ -1391,6 +1441,16 @@
         loadDataSourceConfigs();
         loadNotifySettings();
         loadSyncSettings();
+      }
+      // 按需加载新闻管理
+      if (tabName === 'news') {
+        loadNewsList();
+        updateNewsAdminBar();
+      }
+      // 按需加载日历管理
+      if (tabName === 'calendar') {
+        loadCalendarList();
+        updateCalendarAdminBar();
       }
     }
 
@@ -2071,12 +2131,19 @@
         var catLabel = catLabels[p.category] || p.category;
         var tagsHTML = (p.tags || []).map(function(t) { return '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + t + '</span>'; }).join(' ');
 
-        propHTML += '<div class="tilt-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item">' +
+        var actionBar = canEditProposal(p) ?
+          '<div class="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10">' +
+            '<button onclick="event.stopPropagation();editProposal(' + p.id + ')" title="编辑" class="w-7 h-7 rounded-full bg-white/95 hover:bg-blue-50 text-blue-600 shadow-sm border border-gray-100 flex items-center justify-center text-xs">✏️</button>' +
+            '<button onclick="event.stopPropagation();deleteProposal(' + p.id + ')" title="删除" class="w-7 h-7 rounded-full bg-white/95 hover:bg-red-50 text-red-500 shadow-sm border border-gray-100 flex items-center justify-center text-xs">🗑️</button>' +
+          '</div>' : '';
+
+        propHTML += '<div class="tilt-card group relative bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item">' +
+          actionBar +
           '<div class="p-4">' +
             '<div class="flex items-start gap-3 mb-3">' +
               '<div class="text-3xl">' + p.icon + '</div>' +
               '<div class="flex-1">' +
-                '<h4 class="text-sm font-bold">' + p.title + '</h4>' +
+                '<h4 class="text-sm font-bold pr-16">' + p.title + '</h4>' +
                 '<div class="flex items-center gap-1.5 mt-1 flex-wrap">' +
                   '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + cc + '18;color:' + cc + '">' + p.cost + '</span>' +
                   '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + dc + '18;color:' + dc + '">' + dl + '</span>' +
@@ -2094,10 +2161,6 @@
               '<span>👥 ' + (p.suitable_for || '全家') + '</span>' +
               '<span>🌤️ ' + (p.weather_req || '无限制') + '</span>' +
             '</div>' +
-            (canEditProposal(p) ? '<div class="flex items-center gap-2 mb-3">' +
-              '<button onclick="editProposal(' + p.id + ')" class="flex-1 py-1.5 rounded-lg text-xs font-medium border border-blue-200 text-blue-600 hover:bg-blue-50 transition">✏️ 编辑</button>' +
-              '<button onclick="deleteProposal(' + p.id + ')" class="flex-1 py-1.5 rounded-lg text-xs font-medium border border-red-200 text-red-500 hover:bg-red-50 transition">🗑️ 删除</button>' +
-            '</div>' : '') +
             '<button onclick="openVoteModal(' + p.id + ')" class="ripple-btn w-full py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">投票支持</button>' +
           '</div>' +
         '</div>';
@@ -2877,24 +2940,18 @@
           return '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + (focusLabels[f] || f) + '</span>';
         }).join(' ');
 
-        html += '<div class="tilt-card bg-white rounded-xl p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:' + (0.05 + idx * 0.08) + 's">' +
-          '<div class="flex items-center gap-4">' +
-            '<div class="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0" style="background:' + rc + '">' + getRoleEmoji(m.role) + '</div>' +
-            '<div class="flex-1 min-w-0">' +
-              '<div class="flex items-center gap-2 flex-wrap">' +
-                '<h4 class="text-base font-bold">' + m.name + '</h4>' +
-                '<span class="px-2 py-0.5 text-xs rounded-full font-medium" style="background:' + rc + '18;color:' + rc + '">' + rl + '</span>' +
-                '<span class="text-xs text-gray-400">' + m.age + '岁</span>' +
-              '</div>' +
-              '<div class="flex items-center gap-2 mt-1 flex-wrap">' +
-                '<span class="text-xs text-gray-400">' + si + ' ' + sl + '</span>' +
-              '</div>' +
-              '<div class="flex items-center gap-1 mt-2 flex-wrap">' + focusHTML + '</div>' +
+        html += '<div class="tilt-card bg-white rounded-lg p-3 shadow-sm border border-gray-100 stagger-item" style="animation-delay:' + (0.05 + idx * 0.08) + 's">' +
+          '<div class="flex items-center gap-2 flex-wrap">' +
+            '<span class="text-sm font-bold">' + m.name + '</span>' +
+            '<span class="px-1.5 py-0.5 text-xs rounded-full font-medium" style="background:' + rc + '18;color:' + rc + '">' + rl + '</span>' +
+            '<span class="text-xs text-gray-400">' + (m.age || '-') + '岁</span>' +
+            '<div class="ml-auto flex gap-1">' +
+              '<button onclick="editMember(' + m.id + ')" title="编辑" class="w-6 h-6 rounded text-blue-500 hover:bg-blue-50 flex items-center justify-center text-xs">✏️</button>' +
+              '<button onclick="deleteMember(' + m.id + ')" title="删除" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' +
             '</div>' +
           '</div>' +
-          '<div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">' +
-            '<button onclick="editMember(' + m.id + ')" class="text-xs text-blue-500 hover:underline">编辑</button>' +
-            '<button onclick="deleteMember(' + m.id + ')" class="text-xs text-red-400 hover:underline">删除</button>' +
+          '<div class="flex items-center gap-2 mt-1 flex-wrap">' +
+            '<span class="text-xs text-gray-400">' + si + ' ' + sl + '</span>' + focusHTML +
           '</div>' +
         '</div>';
       });
@@ -2908,6 +2965,8 @@
       document.getElementById('memberFormRole').value = 'adult';
       document.getElementById('memberFormAge').value = '';
       document.getElementById('memberFormDataSource').value = 'manual';
+      document.getElementById('memberFormAvatar').value = '';
+      document.getElementById('memberFormBio').value = '';
       document.querySelectorAll('.member-health-focus').forEach(function(cb) { cb.checked = false; });
       var pwd = document.getElementById('memberPassword');
       if (pwd) pwd.value = '';
@@ -2923,6 +2982,8 @@
       document.getElementById('memberFormRole').value = m.role;
       document.getElementById('memberFormAge').value = m.age || '';
       document.getElementById('memberFormDataSource').value = m.data_source_plugin || 'manual';
+      document.getElementById('memberFormAvatar').value = m.avatar_url || '';
+      document.getElementById('memberFormBio').value = m.bio || '';
       var focuses = (m.health_focus || '').split(',').filter(function(f) { return f; });
       document.querySelectorAll('.member-health-focus').forEach(function(cb) {
         cb.checked = focuses.indexOf(cb.value) >= 0;
@@ -2936,6 +2997,8 @@
       var role = document.getElementById('memberFormRole').value;
       var age = parseInt(document.getElementById('memberFormAge').value) || 0;
       var dataSource = document.getElementById('memberFormDataSource').value;
+      var avatarUrl = document.getElementById('memberFormAvatar').value.trim();
+      var bio = document.getElementById('memberFormBio').value.trim();
       var focuses = [];
       document.querySelectorAll('.member-health-focus:checked').forEach(function(cb) { focuses.push(cb.value); });
 
@@ -2947,6 +3010,8 @@
         age: age,
         health_focus: focuses.join(','),
         data_source_plugin: dataSource,
+        avatar_url: avatarUrl,
+        bio: bio,
         password: document.getElementById('memberPassword') ? document.getElementById('memberPassword').value : ''
       };
 
@@ -3393,12 +3458,266 @@
       document.getElementById('analysisReportModal').classList.add('show');
     }
 
+    // ==================== 时事新闻管理 ====================
+    var newsCurrentCategory = 'all';
+    var newsCurrentPage = { limit: 20, offset: 0, total: 0 };
+    var newsCategoryLabels = { tech: '科技', health: '健康', edu: '教育', life: '生活', finance: '财经', sports: '体育', world: '国际', local: '本地' };
+
+    function updateNewsAdminBar() {
+      var bar = document.getElementById('newsAdminBar');
+      if (!bar) return;
+      if (currentUser && currentUser.role === 'admin') bar.classList.remove('hidden');
+      else bar.classList.add('hidden');
+    }
+
+    function loadNewsList() {
+      fetchWithFallback('/api/news?limit=' + newsCurrentPage.limit + '&offset=' + newsCurrentPage.offset + (newsCurrentCategory !== 'all' ? '&category=' + newsCurrentCategory : ''), null).then(function(data) {
+        var list = (data && data.list) || [];
+        newsCurrentPage.total = (data && data.total) || 0;
+        renderNewsCategoryFilter();
+        renderNewsList(list);
+        renderNewsPager();
+      });
+    }
+
+    function renderNewsCategoryFilter() {
+      var box = document.getElementById('newsCategoryFilter');
+      if (!box) return;
+      var cats = ['all', 'tech', 'health', 'edu', 'life', 'finance', 'sports', 'world', 'local'];
+      var html = '';
+      cats.forEach(function(c) {
+        var label = c === 'all' ? '全部' : (newsCategoryLabels[c] || c);
+        var active = newsCurrentCategory === c ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
+        html += '<button onclick="switchNewsCategory(\'' + c + '\')" class="px-2 py-1 rounded-full ' + active + '">' + label + '</button>';
+      });
+      box.innerHTML = html;
+    }
+
+    function switchNewsCategory(c) {
+      newsCurrentCategory = c;
+      newsCurrentPage.offset = 0;
+      loadNewsList();
+    }
+
+    function renderNewsList(list) {
+      var box = document.getElementById('newsList');
+      if (!box) return;
+      if (!list || list.length === 0) {
+        box.innerHTML = '<div class="text-center py-12 text-sm text-gray-400">暂无新闻，可点击「初始化Demo」生成示例数据</div>';
+        return;
+      }
+      var isAdmin = currentUser && currentUser.role === 'admin';
+      var html = '';
+      list.forEach(function(n) {
+        var catLabel = newsCategoryLabels[n.category] || n.category;
+        var catColor = { tech: 'blue', health: 'green', edu: 'purple', life: 'orange', finance: 'indigo', sports: 'red' }[n.category] || 'gray';
+        var hotBadge = n.is_hot ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-500 text-white">🔥 热</span>' : '';
+        var img = n.image_url ? '<img src="' + escapeHtml(n.image_url) + '" class="w-16 h-16 rounded object-cover flex-shrink-0" onerror="this.style.display=\'none\'">' : '';
+        var delBtn = isAdmin ? '<button onclick="deleteNews(' + n.id + ')" title="删除" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
+        html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex gap-3">' +
+          img +
+          '<div class="flex-1 min-w-0">' +
+            '<div class="flex items-center gap-2 mb-1">' +
+              '<span class="text-xs px-1.5 py-0.5 rounded bg-' + catColor + '-50 text-' + catColor + '-600">' + catLabel + '</span>' +
+              hotBadge +
+              '<span class="text-xs text-gray-400 ml-auto">' + escapeHtml(n.published_at || '') + '</span>' +
+              delBtn +
+            '</div>' +
+            '<p class="text-sm font-medium truncate">' + escapeHtml(n.title || '') + '</p>' +
+            (n.summary ? '<p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">' + escapeHtml(n.summary) + '</p>' : '') +
+            '<p class="text-xs text-gray-400 mt-1">来源：' + escapeHtml(n.source || '-') + '</p>' +
+          '</div>' +
+        '</div>';
+      });
+      box.innerHTML = html;
+    }
+
+    function renderNewsPager() {
+      var box = document.getElementById('newsPager');
+      if (!box) return;
+      var start = newsCurrentPage.offset + 1;
+      var end = Math.min(newsCurrentPage.offset + newsCurrentPage.limit, newsCurrentPage.total);
+      var hasPrev = newsCurrentPage.offset > 0;
+      var hasNext = newsCurrentPage.offset + newsCurrentPage.limit < newsCurrentPage.total;
+      box.innerHTML = '<span>共 ' + newsCurrentPage.total + ' 条 · ' + start + '-' + end + '</span>' +
+        '<div class="flex gap-2">' +
+          (hasPrev ? '<button onclick="newsPrevPage()" class="px-2 py-1 rounded border border-gray-200 dark:border-gray-600">上一页</button>' : '') +
+          (hasNext ? '<button onclick="newsNextPage()" class="px-2 py-1 rounded border border-gray-200 dark:border-gray-600">下一页</button>' : '') +
+        '</div>';
+    }
+    function newsPrevPage() { if (newsCurrentPage.offset >= newsCurrentPage.limit) { newsCurrentPage.offset -= newsCurrentPage.limit; loadNewsList(); } }
+    function newsNextPage() { if (newsCurrentPage.offset + newsCurrentPage.limit < newsCurrentPage.total) { newsCurrentPage.offset += newsCurrentPage.limit; loadNewsList(); } }
+
+    function deleteNews(id) {
+      if (!confirm('确认删除这条新闻？')) return;
+      authFetch('/api/news/' + id, { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function() {
+        showToast('已删除', 'success');
+        loadNewsList();
+      });
+    }
+
+    function clearAllNews() {
+      if (!confirm('确认清空全部新闻？此操作不可恢复！')) return;
+      if (!confirm('再次确认：将删除所有新闻记录，继续？')) return;
+      authFetch('/api/news/all', { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function() {
+        showToast('已清空全部新闻', 'success');
+        loadNewsList();
+      });
+    }
+
+    function seedDemoNews() {
+      if (!confirm('将初始化 8 条 Demo 新闻（已有的不重复），继续？')) return;
+      authFetch('/api/news/demo', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(result) {
+        var data = result.data || result;
+        showToast('已初始化 ' + (data && data.seeded || 0) + ' 条 Demo 新闻', 'success');
+        loadNewsList();
+      });
+    }
+
+    function importNewsCSV() { document.getElementById('newsCSVInput').click(); }
+    function doImportNewsCSV(input) {
+      if (!input.files || !input.files[0]) return;
+      var fd = new FormData();
+      fd.append('file', input.files[0]);
+      authFetch('/api/news/import-csv', { method: 'POST', body: fd }).then(function(r) { return r.json(); }).then(function(result) {
+        var data = result.data || result;
+        showToast((data && data.message) || '导入完成', 'success');
+        loadNewsList();
+        input.value = '';
+      });
+    }
+
+    // ==================== 日历行程管理 ====================
+    function updateCalendarAdminBar() {
+      var bar = document.getElementById('calendarAdminBar');
+      if (!bar) return;
+      if (currentUser && currentUser.role === 'admin') bar.classList.remove('hidden');
+      else bar.classList.add('hidden');
+    }
+
+    function loadCalendarList() {
+      var now = new Date();
+      var from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
+      var to = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString().slice(0, 10);
+      fetchWithFallback('/api/calendar/events?from=' + from + '&to=' + to, null).then(function(events) {
+        renderCalendarList(events || []);
+      });
+    }
+
+    function renderCalendarList(events) {
+      var box = document.getElementById('calendarList');
+      if (!box) return;
+      if (!events || events.length === 0) {
+        box.innerHTML = '<div class="text-center py-12 text-sm text-gray-400">暂无日程，可点击「初始化Demo」生成示例数据</div>';
+        return;
+      }
+      // 按日期分组
+      var groups = {};
+      events.forEach(function(e) {
+        var key = e.date || (e.start_time ? e.start_time.slice(0, 10) : '未排期');
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(e);
+      });
+      var keys = Object.keys(groups).sort();
+      var isAdmin = currentUser && currentUser.role === 'admin';
+      var html = '';
+      keys.forEach(function(key) {
+        var dayEvents = groups[key];
+        html += '<div class="mb-3">' +
+          '<div class="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 sticky top-0 bg-gray-50 dark:bg-gray-900 py-1">📅 ' + escapeHtml(key) + ' <span class="text-gray-400 font-normal">(' + dayEvents.length + ')</span></div>' +
+          '<div class="space-y-2">';
+        dayEvents.forEach(function(e) {
+          var imp = e.is_important ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">重要</span>' : '';
+          var color = e.color ? '<span class="w-2 h-2 rounded-full inline-block" style="background:' + escapeHtml(e.color) + '"></span>' : '';
+          var delBtn = isAdmin ? '<button onclick="deleteCalendarEvent(' + e.id + ')" title="删除" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
+          html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3">' +
+            color +
+            '<span class="text-xs text-gray-400 w-12 flex-shrink-0">' + escapeHtml(e.time || (e.start_time ? e.start_time.slice(11, 16) : '--')) + '</span>' +
+            '<div class="flex-1 min-w-0">' +
+              '<div class="flex items-center gap-2">' +
+                '<span class="text-sm font-medium truncate">' + escapeHtml(e.title || '') + '</span>' +
+                imp +
+              '</div>' +
+              (e.location ? '<p class="text-xs text-gray-400 truncate">📍 ' + escapeHtml(e.location) + '</p>' : '') +
+            '</div>' +
+            delBtn +
+          '</div>';
+        });
+        html += '</div></div>';
+      });
+      box.innerHTML = html;
+    }
+
+    function deleteCalendarEvent(id) {
+      if (!confirm('确认删除这条日程？')) return;
+      authFetch('/api/calendar/events/' + id, { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function() {
+        showToast('已删除', 'success');
+        loadCalendarList();
+      });
+    }
+
+    function clearAllCalendar() {
+      if (!confirm('确认清空全部日程？此操作不可恢复！')) return;
+      if (!confirm('再次确认：将删除所有日历事件，继续？')) return;
+      authFetch('/api/calendar/events/all', { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function() {
+        showToast('已清空全部日程', 'success');
+        loadCalendarList();
+      });
+    }
+
+    function seedDemoCalendar() {
+      if (!confirm('将初始化 8 条 Demo 日程（已有的不重复），继续？')) return;
+      authFetch('/api/calendar/demo', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(result) {
+        var data = result.data || result;
+        showToast('已初始化 ' + (data && data.seeded || 0) + ' 条 Demo 日程', 'success');
+        loadCalendarList();
+      });
+    }
+
+    function importCalendar() { document.getElementById('calendarCSVInput').click(); }
+    function doImportCalendarCSV(input) {
+      if (!input.files || !input.files[0]) return;
+      var fd = new FormData();
+      fd.append('file', input.files[0]);
+      authFetch('/api/calendar/import', { method: 'POST', body: fd }).then(function(r) { return r.json(); }).then(function(result) {
+        var data = result.data || result;
+        showToast((data && data.message) || '导入完成', 'success');
+        loadCalendarList();
+        input.value = '';
+      });
+    }
+
     // ==================== 大屏展示 ====================
     function loadBigScreen() {
       fetchWithFallback('/api/dashboard/bigscreen', null).then(function(data) {
         if (data && data.sections) {
           renderBigScreen(data);
         }
+      });
+    }
+
+    // ==================== 成员风采（自画像） ====================
+    function loadMemberShowcase() {
+      fetchWithFallback('/api/members', null).then(function(members) {
+        var box = document.getElementById('memberShowcase');
+        if (!box) return;
+        if (!members || !members.length) { box.innerHTML = ''; return; }
+        var html = '<div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">' +
+          '<h4 class="text-base font-bold mb-3 flex items-center gap-2">👨‍👩‍👧‍👦 成员风采</h4>' +
+          '<div class="grid grid-cols-2 md:grid-cols-4 gap-4">';
+        members.forEach(function(m) {
+          var rc = (typeof roleColors !== 'undefined' && roleColors[m.role]) || '#6b7280';
+          var rl = (typeof roleLabels !== 'undefined' && roleLabels[m.role]) || m.role;
+          var avatar = m.avatar_url ?
+            '<img src="' + escapeHtml(m.avatar_url) + '" class="w-16 h-16 rounded-full object-cover mx-auto border-2 border-gray-100" onerror="this.outerHTML=\'<div class=&quot;w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl&quot; style=&quot;background:' + rc + '&quot;>' + (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤') + '</div>\'">' :
+            '<div class="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl" style="background:' + rc + '">' + (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤') + '</div>';
+          var bio = m.bio ? '<p class="text-xs text-gray-500 mt-1 line-clamp-2">' + escapeHtml(m.bio) + '</p>' : '';
+          html += '<div class="text-center">' + avatar +
+            '<p class="text-sm font-medium mt-2">' + escapeHtml(m.name) + '</p>' +
+            '<span class="text-xs text-gray-400">' + escapeHtml(rl) + '</span>' + bio + '</div>';
+        });
+        html += '</div></div>';
+        box.innerHTML = html;
       });
     }
 
@@ -3486,17 +3805,27 @@
           });
           html += '</div>';
         } else if (sec.type === 'activities') {
-          // 活动推荐 TOP3 + 跳转
+          // 活动推荐 TOP3 + 投票结果可视化
           var w = sec.weather || {};
           var wText = (w.saturday || w.sunday || w.temperature) ? ('🌤️ ' + (w.saturday || '-') + ' / ' + (w.sunday || '-') + ' · ' + (w.temperature || '-')) : '🌤️ 天气数据未配置';
-          html += '<div class="flex items-center gap-4 mb-3 text-sm text-gray-500">' +
-            '<span>📅 ' + (sec.weekend || '-') + '</span>' +
-            '<span>' + wText + '</span>' +
-          '</div>';
           var allProps = sec.proposals || [];
           // 按票数降序取 TOP3
           var sortedProps = allProps.slice().sort(function(a,b){ return (b.votes||0) - (a.votes||0); });
           var top3 = sortedProps.slice(0, 3);
+          // 总票数 & 投票方案数
+          var totalVotes = sortedProps.reduce(function(s,p){ return s + (p.votes||0); }, 0);
+          var votedCount = sortedProps.filter(function(p){ return (p.votes||0) > 0; }).length;
+          var leadingProp = sortedProps[0] || null;
+          var leadingText = (leadingProp && (leadingProp.votes||0) > 0) ? '· 领先：' + escapeHtml(leadingProp.title || '') : '';
+
+          html += '<div class="flex items-center justify-between flex-wrap gap-2 mb-3 text-sm text-gray-500">' +
+            '<div class="flex items-center gap-4">' +
+              '<span>📅 ' + (sec.weekend || '-') + '</span>' +
+              '<span>' + wText + '</span>' +
+            '</div>' +
+            '<span class="text-xs text-gray-400">📊 共 ' + totalVotes + ' 票 · ' + votedCount + '/' + allProps.length + ' 方案有票 ' + leadingText + '</span>' +
+          '</div>';
+
           if (top3.length === 0) {
             html += '<div class="text-center py-4">' +
               '<p class="text-sm text-gray-400 mb-2">暂无推荐方案</p>' +
@@ -3505,10 +3834,13 @@
           } else {
             html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-3">';
             top3.forEach(function(p, idx) {
+              var votePct = totalVotes > 0 ? Math.round((p.votes||0) / totalVotes * 100) : 0;
               var rankBadge = idx === 0 ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-yellow-400 text-white">🥇 1</span>' :
                               idx === 1 ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-gray-300 text-white">🥈 2</span>' :
                                           '<span class="text-xs px-1.5 py-0.5 rounded-full bg-orange-400 text-white">🥉 3</span>';
-              html += '<div class="rounded-lg border border-gray-100 p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition ' + (p.winning ? 'bg-blue-50 border-blue-200' : '') + '" onclick="switchTab(\'weekend\')">' +
+              // 领先方案：渐变高亮 + 发光边框
+              var cardCls = p.winning ? 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-300 ring-2 ring-blue-300 shadow-md' : 'border-gray-100 bg-white';
+              html += '<div class="rounded-lg border p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition ' + cardCls + '" onclick="switchTab(\'weekend\')">' +
                 '<div class="flex items-center gap-2 mb-2">' +
                   '<span class="text-xl">' + (p.icon || '🎯') + '</span>' +
                   '<span class="text-sm font-bold flex-1 truncate">' + escapeHtml(p.title || '') + '</span>' +
@@ -3520,18 +3852,20 @@
                 html += '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + escapeHtml(t) + '</span>';
               });
               html += '</div>' +
-                '<div class="flex items-center justify-between text-xs">' +
-                  '<span class="text-gray-400">👍 ' + (p.votes || 0) + ' 票</span>' +
-                  '<span class="text-blue-500 font-medium">查看详情 →</span>' +
+                // 投票进度条（百分比可视化）
+                '<div class="flex items-center gap-2">' +
+                  '<div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">' +
+                    '<div class="h-full rounded-full transition-all" style="background:' + (p.winning ? 'var(--primary)' : '#cbd5e1') + ';width:' + votePct + '%"></div>' +
+                  '</div>' +
+                  '<span class="text-xs text-gray-500 flex-shrink-0 font-medium">👍 ' + (p.votes || 0) + ' <span class="text-gray-400">(' + votePct + '%)</span></span>' +
                 '</div>' +
               '</div>';
             });
             html += '</div>';
-            if (allProps.length > 3) {
-              html += '<div class="mt-3 text-center">' +
-                '<button onclick="switchTab(\'weekend\')" class="text-xs text-blue-500 hover:text-blue-600 font-medium">查看全部 ' + allProps.length + ' 个方案 →</button>' +
-              '</div>';
-            }
+            html += '<div class="mt-3 flex items-center justify-between flex-wrap gap-2">' +
+              (allProps.length > 3 ? '<button onclick="switchTab(\'weekend\')" class="text-xs text-blue-500 hover:text-blue-600 font-medium">查看全部 ' + allProps.length + ' 个方案 →</button>' : '<span></span>') +
+              '<button onclick="switchTab(\'weekend\')" class="text-xs px-3 py-1.5 rounded-lg text-white font-medium" style="background:var(--primary)">去投票 →</button>' +
+            '</div>';
           }
         } else if (sec.type === 'points') {
           // 积分
