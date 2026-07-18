@@ -7,7 +7,6 @@ import (
 	"log"
 	"math"
 	"strings"
-	"time"
 
 	"github.com/homemate/server/internal/mcpmanager"
 	"github.com/homemate/server/internal/store"
@@ -500,7 +499,7 @@ func parseStationCodes(raw json.RawMessage, fromCity, toCity string) (string, st
 	var stations map[string]string
 	if c, ok := content[0].(map[string]interface{}); ok {
 		if text, ok := c["text"].(string); ok {
-			if err := json.Unmarshal([]byte(text), &stations); ok {
+			if err := json.Unmarshal([]byte(text), &stations); err == nil {
 				return stations[fromCity], stations[toCity], nil
 			}
 		}

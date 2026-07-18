@@ -24,7 +24,6 @@ func InitDB(cfg config.DatabaseConfig) (*DB, error) {
 	if cfg.WALMode {
 		dsn += "?_journal_mode=WAL&_busy_timeout=5000"
 	}
-
 	conn, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
@@ -474,6 +473,8 @@ func (db *DB) migrate() error {
 		{"calendar_events", "last_reminded_at", "ALTER TABLE calendar_events ADD COLUMN last_reminded_at DATETIME"},
 		{"calendar_events", "created_by", "ALTER TABLE calendar_events ADD COLUMN created_by INTEGER"},
 		{"calendar_events", "color", "ALTER TABLE calendar_events ADD COLUMN color TEXT DEFAULT ''"},
+		// v3.6.0: 家庭成员新增 is_admin 标记（叠加在家庭角色上，不替换 role）
+		{"family_members", "is_admin", "ALTER TABLE family_members ADD COLUMN is_admin INTEGER DEFAULT 0"},
 		// 注：health_record_files 的迁移由 runRecordMigrations() 负责
 		// 必须在 createRecordTables() 建表之后执行，否则全新库会报 no such table
 	}
@@ -490,6 +491,18 @@ func (db *DB) migrate() error {
 			if _, err := db.conn.Exec(m.ddl); err != nil {
 				return fmt.Errorf("添加列 %s.%s 失败: %w", m.table, m.column, err)
 			}
+		}
+	}
+
+	// v3.6.0: 将旧版 admin 成员从 family_members 移除（admin 不再作为家庭成员）
+	// admin 账号保留在 users 表（role='admin'），仅作系统数据管理用途
+	if _, err := db.conn.Exec("DELETE FROM family_members WHERE role='admin'"); err != nil {
+		log.Printf("[WARN] 迁移：清理 family_members 中 role='admin' 记录失败: %v", err)
+	} else {
+		var removed int
+		db.conn.QueryRow("SELECT changes()").Scan(&removed)
+		if removed > 0 {
+			log.Printf("[INFO] v3.6.0 迁移：已从 family_members 移除 %d 条 admin 成员记录", removed)
 		}
 	}
 	return nil
@@ -547,8 +560,8 @@ func (db *DB) GetUserByID(ctx context.Context, id int64) (*model.User, error) {
 // CreateMember 创建家庭成员
 func (db *DB) CreateMember(ctx context.Context, m *model.FamilyMember) (int64, error) {
 	res, err := db.conn.ExecContext(ctx,
-		"INSERT INTO family_members (user_id, name, role, age, preferences_json, health_focus, data_source_plugin, avatar_url, bio, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		m.UserID, m.Name, m.Role, m.Age, m.PreferencesJSON, m.HealthFocus, m.DataSourcePlugin, m.AvatarURL, m.Bio, time.Now())
+		"INSERT INTO family_members (user_id, name, role, age, preferences_json, health_focus, data_source_plugin, avatar_url, bio, is_admin, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		m.UserID, m.Name, m.Role, m.Age, m.PreferencesJSON, m.HealthFocus, m.DataSourcePlugin, m.AvatarURL, m.Bio, boolToInt(m.IsAdmin), time.Now())
 	if err != nil {
 		return 0, err
 	}
@@ -558,12 +571,12 @@ func (db *DB) CreateMember(ctx context.Context, m *model.FamilyMember) (int64, e
 // UpdateMember 更新家庭成员
 func (db *DB) UpdateMember(ctx context.Context, m *model.FamilyMember) error {
 	_, err := db.conn.ExecContext(ctx,
-		"UPDATE family_members SET name=?, role=?, age=?, preferences_json=?, health_focus=?, data_source_plugin=?, avatar_url=?, bio=? WHERE id=?",
-		m.Name, m.Role, m.Age, m.PreferencesJSON, m.HealthFocus, m.DataSourcePlugin, m.AvatarURL, m.Bio, m.ID)
+		"UPDATE family_members SET name=?, role=?, age=?, preferences_json=?, health_focus=?, data_source_plugin=?, avatar_url=?, bio=?, is_admin=? WHERE id=?",
+		m.Name, m.Role, m.Age, m.PreferencesJSON, m.HealthFocus, m.DataSourcePlugin, m.AvatarURL, m.Bio, boolToInt(m.IsAdmin), m.ID)
 	return err
 }
 
-// UpdateMemberRole 仅更新成员角色（管理员委派用）
+// UpdateMemberRole 仅更新成员角色（v3.6.0: admin 不再作为家庭角色，仅允许 adult/child/elder/guest）
 func (db *DB) UpdateMemberRole(ctx context.Context, id int64, role string) error {
 	res, err := db.conn.ExecContext(ctx,
 		"UPDATE family_members SET role=? WHERE id=?", role, id)
@@ -577,30 +590,57 @@ func (db *DB) UpdateMemberRole(ctx context.Context, id int64, role string) error
 	return nil
 }
 
-// CountAdmins 统计当前管理员数量（防止零管理员锁死）
+// UpdateMemberAdmin v3.6.0 切换成员的系统管理员标记（is_admin）
+func (db *DB) UpdateMemberAdmin(ctx context.Context, id int64, isAdmin bool) error {
+	res, err := db.conn.ExecContext(ctx,
+		"UPDATE family_members SET is_admin=? WHERE id=?", boolToInt(isAdmin), id)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("成员不存在")
+	}
+	return nil
+}
+
+// CountAdmins 统计当前系统管理员数量（v3.6.0: 统计 is_admin=1 的成员）
+// 防止零管理员锁死
 func (db *DB) CountAdmins(ctx context.Context) (int, error) {
 	var count int
 	err := db.conn.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM family_members WHERE role='admin'").Scan(&count)
+		"SELECT COUNT(*) FROM family_members WHERE is_admin=1").Scan(&count)
 	return count, err
 }
 
 // GetMemberByID 根据ID获取家庭成员
 func (db *DB) GetMemberByID(ctx context.Context, id int64) (*model.FamilyMember, error) {
 	row := db.conn.QueryRowContext(ctx,
-		"SELECT id, user_id, name, role, age, preferences_json, health_focus, data_source_plugin, avatar_url, bio, created_at FROM family_members WHERE id=?", id)
+		"SELECT id, user_id, name, role, age, preferences_json, health_focus, data_source_plugin, avatar_url, bio, is_admin, created_at FROM family_members WHERE id=?", id)
 	var m model.FamilyMember
-	err := row.Scan(&m.ID, &m.UserID, &m.Name, &m.Role, &m.Age, &m.PreferencesJSON, &m.HealthFocus, &m.DataSourcePlugin, &m.AvatarURL, &m.Bio, &m.CreatedAt)
+	err := row.Scan(&m.ID, &m.UserID, &m.Name, &m.Role, &m.Age, &m.PreferencesJSON, &m.HealthFocus, &m.DataSourcePlugin, &m.AvatarURL, &m.Bio, &m.IsAdmin, &m.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return &m, nil
 }
 
-// GetMembers 获取所有家庭成员
+// GetMemberByUserID v3.6.0 根据 user_id 获取家庭成员（用于登录时查询 is_admin 标记）
+func (db *DB) GetMemberByUserID(ctx context.Context, userID int64) (*model.FamilyMember, error) {
+	row := db.conn.QueryRowContext(ctx,
+		"SELECT id, user_id, name, role, age, preferences_json, health_focus, data_source_plugin, avatar_url, bio, is_admin, created_at FROM family_members WHERE user_id=? AND role!='admin' LIMIT 1", userID)
+	var m model.FamilyMember
+	err := row.Scan(&m.ID, &m.UserID, &m.Name, &m.Role, &m.Age, &m.PreferencesJSON, &m.HealthFocus, &m.DataSourcePlugin, &m.AvatarURL, &m.Bio, &m.IsAdmin, &m.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// GetMembers 获取所有家庭成员（v3.6.0: 过滤掉 role='admin' 的历史遗留记录）
 func (db *DB) GetMembers(ctx context.Context) ([]model.FamilyMember, error) {
 	rows, err := db.conn.QueryContext(ctx,
-		"SELECT id, user_id, name, role, age, preferences_json, health_focus, data_source_plugin, avatar_url, bio, created_at FROM family_members ORDER BY id")
+		"SELECT id, user_id, name, role, age, preferences_json, health_focus, data_source_plugin, avatar_url, bio, is_admin, created_at FROM family_members WHERE role!='admin' ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -608,7 +648,7 @@ func (db *DB) GetMembers(ctx context.Context) ([]model.FamilyMember, error) {
 	members := make([]model.FamilyMember, 0)
 	for rows.Next() {
 		var m model.FamilyMember
-		if err := rows.Scan(&m.ID, &m.UserID, &m.Name, &m.Role, &m.Age, &m.PreferencesJSON, &m.HealthFocus, &m.DataSourcePlugin, &m.AvatarURL, &m.Bio, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.UserID, &m.Name, &m.Role, &m.Age, &m.PreferencesJSON, &m.HealthFocus, &m.DataSourcePlugin, &m.AvatarURL, &m.Bio, &m.IsAdmin, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		members = append(members, m)
@@ -920,10 +960,12 @@ func (db *DB) GetPointsRanking(ctx context.Context, limit int) ([]struct {
 		limit = 20
 	}
 	// LEFT JOIN family_members：0 积分成员也上榜
+	// v3.6.0: 过滤 role='admin' 的历史遗留记录（admin 不参与家庭积分排行）
 	rows, err := db.conn.QueryContext(ctx,
 		`SELECT fm.name, COALESCE(SUM(pr.points), 0) AS total
 		 FROM family_members fm
 		 LEFT JOIN points_records pr ON pr.member_name = fm.name
+		 WHERE fm.role!='admin'
 		 GROUP BY fm.id, fm.name
 		 ORDER BY total DESC, fm.id ASC
 		 LIMIT ?`, limit)
@@ -1449,6 +1491,7 @@ func (db *DB) seedChorseTasks(ctx context.Context) error {
 }
 
 // seedAdminUser 创建默认管理员账户
+// v3.6.0: admin 仅作为系统数据管理员，不再插入 family_members 表
 func (db *DB) seedAdminUser(ctx context.Context) error {
 	var count int
 	err := db.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
@@ -1458,23 +1501,15 @@ func (db *DB) seedAdminUser(ctx context.Context) error {
 	if count > 0 {
 		return nil
 	}
-	// 默认管理员: admin / admin123
+	// 默认管理员: admin / admin123（仅系统账号，role='admin'）
 	hash, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
-	res, err := db.conn.ExecContext(ctx,
+	_, err = db.conn.ExecContext(ctx,
 		"INSERT INTO users (username, password_hash, role, name, family_id) VALUES (?, ?, ?, ?, ?)",
 		"admin", string(hash), "admin", "管理员", 1)
 	if err != nil {
 		return err
 	}
-	userID, _ := res.LastInsertId()
-	// 同时创建对应 family_member，user_id 关联
-	_, err = db.conn.ExecContext(ctx,
-		"INSERT INTO family_members (user_id, name, role, age, preferences_json) VALUES (?, ?, ?, ?, ?)",
-		userID, "管理员", "admin", 0, "")
-	if err != nil {
-		log.Printf("[WARN] 创建默认管理员成员失败: %v", err)
-	}
-	log.Println("[INFO] 已创建默认管理员账户: admin / admin123（请及时修改密码）")
+	log.Println("[INFO] 已创建默认系统管理员账户: admin / admin123（请及时修改密码）")
 	return nil
 }
 

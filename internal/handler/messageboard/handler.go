@@ -171,7 +171,9 @@ func DeleteMessageHandler(c *gin.Context) {
 	currentMember := getCurrentMemberID(c)
 	roleVal, _ := c.Get("role")
 	role, _ := roleVal.(model.Role)
-	if msg.FromMemberID != currentMember && role != model.RoleAdmin {
+	isAdminVal, _ := c.Get("isAdmin")
+	isAdmin, _ := isAdminVal.(bool)
+	if msg.FromMemberID != currentMember && role != model.RoleAdmin && !isAdmin {
 		response.Forbidden(c, "只能删除自己的留言")
 		return
 	}

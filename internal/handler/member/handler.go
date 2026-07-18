@@ -34,6 +34,7 @@ func ListMembersHandler(c *gin.Context) {
 					DataSourcePlugin: fm.DataSourcePlugin,
 					AvatarURL:        fm.AvatarURL,
 					Bio:              fm.Bio,
+					IsAdmin:          fm.IsAdmin,
 				})
 				}
 				response.Success(c, members)
@@ -69,6 +70,7 @@ func GetMemberDetailHandler(c *gin.Context) {
 					DataSourcePlugin: fm.DataSourcePlugin,
 					AvatarURL:        fm.AvatarURL,
 					Bio:              fm.Bio,
+					IsAdmin:          fm.IsAdmin,
 				})
 				return
 			}
@@ -94,6 +96,10 @@ func CreateMemberHandler(c *gin.Context) {
 	if req.Role == "" {
 		req.Role = model.RoleGuest
 	}
+	// v3.6.0: admin 不再作为家庭角色，强制改为 adult
+	if req.Role == model.RoleAdmin {
+		req.Role = model.RoleAdult
+	}
 	if req.DataSourcePlugin == "" {
 		req.DataSourcePlugin = "manual"
 	}
@@ -110,6 +116,7 @@ func CreateMemberHandler(c *gin.Context) {
 				DataSourcePlugin: req.DataSourcePlugin,
 				AvatarURL:        req.AvatarURL,
 				Bio:              req.Bio,
+				IsAdmin:          req.IsAdmin,
 			}
 			id, err := db.CreateMember(c.Request.Context(), fm)
 			if err != nil {
@@ -159,6 +166,11 @@ func UpdateMemberHandler(c *gin.Context) {
 		return
 	}
 
+	// v3.6.0: admin 不再作为家庭角色，强制改为 adult
+	if req.Role == model.RoleAdmin {
+		req.Role = model.RoleAdult
+	}
+
 	req.ID = id // 确保返回正确的ID
 
 	dbVal, exists := c.Get("db")
@@ -173,6 +185,7 @@ func UpdateMemberHandler(c *gin.Context) {
 				DataSourcePlugin: req.DataSourcePlugin,
 				AvatarURL:        req.AvatarURL,
 				Bio:              req.Bio,
+				IsAdmin:          req.IsAdmin,
 			}
 			if err := db.UpdateMember(c.Request.Context(), fm); err == nil {
 				response.Success(c, req)
@@ -214,8 +227,9 @@ func DeleteMemberHandler(c *gin.Context) {
 	response.Error(c, 500, "数据库不可用，无法删除成员")
 }
 
-// UpdateMemberRoleHandler 更新成员角色（管理员委派/撤销）
-// 不允许操作自己的角色（防零管理员锁死）
+// UpdateMemberRoleHandler 更新成员家庭角色
+// v3.6.0: admin 不再作为家庭角色，仅允许 adult/child/elder/guest
+// 管理员权限的委派/撤销请使用 PUT /api/members/:id/admin
 func UpdateMemberRoleHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -232,12 +246,12 @@ func UpdateMemberRoleHandler(c *gin.Context) {
 		return
 	}
 
-	// 校验角色合法性
+	// v3.6.0: 校验角色合法性（admin 不再作为家庭角色）
 	validRoles := map[string]bool{
-		"admin": true, "adult": true, "child": true, "elder": true, "guest": true,
+		"adult": true, "child": true, "elder": true, "guest": true,
 	}
 	if !validRoles[req.Role] {
-		response.BadRequest(c, "非法角色: "+req.Role)
+		response.BadRequest(c, "非法角色: "+req.Role+"（admin 不再作为家庭角色，请使用管理员开关）")
 		return
 	}
 
@@ -259,17 +273,65 @@ func UpdateMemberRoleHandler(c *gin.Context) {
 		response.BadRequest(c, "不能修改自己的角色")
 		return
 	}
-	// 若将管理员撤销为非 admin，检查是否是最后一个管理员
-	if member.Role == "admin" && req.Role != "admin" {
+	if err := db.UpdateMemberRole(c.Request.Context(), id, req.Role); err != nil {
+		response.InternalServerError(c, "更新角色失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"id": id, "role": req.Role, "message": "角色已更新"})
+}
+
+// UpdateMemberAdminHandler v3.6.0 切换成员的系统管理员标记（is_admin）
+// 用于委派/撤销管理员权限，叠加在家庭角色上，不替换 role
+// 保护：禁止操作自己；撤销时检查是否是最后一个管理员
+func UpdateMemberAdminHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "成员ID格式错误")
+		return
+	}
+
+	var req struct {
+		IsAdmin bool `json:"is_admin"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	dbVal, _ := c.Get("db")
+	db, ok := dbVal.(*store.DB)
+	if !ok || db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+
+	member, err := db.GetMemberByID(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, 404, "成员不存在")
+		return
+	}
+
+	// 禁止操作自己的管理员权限（防零管理员锁死）
+	currentUserID, _ := c.Get("userID")
+	uid, _ := currentUserID.(int64)
+	if member.UserID == uid {
+		response.BadRequest(c, "不能修改自己的管理员权限")
+		return
+	}
+
+	// 撤销管理员时，检查是否是最后一个管理员
+	if member.IsAdmin && !req.IsAdmin {
 		count, err := db.CountAdmins(c.Request.Context())
 		if err == nil && count <= 1 {
 			response.BadRequest(c, "不能撤销最后一个管理员，请先委派其他管理员")
 			return
 		}
 	}
-	if err := db.UpdateMemberRole(c.Request.Context(), id, req.Role); err != nil {
-		response.InternalServerError(c, "更新角色失败: "+err.Error())
+
+	if err := db.UpdateMemberAdmin(c.Request.Context(), id, req.IsAdmin); err != nil {
+		response.InternalServerError(c, "更新管理员标记失败: "+err.Error())
 		return
 	}
-	response.Success(c, gin.H{"id": id, "role": req.Role, "message": "角色已更新"})
+	response.Success(c, gin.H{"id": id, "is_admin": req.IsAdmin, "message": "管理员权限已更新"})
 }

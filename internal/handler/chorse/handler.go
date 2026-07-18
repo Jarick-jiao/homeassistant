@@ -251,7 +251,9 @@ func ConfirmChorseHandler(c *gin.Context) {
 	}
 	userRole, _ := c.Get("role")
 	roleStr, _ := userRole.(model.Role)
-	if target.VerifierName != "" && target.VerifierName != req.Confirmer && roleStr != model.RoleAdmin {
+	isAdminVal, _ := c.Get("isAdmin")
+	isAdmin, _ := isAdminVal.(bool)
+	if target.VerifierName != "" && target.VerifierName != req.Confirmer && roleStr != model.RoleAdmin && !isAdmin {
 		response.BadRequest(c, fmt.Sprintf("仅验收人 %s 或管理员可确认验收", target.VerifierName))
 		return
 	}

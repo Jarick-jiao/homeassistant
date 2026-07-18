@@ -39,6 +39,7 @@ func AuthMiddleware(secretHolder JWTSecretHolder) gin.HandlerFunc {
 		c.Set("username", claims.Username)
 		c.Set("role", claims.Role)
 		c.Set("familyID", claims.FamilyID)
+		c.Set("isAdmin", claims.IsAdmin) // v3.6.0 系统管理员标记
 		c.Set("claims", claims)
 		c.Next()
 	}

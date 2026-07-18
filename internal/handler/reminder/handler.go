@@ -149,6 +149,8 @@ func DeleteReminderHandler(c *gin.Context) {
 	currentMember := getCurrentMemberID(c)
 	roleVal, _ := c.Get("role")
 	role, _ := roleVal.(model.Role)
+	isAdminVal, _ := c.Get("isAdmin")
+	isAdmin, _ := isAdminVal.(bool)
 	list, _ := db.ListRemindersByMember(c.Request.Context(), currentMember, "")
 	isOwner := false
 	for _, r := range list {
@@ -157,7 +159,7 @@ func DeleteReminderHandler(c *gin.Context) {
 			break
 		}
 	}
-	if !isOwner && role != model.RoleAdmin {
+	if !isOwner && role != model.RoleAdmin && !isAdmin {
 		response.Forbidden(c, "只能删除自己的提醒")
 		return
 	}

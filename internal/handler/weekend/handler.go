@@ -491,8 +491,10 @@ func UpdateProposalHandler(c *gin.Context) {
 	userID, _ := userIDVal.(int64)
 	roleVal, _ := c.Get("role")
 	role, _ := roleVal.(model.Role)
+	isAdminVal, _ := c.Get("isAdmin")
+	isAdmin, _ := isAdminVal.(bool)
 	// 通过 created_by 反查 user_id 比较（简化：admin 直接放行；非 admin 需作者是自己）
-	if role != model.RoleAdmin {
+	if role != model.RoleAdmin && !isAdmin {
 		memberID, _ := db.GetMemberIDByUserID(c.Request.Context(), userID)
 		if existing.CreatedBy != memberID {
 			response.Forbidden(c, "只能修改自己创建的方案")
@@ -560,7 +562,9 @@ func DeleteProposalHandler(c *gin.Context) {
 	userID, _ := userIDVal.(int64)
 	roleVal, _ := c.Get("role")
 	role, _ := roleVal.(model.Role)
-	if role != model.RoleAdmin {
+	isAdminVal, _ := c.Get("isAdmin")
+	isAdmin, _ := isAdminVal.(bool)
+	if role != model.RoleAdmin && !isAdmin {
 		memberID, _ := db.GetMemberIDByUserID(c.Request.Context(), userID)
 		if existing.CreatedBy != memberID {
 			response.Forbidden(c, "只能删除自己创建的方案")

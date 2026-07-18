@@ -262,7 +262,9 @@ func UpdateCalendarEventHandler(c *gin.Context) {
 	currentMember := getCurrentMemberID(c)
 	roleVal, _ := c.Get("role")
 	role, _ := roleVal.(model.Role)
-	if existing.CreatedBy != 0 && existing.CreatedBy != currentMember && role != model.RoleAdmin {
+	isAdminVal, _ := c.Get("isAdmin")
+	isAdmin, _ := isAdminVal.(bool)
+	if existing.CreatedBy != 0 && existing.CreatedBy != currentMember && role != model.RoleAdmin && !isAdmin {
 		response.Forbidden(c, "只能修改自己创建的事件")
 		return
 	}
@@ -338,7 +340,9 @@ func DeleteCalendarEventHandler(c *gin.Context) {
 	currentMember := getCurrentMemberID(c)
 	roleVal, _ := c.Get("role")
 	role, _ := roleVal.(model.Role)
-	if existing.CreatedBy != 0 && existing.CreatedBy != currentMember && role != model.RoleAdmin {
+	isAdminVal, _ := c.Get("isAdmin")
+	isAdmin, _ := isAdminVal.(bool)
+	if existing.CreatedBy != 0 && existing.CreatedBy != currentMember && role != model.RoleAdmin && !isAdmin {
 		response.Forbidden(c, "只能删除自己创建的事件")
 		return
 	}

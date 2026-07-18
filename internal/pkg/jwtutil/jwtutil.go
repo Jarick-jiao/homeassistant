@@ -7,12 +7,14 @@ import (
 )
 
 // GenerateToken 根据用户信息生成 JWT Token
-func GenerateToken(user *model.User, secret string, expireIn int64) (string, error) {
+// v3.6.0: 新增 isAdmin 参数，标记系统管理员（admin 账号或被提升的成员）
+func GenerateToken(user *model.User, secret string, expireIn int64, isAdmin bool) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id":   user.ID,
 		"username":  user.Username,
 		"role":      string(user.Role),
 		"family_id": user.FamilyID,
+		"is_admin":  isAdmin,
 		"exp":       expireIn,
 		"iat":       expireIn - 86400, // now
 		"iss":       "homemate",
@@ -49,6 +51,10 @@ func ParseToken(tokenString string, secret string) (*model.Claims, error) {
 		}
 		if v, ok := claims["family_id"].(float64); ok {
 			c.FamilyID = int64(v)
+		}
+		// v3.6.0: 兼容旧 token（无 is_admin 字段时默认 false）
+		if v, ok := claims["is_admin"].(bool); ok {
+			c.IsAdmin = v
 		}
 		return c, nil
 	}

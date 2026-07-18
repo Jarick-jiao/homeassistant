@@ -23,6 +23,7 @@ type Claims struct {
 	Username string `json:"username"`
 	Role     Role   `json:"role"`
 	FamilyID int64  `json:"family_id"`
+	IsAdmin  bool   `json:"is_admin"` // v3.6.0 系统管理员标记（admin 账号或被提升的成员）
 }
 
 // User 用户表
@@ -49,6 +50,7 @@ type Member struct {
 	AvatarURL        string `json:"avatar_url,omitempty"`
 	Bio              string `json:"bio,omitempty"`
 	Password         string `json:"password,omitempty"` // 创建成员时设置登录密码
+	IsAdmin          bool   `json:"is_admin"`            // v3.6.0 系统管理员标记
 }
 
 // FamilyMember 家庭成员表
@@ -63,6 +65,7 @@ type FamilyMember struct {
 	DataSourcePlugin string    `json:"data_source_plugin"`
 	AvatarURL        string    `json:"avatar_url"`
 	Bio              string    `json:"bio"`
+	IsAdmin          bool      `json:"is_admin"` // v3.6.0 系统管理员标记（叠加在家庭角色上）
 	CreatedAt        time.Time `json:"created_at"`
 }
 

@@ -95,6 +95,11 @@ func matchPermission(rule, path string) bool {
 }
 func RequireRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// v3.6.0: 被提升为管理员的成员（is_admin=true）拥有全部权限，等价于 role='admin'
+		if IsAdmin(c) {
+			c.Next()
+			return
+		}
 		roleVal, exists := c.Get("role")
 		if !exists {
 			response.Forbidden(c, "未获取到用户角色信息")
@@ -118,14 +123,42 @@ func RequireRole(roles ...string) gin.HandlerFunc {
 	}
 }
 
-// RequireAdmin 要求管理员角色（用于所有 DELETE 等高危操作）
+// IsAdmin 判断当前用户是否为系统管理员
+// v3.6.0: admin 账号（role='admin'）或被提升的成员（is_admin=true）均视为系统管理员
+func IsAdmin(c *gin.Context) bool {
+	if isAdminVal, exists := c.Get("isAdmin"); exists {
+		if isAdmin, ok := isAdminVal.(bool); ok && isAdmin {
+			return true
+		}
+	}
+	if roleVal, exists := c.Get("role"); exists {
+		if role, ok := roleVal.(model.Role); ok && role == model.RoleAdmin {
+			return true
+		}
+	}
+	return false
+}
+
+// RequireAdmin 要求系统管理员权限（v3.6.0: admin 账号或被提升的成员）
 func RequireAdmin() gin.HandlerFunc {
-	return RequireRole("admin")
+	return func(c *gin.Context) {
+		if IsAdmin(c) {
+			c.Next()
+			return
+		}
+		response.Forbidden(c, "权限不足，需要系统管理员权限")
+		c.Abort()
+	}
 }
 
 // RoleMiddleware 基于角色的访问控制中间件
 func RoleMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// v3.6.0: 系统管理员（admin 账号或被提升的成员）放行所有请求
+		if IsAdmin(c) {
+			c.Next()
+			return
+		}
 		roleVal, exists := c.Get("role")
 		if !exists {
 			response.Forbidden(c, "未获取到用户角色信息")
@@ -139,11 +172,6 @@ func RoleMiddleware() gin.HandlerFunc {
 			return
 		}
 		path := c.Request.URL.Path
-
-		if role == model.RoleAdmin {
-			c.Next()
-			return
-		}
 
 		allowedPaths, exists := rolePermissions[role]
 		if !exists {

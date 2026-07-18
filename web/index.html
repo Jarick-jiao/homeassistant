@@ -64,6 +64,12 @@
       localStorage.removeItem('homemate_user');
     }
 
+    // v3.6.0: 判断当前用户是否为系统管理员（admin 账号或被提升的成员）
+    // 兼容旧 token（无 is_admin 字段时回退到 role==='admin'）
+    function isCurrentUserAdmin() {
+      return !!(currentUser && (currentUser.is_admin === true || currentUser.role === 'admin'));
+    }
+
     function getAuthHeaders() {
       var h = { 'Content-Type': 'application/json' };
       if (authToken) h['Authorization'] = 'Bearer ' + authToken;
@@ -1282,7 +1288,6 @@
               <div>
                 <label class="block text-xs text-gray-400 mb-1">角色</label>
                 <select id="memberFormRole" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
-                  <option value="admin">管理员</option>
                   <option value="adult" selected>成人</option>
                   <option value="child">儿童</option>
                   <option value="elder">长者</option>
@@ -1293,6 +1298,13 @@
                 <label class="block text-xs text-gray-400 mb-1">年龄</label>
                 <input type="number" id="memberFormAge" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="例如：65">
               </div>
+            </div>
+            <div class="flex items-center gap-2 p-2 border border-gray-200 rounded-lg">
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" id="memberFormIsAdmin" class="rounded">
+                <span class="font-medium">设为系统管理员</span>
+              </label>
+              <span class="text-xs text-gray-400">管理员可管理成员、删除内容等（叠加在家庭角色上）</span>
             </div>
             <div>
               <label class="block text-xs text-gray-400 mb-1">Health 关注指标</label>
@@ -1803,7 +1815,7 @@
         loadNotifySettings();
         loadSyncSettings();
         // v3.4.0 系统管理（原 admin Tab 迁入，仅 admin 加载）
-        if (currentUser && currentUser.role === 'admin') {
+        if (isCurrentUserAdmin()) {
           loadAdminOverview();
           loadTokenList();
           loadSchedulerStatus();
@@ -2377,7 +2389,7 @@
               statusHTML = '<button onclick="markComplete(' + cl.id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--success)">标记完成</button><span class="text-xs text-gray-400 ml-1">👤 验收人：<b>' + escapeHTML(verifier) + '</b>（系统指派）</span>';
             } else if (cl.status === 'completed') {
               var verifier = cl.verifier_name || '其他成员';
-              var isVerifier = (currentUser && (currentUser.name === verifier || currentUser.role === 'admin'));
+              var isVerifier = (currentUser && (currentUser.name === verifier || isCurrentUserAdmin()));
               var confirmerInfo = '<span class="text-xs text-yellow-600 ml-1">等待 ' + escapeHTML(verifier) + ' 验收</span>';
               if (isVerifier) {
                 statusHTML = '<button onclick="markConfirm(' + cl.id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--warning)">我来验收</button>' + confirmerInfo;
@@ -2636,7 +2648,7 @@
     // 判断当前用户是否可编辑/删除该方案（作者或管理员）
     function canEditProposal(p) {
       if (!currentUser) return false;
-      if (currentUser.role === 'admin') return true;
+      if (isCurrentUserAdmin()) return true;
       // created_by 为用户 ID（int），对比 currentUser.id
       if (p.created_by && currentUser.id && Number(p.created_by) === Number(currentUser.id)) return true;
       return false;
@@ -2965,7 +2977,7 @@
         var me = rank.find(function(m){ return m.name === (currentUser && currentUser.name); });
         if (me) myPoints = me.total || 0;
       } catch(e) {}
-      var isAdmin = currentUser && currentUser.role === 'admin';
+      var isAdmin = isCurrentUserAdmin();
       var html = redeemShopItems.map(function(it) {
         var canAfford = myPoints >= it.cost;
         return '<div class="flex items-center gap-3 p-3 rounded-xl border ' + (canAfford ? 'border-purple-200 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/20' : 'border-gray-100 dark:border-gray-700 opacity-60') + '">' +
@@ -3101,7 +3113,7 @@
         'confirmed': {label:'✅ 已确认', color:'#10b981', bg:'#10b98120'},
         'rejected': {label:'❌ 已驳回', color:'#9ca3af', bg:'#9ca3af20'}
       };
-      var isAdmin = (currentUser && currentUser.role === 'admin');
+      var isAdmin = isCurrentUserAdmin();
       list.innerHTML = records.map(function(r){
         var st = statusMap[r.status] || statusMap['pending'];
         var d = new Date(r.createdAt);
@@ -3154,7 +3166,7 @@
       // admin 可见周目标编辑按钮
       var goalEditBtn = document.getElementById('weeklyGoalEditBtn');
       if (goalEditBtn) {
-        goalEditBtn.classList.toggle('hidden', !(currentUser && currentUser.role === 'admin'));
+        goalEditBtn.classList.toggle('hidden', !isCurrentUserAdmin());
       }
       var circumference = 2 * Math.PI * 60;
       var offset = circumference * (1 - data.weekly_progress);
@@ -3208,7 +3220,7 @@
 
       // 最近积分动态 Feed
       var typeColors = { '运动': '#3b82f6', '健康': '#10b981', '劳动': '#f97316' };
-      var canDeletePoints = !!(currentUser && currentUser.role === 'admin');
+      var canDeletePoints = isCurrentUserAdmin();
       var feedHTML = '<div class="relative pl-6 space-y-3">' +
         '<div class="absolute left-2 top-2 bottom-2 w-0.5 bg-gray-200"></div>';
       data.recent.forEach(function(r, i) {
@@ -3653,6 +3665,7 @@
         container.innerHTML = '<p class="text-sm text-gray-400 text-center py-8">暂无成员，点击上方按钮添加</p>';
         return;
       }
+      var canManageAdmin = isCurrentUserAdmin();
       var html = '';
       currentMembers.forEach(function(m, idx) {
         var rc = roleColors[m.role] || '#6b7280';
@@ -3663,13 +3676,25 @@
         var focusHTML = focuses.map(function(f) {
           return '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + (focusLabels[f] || f) + '</span>';
         }).join(' ');
+        // v3.6.0: 管理员徽章
+        var adminBadge = m.is_admin ? '<span class="px-1.5 py-0.5 text-xs rounded-full font-medium" style="background:#f59e0b18;color:#d97706" title="系统管理员">🔑 管理员</span>' : '';
+        // v3.6.0: 管理员切换按钮（仅管理员可操作，且不能操作自己）
+        var adminToggleBtn = '';
+        if (canManageAdmin) {
+          var isSelf = (currentUser && currentUser.name === m.name);
+          if (!isSelf) {
+            adminToggleBtn = '<button onclick="toggleMemberAdmin(' + m.id + ', ' + (!m.is_admin) + ')" title="' + (m.is_admin ? '撤销管理员' : '设为管理员') + '" class="w-6 h-6 rounded text-amber-500 hover:bg-amber-50 flex items-center justify-center text-xs">' + (m.is_admin ? '🔓' : '🔒') + '</button>';
+          }
+        }
 
         html += '<div class="tilt-card bg-white rounded-lg p-3 shadow-sm border border-gray-100 stagger-item" style="animation-delay:' + (0.05 + idx * 0.08) + 's">' +
           '<div class="flex items-center gap-2 flex-wrap">' +
             '<span class="text-sm font-bold">' + m.name + '</span>' +
             '<span class="px-1.5 py-0.5 text-xs rounded-full font-medium" style="background:' + rc + '18;color:' + rc + '">' + rl + '</span>' +
+            adminBadge +
             '<span class="text-xs text-gray-400">' + (m.age ? m.age + '岁' : '未填写') + '</span>' +
             '<div class="ml-auto flex gap-1">' +
+              adminToggleBtn +
               '<button onclick="editMember(' + m.id + ')" title="编辑" class="w-6 h-6 rounded text-blue-500 hover:bg-blue-50 flex items-center justify-center text-xs">✏️</button>' +
               '<button onclick="deleteMember(' + m.id + ')" title="删除" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' +
             '</div>' +
@@ -3682,6 +3707,23 @@
       container.innerHTML = html;
     }
 
+    // v3.6.0: 快速切换成员的管理员标记
+    function toggleMemberAdmin(id, makeAdmin) {
+      var action = makeAdmin ? '设为管理员' : '撤销管理员';
+      confirmDialog('确定要' + action + '吗？', function() {
+        authFetch('/api/members/' + id + '/admin', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_admin: makeAdmin })
+        }).then(function(res) { return res.json(); }).then(function() {
+          showToast(action + '成功', 'success');
+          loadMembers();
+        }).catch(function() {
+          showToast(action + '失败', 'error');
+        });
+      });
+    }
+
     function openMemberForm() {
       document.getElementById('memberFormTitle').textContent = '新增成员';
       document.getElementById('memberFormId').value = '';
@@ -3691,6 +3733,8 @@
       document.getElementById('memberFormDataSource').value = 'manual';
       document.getElementById('memberFormAvatar').value = '';
       document.getElementById('memberFormBio').value = '';
+      var adminCb = document.getElementById('memberFormIsAdmin');
+      if (adminCb) adminCb.checked = false;
       document.querySelectorAll('.member-health-focus').forEach(function(cb) { cb.checked = false; });
       var pwd = document.getElementById('memberPassword');
       if (pwd) pwd.value = '';
@@ -3705,11 +3749,14 @@
       document.getElementById('memberFormTitle').textContent = '编辑成员';
       document.getElementById('memberFormId').value = m.id;
       document.getElementById('memberFormName').value = m.name;
-      document.getElementById('memberFormRole').value = m.role;
+      // v3.6.0: admin 不再作为家庭角色，旧数据 role='admin' 回退为 adult
+      document.getElementById('memberFormRole').value = (m.role === 'admin') ? 'adult' : (m.role || 'adult');
       document.getElementById('memberFormAge').value = m.age || '';
       document.getElementById('memberFormDataSource').value = m.data_source_plugin || 'manual';
       document.getElementById('memberFormAvatar').value = m.avatar_url || '';
       document.getElementById('memberFormBio').value = m.bio || '';
+      var adminCb = document.getElementById('memberFormIsAdmin');
+      if (adminCb) adminCb.checked = !!m.is_admin;
       var focuses = (m.health_focus || '').split(',').filter(function(f) { return f; });
       document.querySelectorAll('.member-health-focus').forEach(function(cb) {
         cb.checked = focuses.indexOf(cb.value) >= 0;
@@ -3725,6 +3772,7 @@
       var dataSource = document.getElementById('memberFormDataSource').value;
       var avatarUrl = document.getElementById('memberFormAvatar').value.trim();
       var bio = document.getElementById('memberFormBio').value.trim();
+      var isAdmin = document.getElementById('memberFormIsAdmin') ? document.getElementById('memberFormIsAdmin').checked : false;
       var focuses = [];
       document.querySelectorAll('.member-health-focus:checked').forEach(function(cb) { focuses.push(cb.value); });
 
@@ -3738,6 +3786,7 @@
         data_source_plugin: dataSource,
         avatar_url: avatarUrl,
         bio: bio,
+        is_admin: isAdmin,
         password: document.getElementById('memberPassword') ? document.getElementById('memberPassword').value : ''
       };
 
@@ -4192,7 +4241,7 @@
     function updateNewsAdminBar() {
       var bar = document.getElementById('newsAdminBar');
       if (!bar) return;
-      var isAdmin = (currentUser && currentUser.role === 'admin');
+      var isAdmin = isCurrentUserAdmin();
       if (isAdmin) bar.classList.remove('hidden');
       else bar.classList.add('hidden');
       // v3.3.8 管理Tab按钮可见性同步（v3.4.0 改为同步系统管理 section）
@@ -4483,7 +4532,7 @@
         box.innerHTML = '<div class="col-span-full text-center py-12 text-sm text-gray-400">暂无新闻，可点击「初始化Demo」生成示例数据</div>';
         return;
       }
-      var isAdmin = currentUser && currentUser.role === 'admin';
+      var isAdmin = isCurrentUserAdmin();
       var html = '';
       list.forEach(function(n) {
         var catLabel = newsCategoryLabels[n.category] || n.category;
@@ -4646,7 +4695,7 @@
     function updateCalendarAdminBar() {
       var bar = document.getElementById('calendarAdminBar');
       if (!bar) return;
-      if (currentUser && currentUser.role === 'admin') bar.classList.remove('hidden');
+      if (isCurrentUserAdmin()) bar.classList.remove('hidden');
       else bar.classList.add('hidden');
     }
 
@@ -4700,7 +4749,7 @@
         groups[key].push(e);
       });
       var keys = Object.keys(groups).sort();
-      var isAdmin = currentUser && currentUser.role === 'admin';
+      var isAdmin = isCurrentUserAdmin();
       var html = '';
       keys.forEach(function(key) {
         var dayEvents = groups[key].slice().sort(function(a,b){ return (b.is_important?1:0) - (a.is_important?1:0); });
@@ -4930,7 +4979,7 @@
           var rc = (typeof roleColors !== 'undefined' && roleColors[m.role]) || '#6b7280';
           var rl = (typeof roleLabels !== 'undefined' && roleLabels[m.role]) || m.role;
           var emoji = (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤');
-          var canEdit = (currentUser && (currentUser.role === 'admin' || currentUser.name === m.name));
+          var canEdit = (isCurrentUserAdmin() || (currentUser && currentUser.name === m.name));
           var avatar = m.avatar_url ?
             '<img src="' + escapeHtml(m.avatar_url) + '" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-gray-100 dark:border-gray-700" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;w-20 h-20 rounded-full mx-auto flex items-center justify-center text-3xl&quot; style=&quot;background:' + rc + '&quot;>' + emoji + '</div>\'">' :
             '<div class="w-20 h-20 rounded-full mx-auto flex items-center justify-center text-3xl" style="background:' + rc + '">' + emoji + '</div>';

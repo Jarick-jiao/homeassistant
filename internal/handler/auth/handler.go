@@ -77,8 +77,17 @@ func LoginHandler(c *gin.Context) {
 	jwtSecret, _ := c.Get("jwtSecret")
 	secretStr, _ := jwtSecret.(string)
 
+	// v3.6.0: 计算系统管理员标记
+	// admin 账号（role='admin'）直接为管理员；普通成员检查关联 family_members.is_admin
+	isAdmin := user.Role == model.RoleAdmin
+	if !isAdmin {
+		if fm, err := db.GetMemberByUserID(c.Request.Context(), user.ID); err == nil && fm != nil {
+			isAdmin = fm.IsAdmin
+		}
+	}
+
 	expireIn := time.Now().Add(24 * time.Hour).Unix()
-	token, err := jwtutil.GenerateToken(user, secretStr, expireIn)
+	token, err := jwtutil.GenerateToken(user, secretStr, expireIn, isAdmin)
 	if err != nil {
 		response.InternalServerError(c, "生成 Token 失败")
 		return
@@ -92,6 +101,7 @@ func LoginHandler(c *gin.Context) {
 			"role":      user.Role,
 			"name":      user.Name,
 			"family_id": user.FamilyID,
+			"is_admin":  isAdmin,
 		},
 	})
 }
@@ -168,7 +178,7 @@ func RegisterHandler(c *gin.Context) {
 	jwtSecret, _ := c.Get("jwtSecret")
 	secretStr, _ := jwtSecret.(string)
 	expireIn := time.Now().Add(24 * time.Hour).Unix()
-	token, err := jwtutil.GenerateToken(user, secretStr, expireIn)
+	token, err := jwtutil.GenerateToken(user, secretStr, expireIn, false)
 	if err != nil {
 		// token 生成失败不影响注册，但不自动登录
 		response.Success(c, gin.H{
@@ -188,6 +198,7 @@ func RegisterHandler(c *gin.Context) {
 			"role":      req.Role,
 			"name":      req.Name,
 			"family_id": user.FamilyID,
+			"is_admin":  false,
 		},
 	})
 }

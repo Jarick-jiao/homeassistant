@@ -143,6 +143,7 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.POST("/members", middleware.RequireAdmin(), member.CreateMemberHandler)
 	authed.PUT("/members/:id", middleware.RequireAdmin(), member.UpdateMemberHandler)
 	authed.PUT("/members/:id/role", middleware.RequireAdmin(), member.UpdateMemberRoleHandler)
+	authed.PUT("/members/:id/admin", middleware.RequireAdmin(), member.UpdateMemberAdminHandler)
 	authed.DELETE("/members/:id", middleware.RequireAdmin(), member.DeleteMemberHandler)
 
 	// --- 留言板 ---
