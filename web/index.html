@@ -46,6 +46,25 @@
       if (typeof burstStars === 'function') burstStars();
     }
 
+    // ===== v3.6.1: 弹框提升至 body 顶层 =====
+    // 原因：.tab-panel 的 fadeSlideIn 动画以 forwards 保留 transform，
+    // 使 position:fixed 的弹框相对 tab 面板定位（偏下、非视口居中）。
+    // 将所有 .modal-overlay 移到 <body> 下，彻底脱离 transformed 祖先。
+    (function reparentModals() {
+      function run() {
+        document.querySelectorAll('.modal-overlay').forEach(function(m) {
+          if (m.parentNode && m.parentNode !== document.body) {
+            document.body.appendChild(m);
+          }
+        });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', run);
+      } else {
+        run();
+      }
+    })();
+
     // ===== 认证系统 =====
     var authToken = localStorage.getItem('homemate_token') || '';
     var currentUser = JSON.parse(localStorage.getItem('homemate_user') || 'null');
