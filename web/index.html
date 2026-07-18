@@ -168,6 +168,23 @@
       box-shadow: 0 12px 24px -8px rgba(0,0,0,0.15);
     }
 
+    /* ==================== Markdown 渲染（v3.5.0 新闻详情） ==================== */
+    .md-content h1, .md-content h2, .md-content h3 { font-weight: 700; margin: 0.6em 0 0.3em; line-height: 1.3; }
+    .md-content h1 { font-size: 1.25em; }
+    .md-content h2 { font-size: 1.15em; }
+    .md-content h3 { font-size: 1.05em; }
+    .md-content p { margin: 0.4em 0; }
+    .md-content strong { font-weight: 700; }
+    .md-content em { font-style: italic; }
+    .md-content ul, .md-content ol { margin: 0.3em 0; padding-left: 1.4em; }
+    .md-content li { margin: 0.15em 0; }
+    .md-content ul li { list-style: disc; }
+    .md-content ol li { list-style: decimal; }
+    .md-content a { color: #3b82f6; text-decoration: underline; word-break: break-all; }
+    .md-content code { background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 4px; font-size: 0.9em; font-family: ui-monospace, monospace; }
+    .md-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.8em; margin: 0.5em 0; color: #6b7280; }
+    .md-content hr { border: none; border-top: 1px solid #e5e7eb; margin: 0.6em 0; }
+
     /* ==================== 指标卡片左边框 ==================== */
     .metric-card { transition: transform 0.2s ease, background 0.2s ease; background: transparent !important; }
     .metric-card:hover { transform: scale(1.03); background: rgba(0,0,0,0.03) !important; }
@@ -263,6 +280,8 @@
       padding: 20px;
     }
     .modal-overlay.show { display: flex; }
+    /* v3.5.0: 表单弹框层级高于详情弹框，避免被遮挡 */
+    .modal-overlay.modal-form { z-index: 110; }
     .modal-box {
       background: white; border-radius: 16px; padding: 28px;
       width: 90%; max-width: 400px;
@@ -1250,7 +1269,7 @@
     </div>
 
     <!-- ========== 成员编辑/新增对话框（v3.4.0 修复：从 panel-members 移出，避免父级 hidden 导致弹框不可见） ========== -->
-      <div id="memberFormModal" class="modal-overlay">
+      <div id="memberFormModal" class="modal-overlay modal-form">
         <div class="modal-box" style="max-width:480px">
           <h4 id="memberFormTitle" class="text-lg font-bold mb-4">新增成员</h4>
           <input type="hidden" id="memberFormId" value="">
@@ -1346,11 +1365,14 @@
           <h3 class="text-lg font-bold">📅 日历行程</h3>
           <p class="text-xs text-gray-400">家庭日程与提醒</p>
         </div>
-        <div id="calendarAdminBar" class="flex items-center gap-2 hidden">
-          <button onclick="importCalendar()" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">📤 导入CSV</button>
-          <button onclick="seedDemoCalendar()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#10b981">🌱 初始化Demo</button>
-          <button onclick="clearAllCalendar()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#ef4444">🗑️ 清空全部</button>
-          <button onclick="exportCalendarCSV()" class="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700">📤 导出CSV</button>
+        <div class="flex items-center gap-2">
+          <button onclick="openCalendarForm('add')" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:var(--primary)">➕ 新增日程</button>
+          <div id="calendarAdminBar" class="flex items-center gap-2 hidden">
+            <button onclick="importCalendar()" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">📤 导入CSV</button>
+            <button onclick="seedDemoCalendar()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#10b981">🌱 初始化Demo</button>
+            <button onclick="clearAllCalendar()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#ef4444">🗑️ 清空全部</button>
+            <button onclick="exportCalendarCSV()" class="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700">📤 导出CSV</button>
+          </div>
         </div>
       </div>
       <div id="calendarList" class="space-y-2"></div>
@@ -1404,7 +1426,7 @@
         </div>
         <img id="newsDetailImg" class="w-full max-h-64 object-cover rounded-lg mb-3 hidden bg-gray-100 dark:bg-gray-700">
         <p id="newsDetailSummary" class="text-sm text-gray-600 dark:text-gray-300 mb-3 leading-relaxed"></p>
-        <div id="newsDetailContent" class="text-sm text-gray-700 dark:text-gray-200 mb-3 leading-relaxed whitespace-pre-line"></div>
+        <div id="newsDetailContent" class="text-sm text-gray-700 dark:text-gray-200 mb-3 leading-relaxed md-content"></div>
         <div class="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
           <span id="newsDetailMeta"></span>
           <a id="newsDetailLink" href="#" target="_blank" rel="noopener" class="text-blue-500 hover:text-blue-600 hidden">查看原文 →</a>
@@ -1424,6 +1446,69 @@
         </div>
         <div id="calendarDetailMeta" class="text-xs text-gray-400 mb-3"></div>
         <div id="calendarDetailDesc" class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line mb-3"></div>
+        <div class="flex gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+          <button id="calendarDetailEditBtn" onclick="closeCalendarDetail();openCalendarForm('edit')" class="flex-1 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">✏️ 编辑日程</button>
+          <button onclick="closeCalendarDetail()" class="flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 日历新增/编辑表单弹框（v3.5.0） ========== -->
+    <div id="calendarFormModal" class="modal-overlay modal-form">
+      <div class="modal-box" style="max-width:480px">
+        <h4 id="calendarFormTitle" class="text-lg font-bold mb-4">新增日程</h4>
+        <input type="hidden" id="calendarFormId">
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs text-gray-500">标题 *</label>
+            <input id="calendarFormName" type="text" placeholder="例如：家庭聚餐" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm focus:outline-none focus:border-blue-400">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-gray-500">日期 *</label>
+              <input id="calendarFormDate" type="date" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm focus:outline-none focus:border-blue-400">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">类型</label>
+              <select id="calendarFormType" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm focus:outline-none focus:border-blue-400">
+                <option value="家庭">家庭</option>
+                <option value="健康">健康</option>
+                <option value="学校">学校</option>
+                <option value="工作">工作</option>
+                <option value="财务">财务</option>
+                <option value="纪念">纪念</option>
+                <option value="疫苗">疫苗</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-gray-500">开始时间</label>
+              <input id="calendarFormTime" type="time" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm focus:outline-none focus:border-blue-400">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">结束时间</label>
+              <input id="calendarFormEndTime" type="time" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm focus:outline-none focus:border-blue-400">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500">地点</label>
+            <input id="calendarFormLocation" type="text" placeholder="例如：外婆家" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm focus:outline-none focus:border-blue-400">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500">描述</label>
+            <textarea id="calendarFormDesc" rows="3" placeholder="日程详情..." class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm focus:outline-none focus:border-blue-400 resize-none"></textarea>
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="calendarFormImportant" type="checkbox" class="w-4 h-4 rounded">
+            <label for="calendarFormImportant" class="text-sm text-gray-600 dark:text-gray-300 cursor-pointer">标记为重要</label>
+          </div>
+        </div>
+        <div class="flex gap-3 mt-5">
+          <button onclick="document.getElementById('calendarFormModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">取消</button>
+          <button onclick="saveCalendarEvent()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">保存</button>
+        </div>
       </div>
     </div>
 
@@ -1547,7 +1632,7 @@
   </div>
 
   <!-- ==================== 家务任务编辑/新增对话框 ==================== -->
-  <div id="taskFormModal" class="modal-overlay">
+  <div id="taskFormModal" class="modal-overlay modal-form">
     <div class="modal-box" style="max-width:480px">
       <h4 id="taskFormTitle" class="text-lg font-bold mb-4">新增家务</h4>
       <div class="space-y-3">
@@ -2136,7 +2221,7 @@
       data.tasks.forEach(function(t) {
         var dc = diffColors[t.difficulty] || '#6b7280';
         taskHTML += '<div class="task-card tilt-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer relative" onclick="if(event.target.closest(\'.task-edit-btn\'))return;openClaimModal(\'' + t.name + '\', ' + t.id + ')">' +
-          '<button class="task-edit-btn absolute top-2 right-2 w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition" onclick="openTaskForm(\'edit\',' + t.id + ')">' +
+          '<button class="task-edit-btn absolute top-2 right-2 w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition" onclick="event.stopPropagation();openTaskForm(\'edit\',' + t.id + ')">' +
             '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>' +
           '</button>' +
           '<div class="text-2xl mb-2">' + t.icon + '</div>' +
@@ -2229,12 +2314,14 @@
         showToast(member + ' 已认领「' + task + '」，请按时完成！', 'success');
         showEncourage(); playDing();
         loadPendingClaims();
+        loadPointsData(); // v3.5.0 修复：刷新积分面板
       }).catch(function(err) {
         // 即使API失败也显示成功（fallback）
         showToast(member + ' 已认领「' + task + '」', 'success');
         showEncourage(); playDing();
         addPendingToLocal(member, task, taskIcon, parseInt(taskId));
         loadPendingClaims();
+        loadPointsData(); // v3.5.0 修复：刷新积分面板
       });
     }
 
@@ -2330,6 +2417,7 @@
         showToast('已标记完成，等待其他成员确认', 'warning');
         showEncourage(); playDing();
         loadPendingClaims();
+        loadPointsData(); // v3.5.0 修复：刷新积分面板
       }).catch(function() {
         showToast('操作失败，请重试', 'error');
       });
@@ -2348,15 +2436,15 @@
         showToast('已确认完成！积分已增加', 'success');
         showEncourage(); playDing(); burstStars(window.innerWidth / 2, window.innerHeight / 3);
         loadPendingClaims();
-        // 刷新家务面板和积分面板
+        // v3.5.0 修复：用 loadPointsData 统一刷新积分面板（含 settled/pending/today）
+        loadPointsData();
+        // 刷新家务面板
         authFetch('/api/chorse/dashboard').then(function(r) { return r.json(); }).then(function(result) {
           currentChoresData = result.data || result;
           renderChores(currentChoresData);
         });
-        authFetch('/api/points/dashboard').then(function(r) { return r.json(); }).then(function(result) {
-          currentPointsData = result.data || result;
-          renderPoints(currentPointsData);
-        });
+        // 刷新首页积分总览（renderPoints 会更新 familyTotalPts）
+        if (typeof loadAllData === 'function' && document.querySelector('[data-tab="home"].active')) loadAllData();
       }).catch(function() {
         showToast('操作失败，请重试', 'error');
       });
@@ -2846,8 +2934,8 @@
       }).catch(function(){ currentPointsData=fallbackPoints; renderPoints(fallbackPoints, {pending:0,today:0}); });
     }
 
-    // === 积分兑换商店（v3.3.5 妈妈体验优化）===
-    var redeemShopItems = [
+    // === 积分兑换商店（v3.3.5 妈妈体验优化 / v3.5.0 支持编辑清单）===
+    var _defaultRedeemItems = [
       { id: 1, icon: '🎮', name: '额外 30 分钟游戏时间', desc: '周末额外游戏时长', cost: 50, tag: '儿童最爱' },
       { id: 2, icon: '🍦', name: '周末零食券', desc: '指定一款零食', cost: 30, tag: '小确幸' },
       { id: 3, icon: '🎬', name: '周末选片权', desc: '决定全家电影之夜看什么', cost: 40, tag: '全家参与' },
@@ -2855,8 +2943,21 @@
       { id: 5, icon: '🎯', name: '周末活动决定权', desc: '周末去哪玩你说了算', cost: 100, tag: '高价值' },
       { id: 6, icon: '🎁', name: '神秘小礼物', desc: '爸妈准备的小惊喜', cost: 150, tag: '惊喜' }
     ];
+    function getRedeemItems() {
+      try { var s = localStorage.getItem('homemate_redeem_items'); if (s) return JSON.parse(s); } catch(e) {}
+      return _defaultRedeemItems.slice();
+    }
+    function saveRedeemItems(arr) {
+      localStorage.setItem('homemate_redeem_items', JSON.stringify(arr));
+    }
+    var redeemShopItems = getRedeemItems();
     function openRedeemShop() {
-      var modal = document.getElementById('redeemShopModal');
+      redeemShopItems = getRedeemItems(); // v3.5.0 每次打开刷新最新数据
+      renderRedeemItems();
+      document.getElementById('redeemShopModal').classList.remove('hidden');
+      document.getElementById('redeemShopModal').classList.add('flex');
+    }
+    function renderRedeemItems() {
       var box = document.getElementById('redeemItems');
       var myPoints = 0;
       try {
@@ -2864,30 +2965,84 @@
         var me = rank.find(function(m){ return m.name === (currentUser && currentUser.name); });
         if (me) myPoints = me.total || 0;
       } catch(e) {}
-      box.innerHTML = redeemShopItems.map(function(it) {
+      var isAdmin = currentUser && currentUser.role === 'admin';
+      var html = redeemShopItems.map(function(it) {
         var canAfford = myPoints >= it.cost;
         return '<div class="flex items-center gap-3 p-3 rounded-xl border ' + (canAfford ? 'border-purple-200 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/20' : 'border-gray-100 dark:border-gray-700 opacity-60') + '">' +
           '<div class="text-2xl">' + it.icon + '</div>' +
           '<div class="flex-1 min-w-0">' +
             '<div class="flex items-center gap-2 flex-wrap">' +
               '<span class="text-sm font-medium dark:text-gray-100">' + escapeHtml(it.name) + '</span>' +
-              '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-300">' + it.tag + '</span>' +
+              '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-300">' + escapeHtml(it.tag || '') + '</span>' +
             '</div>' +
             '<p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">' + escapeHtml(it.desc) + '</p>' +
           '</div>' +
           '<div class="text-right shrink-0">' +
             '<div class="text-sm font-bold ' + (canAfford ? 'text-purple-600 dark:text-purple-300' : 'text-gray-400') + '">' + it.cost + ' 分</div>' +
-            '<button class="text-xs px-2 py-1 rounded-full mt-1 ' + (canAfford ? 'bg-purple-500 text-white hover:bg-purple-600' : 'bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed') + '" ' + (canAfford ? 'onclick="redeemItem(' + it.id + ',\'' + it.name.replace(/'/g,'') + '\',' + it.cost + ')"' : 'disabled') + '>' + (canAfford ? '兑换' : '积分不足') + '</button>' +
+            '<div class="flex gap-1 mt-1 justify-end">' +
+              (isAdmin ? '<button class="text-[10px] px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700" onclick="openRedeemItemForm(' + it.id + ')">✏️</button>' : '') +
+              (isAdmin ? '<button class="text-[10px] px-1.5 py-0.5 rounded border border-red-200 dark:border-red-700 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20" onclick="deleteRedeemItem(' + it.id + ')">🗑️</button>' : '') +
+              '<button class="text-xs px-2 py-1 rounded-full ' + (canAfford ? 'bg-purple-500 text-white hover:bg-purple-600' : 'bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed') + '" ' + (canAfford ? 'onclick="redeemItem(' + it.id + ',\'' + it.name.replace(/'/g,'') + '\',' + it.cost + ')"' : 'disabled') + '>' + (canAfford ? '兑换' : '积分不足') + '</button>' +
+            '</div>' +
           '</div>' +
         '</div>';
       }).join('');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
+      if (isAdmin) {
+        html += '<button onclick="openRedeemItemForm(0)" class="w-full mt-2 py-2 rounded-xl border-2 border-dashed border-purple-200 dark:border-purple-700 text-purple-500 text-sm font-medium hover:bg-purple-50 dark:hover:bg-purple-900/20 transition">➕ 新增兑换项</button>';
+      }
+      box.innerHTML = html;
     }
     function closeRedeemShop() {
       var modal = document.getElementById('redeemShopModal');
       modal.classList.add('hidden');
       modal.classList.remove('flex');
+    }
+
+    // v3.5.0 兑换清单编辑
+    function openRedeemItemForm(id) {
+      var item = null;
+      if (id && id > 0) {
+        item = redeemShopItems.find(function(x) { return x.id === id; });
+        if (!item) { showToast('未找到该项', 'error'); return; }
+      }
+      var name = item ? item.name : '';
+      var icon = item ? item.icon : '🎁';
+      var desc = item ? item.desc : '';
+      var cost = item ? item.cost : 50;
+      var tag = item ? (item.tag || '') : '';
+      var html = '<div class="space-y-3">' +
+        '<div><label class="text-xs text-gray-500">图标</label><input id="redeemFormIcon" type="text" value="' + escapeHtml(icon) + '" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm" placeholder="🎁"></div>' +
+        '<div><label class="text-xs text-gray-500">名称 *</label><input id="redeemFormName" type="text" value="' + escapeHtml(name) + '" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm" placeholder="例如：周末冰淇淋"></div>' +
+        '<div><label class="text-xs text-gray-500">描述</label><input id="redeemFormDesc" type="text" value="' + escapeHtml(desc) + '" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm" placeholder="奖励说明"></div>' +
+        '<div class="grid grid-cols-2 gap-3">' +
+          '<div><label class="text-xs text-gray-500">所需积分 *</label><input id="redeemFormCost" type="number" value="' + cost + '" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm" placeholder="50"></div>' +
+          '<div><label class="text-xs text-gray-500">标签</label><input id="redeemFormTag" type="text" value="' + escapeHtml(tag) + '" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm" placeholder="儿童最爱"></div>' +
+        '</div></div>';
+      showConfirmDialog(item ? '编辑兑换项' : '新增兑换项', html, null, function() {
+        var n = document.getElementById('redeemFormName').value.trim();
+        var ic = document.getElementById('redeemFormIcon').value.trim() || '🎁';
+        var d = document.getElementById('redeemFormDesc').value.trim();
+        var c = parseInt(document.getElementById('redeemFormCost').value) || 0;
+        var t = document.getElementById('redeemFormTag').value.trim() || '一般';
+        if (!n) { showToast('请填写名称', 'error'); return; }
+        if (item) {
+          item.icon = ic; item.name = n; item.desc = d; item.cost = c; item.tag = t;
+        } else {
+          var newId = redeemShopItems.length > 0 ? Math.max.apply(null, redeemShopItems.map(function(x){return x.id;})) + 1 : 1;
+          redeemShopItems.push({ id: newId, icon: ic, name: n, desc: d, cost: c, tag: t });
+        }
+        saveRedeemItems(redeemShopItems);
+        showToast(item ? '兑换项已更新' : '兑换项已添加', 'success');
+        renderRedeemItems();
+      }, item ? '保存' : '添加', '#8b5cf6');
+    }
+    function deleteRedeemItem(id) {
+      showConfirmDialog('删除兑换项', '确认删除此兑换项？', null, function() {
+        redeemShopItems = redeemShopItems.filter(function(x) { return x.id !== id; });
+        saveRedeemItems(redeemShopItems);
+        showToast('已删除', 'success');
+        renderRedeemItems();
+      }, '删除', '#ef4444');
     }
     function redeemItem(id, name, cost) {
       showConfirmDialog('确认兑换', '将申请兑换：' + name + '（-' + cost + '分）', '兑换需爸妈确认后正式扣分。积分扣减需后端配套（规划中），当前仅记录申请。', function(){
@@ -4270,7 +4425,10 @@
     var _confirmCallback = null;
     function showConfirmDialog(title, message, warning, callback, okText, okColor) {
       document.getElementById('confirmTitle').textContent = title;
-      document.getElementById('confirmMessage').textContent = message;
+      var msgEl = document.getElementById('confirmMessage');
+      // v3.5.0 支持HTML内容（如表单）
+      if (message && message.indexOf('<') === 0) { msgEl.innerHTML = message; }
+      else { msgEl.textContent = message; }
       var wEl = document.getElementById('confirmWarning');
       if (warning) { wEl.textContent = '⚠️ ' + warning; wEl.classList.remove('hidden'); } else { wEl.classList.add('hidden'); }
       var okBtn = document.getElementById('confirmOkBtn');
@@ -4375,6 +4533,43 @@
       });
     }
 
+    // v3.5.0 轻量 Markdown 渲染器（支持标题/加粗/斜体/链接/列表/代码/引用/分隔线）
+    function renderMarkdown(text) {
+      if (!text) return '';
+      // 1. 转义 HTML 防止 XSS
+      var html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      // 2. 按行分割处理块级元素
+      var lines = html.split('\n');
+      var out = [];
+      var inList = null; // 'ul' | 'ol' | null
+      function closeList() { if (inList) { out.push('</' + inList + '>'); inList = null; } }
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var h = line.match(/^(#{1,3})\s+(.*)/);
+        var ulm = line.match(/^[-*]\s+(.*)/);
+        var olm = line.match(/^\d+\.\s+(.*)/);
+        var hr = /^(-{3,}|\*{3,})$/.test(line.trim());
+        var quote = /^&gt;\s?(.*)/.test(line);
+        if (h) { closeList(); out.push('<h' + h[1].length + '>' + inlineMd(h[2]) + '</h' + h[1].length + '>'); }
+        else if (ulm) { if (inList !== 'ul') { closeList(); out.push('<ul>'); inList = 'ul'; } out.push('<li>' + inlineMd(ulm[1]) + '</li>'); }
+        else if (olm) { if (inList !== 'ol') { closeList(); out.push('<ol>'); inList = 'ol'; } out.push('<li>' + inlineMd(olm[1]) + '</li>'); }
+        else if (hr) { closeList(); out.push('<hr>'); }
+        else if (quote) { closeList(); var qm = line.match(/^&gt;\s?(.*)/); out.push('<blockquote>' + inlineMd(qm[1]) + '</blockquote>'); }
+        else if (line.trim() === '') { closeList(); out.push(''); }
+        else { closeList(); out.push('<p>' + inlineMd(line) + '</p>'); }
+      }
+      closeList();
+      return out.join('\n');
+    }
+    function inlineMd(text) {
+      // 行内代码 → 加粗 → 斜体 → 链接
+      return text
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    }
+
     // v3.4.0 新闻详情弹框
     function showNewsDetail(id) {
       var cache = window._newsCache || [];
@@ -4387,7 +4582,9 @@
       document.getElementById('newsDetailBadges').innerHTML = badges;
       document.getElementById('newsDetailTitle').textContent = n.title || '';
       document.getElementById('newsDetailSummary').textContent = n.summary || '';
-      document.getElementById('newsDetailContent').textContent = n.content || '';
+      var rawContent = n.content || '';
+      if (rawContent.length > 1000) { rawContent = rawContent.substring(0, 1000) + '\n\n...（内容已截断，查看原文阅读全文）'; }
+      document.getElementById('newsDetailContent').innerHTML = renderMarkdown(rawContent);
       document.getElementById('newsDetailMeta').textContent = '来源：' + (n.source || '-') + ' · ' + fmtNewsDate(n.published_at);
       var img = document.getElementById('newsDetailImg');
       if (n.image_url) {
@@ -4398,7 +4595,8 @@
         img.classList.add('hidden');
       }
       var link = document.getElementById('newsDetailLink');
-      if (n.source_url) {
+      // v3.5.0 仅当 source_url 是 http(s) 真实网址时才显示「查看原文」
+      if (n.source_url && /^https?:\/\//i.test(n.source_url)) {
         link.href = n.source_url;
         link.classList.remove('hidden');
       } else {
@@ -4550,6 +4748,7 @@
       var cache = window._calendarCache || [];
       var e = cache.find(function(x) { return x.id === id; });
       if (!e) { showToast('日程详情不可用', 'error'); return; }
+      window._currentCalendarEvent = e; // v3.5.0 存储当前事件供编辑使用
       var cat = calendarEventCategory(e.title);
       var badges = '<span class="text-[10px] px-1.5 py-0.5 rounded-full ' + cat.cls + '">' + cat.label + '</span>';
       if (e.is_important) badges += '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">重要</span>';
@@ -4569,6 +4768,83 @@
 
     function closeCalendarDetail() {
       document.getElementById('calendarDetailModal').classList.remove('show');
+    }
+
+    // v3.5.0 日程新增/编辑表单
+    function openCalendarForm(mode) {
+      var modal = document.getElementById('calendarFormModal');
+      if (mode === 'edit') {
+        var e = window._currentCalendarEvent;
+        if (!e) { showToast('无法获取日程信息', 'error'); return; }
+        document.getElementById('calendarFormTitle').textContent = '编辑日程';
+        document.getElementById('calendarFormId').value = e.id;
+        document.getElementById('calendarFormName').value = e.title || '';
+        document.getElementById('calendarFormDate').value = e.date || '';
+        var timeStr = e.time || (e.start_time ? e.start_time.slice(11, 16) : '');
+        document.getElementById('calendarFormTime').value = timeStr;
+        var endStr = e.end_time ? (e.end_time.length >= 16 ? e.end_time.slice(11, 16) : e.end_time) : '';
+        document.getElementById('calendarFormEndTime').value = endStr;
+        document.getElementById('calendarFormLocation').value = e.location || '';
+        document.getElementById('calendarFormDesc').value = e.description || '';
+        document.getElementById('calendarFormType').value = e.event_type || '家庭';
+        document.getElementById('calendarFormImportant').checked = !!e.is_important;
+      } else {
+        document.getElementById('calendarFormTitle').textContent = '新增日程';
+        document.getElementById('calendarFormId').value = '';
+        document.getElementById('calendarFormName').value = '';
+        document.getElementById('calendarFormDate').value = new Date().toISOString().slice(0, 10);
+        document.getElementById('calendarFormTime').value = '';
+        document.getElementById('calendarFormEndTime').value = '';
+        document.getElementById('calendarFormLocation').value = '';
+        document.getElementById('calendarFormDesc').value = '';
+        document.getElementById('calendarFormType').value = '家庭';
+        document.getElementById('calendarFormImportant').checked = false;
+      }
+      modal.classList.add('show');
+    }
+
+    function saveCalendarEvent() {
+      var id = document.getElementById('calendarFormId').value;
+      var name = document.getElementById('calendarFormName').value.trim();
+      var date = document.getElementById('calendarFormDate').value;
+      var time = document.getElementById('calendarFormTime').value;
+      var endTime = document.getElementById('calendarFormEndTime').value;
+      var location = document.getElementById('calendarFormLocation').value.trim();
+      var desc = document.getElementById('calendarFormDesc').value.trim();
+      var type = document.getElementById('calendarFormType').value;
+      var important = document.getElementById('calendarFormImportant').checked;
+
+      if (!name) { showToast('请填写日程标题', 'error'); return; }
+      if (!date) { showToast('请选择日期', 'error'); return; }
+
+      var body = {
+        title: name,
+        date: date,
+        time: time || '00:00',
+        end_time: endTime || null,
+        location: location,
+        description: desc,
+        event_type: type,
+        is_important: important
+      };
+
+      var method = id ? 'PUT' : 'POST';
+      var url = id ? '/api/calendar/events/' + id : '/api/calendar/events';
+
+      authFetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function(r) { return r.json(); }).then(function(result) {
+        if (result.code !== 0 && result.code !== undefined && result.code !== 200) {
+          showToast(result.message || '保存失败', 'error'); return;
+        }
+        showToast(id ? '日程已更新' : '日程已创建', 'success');
+        document.getElementById('calendarFormModal').classList.remove('show');
+        loadCalendarList();
+      }).catch(function() {
+        showToast('保存失败，请重试', 'error');
+      });
     }
 
     function clearAllCalendar() {
