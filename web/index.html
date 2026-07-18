@@ -536,6 +536,34 @@
     body.kid-friendly h4 { font-size: 1.2em; }
     body.kid-friendly .ripple-btn { font-size: 1.05em; padding: 0.6rem 1.2rem; }
     body.kid-friendly .section-card { border-radius: 20px; }
+    /* === v3.3.4 儿童友好优化（基于 10 岁女孩体验报告）=== */
+    /* C2: 字号放大，正文 18px、标题更大，看久不累 */
+    body.kid-friendly { font-size: 18px; }
+    body.kid-friendly .text-sm { font-size: 17px !important; }
+    body.kid-friendly .text-xs { font-size: 14px !important; }
+    body.kid-friendly .text-lg { font-size: 24px !important; }
+    body.kid-friendly h3 { font-size: 1.5em; }
+    body.kid-friendly h4 { font-size: 1.3em; }
+    body.kid-friendly .text-base { font-size: 18px !important; }
+    body.kid-friendly p { line-height: 1.6; }
+    /* C3: 隐藏管理按钮（编辑/删除/新增/导入），儿童只读防误操作 */
+    body.kid-friendly .weekend-action-bar,
+    body.kid-friendly [aria-label="编辑方案"],
+    body.kid-friendly [aria-label="删除方案"],
+    body.kid-friendly [aria-label="编辑成员资料"],
+    body.kid-friendly [aria-label="删除"],
+    body.kid-friendly [aria-label="编辑"],
+    body.kid-friendly button[onclick*="deleteProposal"],
+    body.kid-friendly button[onclick*="editProposal"],
+    body.kid-friendly button[onclick*="openProposalForm"],
+    body.kid-friendly button[onclick*="importCSV"],
+    body.kid-friendly .admin-only,
+    body.kid-friendly #newsAdminBar,
+    body.kid-friendly #calendarAdminBar { display: none !important; }
+    /* C4: 精简 Tab，儿童只看 5 个（首页/家务/积分/休闲/日历） */
+    body.kid-friendly .tab-btn[data-tab="health"],
+    body.kid-friendly .tab-btn[data-tab="records"],
+    body.kid-friendly .tab-btn[data-tab="news"] { display: none !important; }
     @keyframes wiggle {
       0%, 100% { transform: rotate(0deg); }
       25% { transform: rotate(-3deg); }
@@ -3831,6 +3859,24 @@
       return fetchWithFallback('/api/anniversaries/upcoming?days=30', null);
     }
 
+    // 健康指标儿童友好态：表情+颜色+一句话提示（基于 status / value）
+    function metricKidHint(mt) {
+      var st = mt.status || 'normal';
+      var t = mt.type || mt.label || '';
+      // 默认三态
+      if (st === 'alert' || st === 'danger') return { emoji: '⚠️', color: '#ef4444', hint: '要留意哦' };
+      if (st === 'warning') return { emoji: '🤔', color: '#f59e0b', hint: '稍微注意' };
+      // 正常态按类型给鼓励
+      if (t === 'steps' || mt.label === '步数' || /步/.test(mt.label || '')) return { emoji: '🏃', color: '#10b981', hint: '动起来真棒' };
+      if (t === 'sleep' || mt.label === '睡眠' || /睡/.test(mt.label || '')) return { emoji: '😴', color: '#10b981', hint: '睡得好才精神' };
+      if (t === 'heart_rate' || mt.label === '心率' || /心/.test(mt.label || '')) return { emoji: '💓', color: '#10b981', hint: '扑通扑通很健康' };
+      if (t === 'blood_pressure' || mt.label === '血压' || /血压/.test(mt.label || '')) return { emoji: '❤️', color: '#10b981', hint: '稳稳的真好' };
+      if (t === 'blood_glucose' || mt.label === '血糖' || /血糖/.test(mt.label || '')) return { emoji: '🍬', color: '#10b981', hint: '甜度刚刚好' };
+      if (t === 'temperature' || mt.label === '体温' || /体温/.test(mt.label || '')) return { emoji: '🌡️', color: '#10b981', hint: '暖暖的很舒服' };
+      if (t === 'weight' || mt.label === '体重' || /体重/.test(mt.label || '')) return { emoji: '⚖️', color: '#10b981', hint: '健康长大中' };
+      return { emoji: mt.icon || '📊', color: '#10b981', hint: '一切正常' };
+    }
+
     function renderBigScreen(data) {
       var container = document.getElementById('bigscreenContainer');
       if (!container) return;
@@ -3861,11 +3907,12 @@
               '</div>' +
               '<div class="grid grid-cols-2 gap-2">';
             (m.metrics || []).forEach(function(mt) {
-              var mc = mt.status === 'warning' ? '#f59e0b' : mt.status === 'alert' ? '#ef4444' : '#10b981';
+              var kh = metricKidHint(mt);
               var mtJson = JSON.stringify(mt).replace(/"/g, '&quot;');
-              html += '<div class="bs-metric-block rounded-lg p-2 cursor-pointer" style="border-left:3px solid ' + mc + '" onclick="showMetricDetail(\'' + mEsc + '\',' + mtJson + ')" title="点击查看详情">' +
-                '<p class="text-xs text-gray-400">' + (mt.icon || '📊') + ' ' + escapeHtml(mt.label) + '</p>' +
-                '<p class="text-sm font-semibold">' + escapeHtml(String(mt.value)) + '<span class="text-xs text-gray-400 ml-0.5">' + escapeHtml(mt.unit || '') + '</span></p>' +
+              html += '<div class="bs-metric-block rounded-lg p-2 cursor-pointer" style="border-left:3px solid ' + kh.color + '" onclick="showMetricDetail(\'' + mEsc + '\',' + mtJson + ')" title="点击查看详情">' +
+                '<p class="text-xs text-gray-400 flex items-center gap-1"><span class="text-sm">' + kh.emoji + '</span>' + escapeHtml(mt.label) + '</p>' +
+                '<p class="text-sm font-semibold" style="color:' + kh.color + '">' + escapeHtml(String(mt.value)) + '<span class="text-xs text-gray-400 ml-0.5">' + escapeHtml(mt.unit || '') + '</span></p>' +
+                '<p class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">' + kh.hint + '</p>' +
               '</div>';
             });
             html += '</div></div>';
