@@ -103,6 +103,10 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.GET("/records/reports", recordsHandler.ListReports)
 	authed.POST("/records/reports/generate", recordsHandler.GenerateReport)
 
+	// --- 就诊医院配置（v3.7.0） ---
+	authed.GET("/settings/hospitals", records.GetHospitalsHandler)
+	authed.PUT("/settings/hospitals", middleware.RequireAdmin(), records.UpdateHospitalsHandler)
+
 	// --- 日历 ---
 	authed.GET("/calendar/events", calendar.ListCalendarEventsHandler)
 	authed.POST("/calendar/events", calendar.CreateCalendarEventHandler)

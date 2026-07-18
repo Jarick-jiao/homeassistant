@@ -944,7 +944,7 @@
 
       <!-- 投票结果实时排行 -->
       <h3 class="text-lg font-bold mb-3">📊 投票排行</h3>
-      <div id="voteResults" class="space-y-2 mb-6"></div>
+      <div id="voteResults" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6"></div>
 
       <!-- 出行方案列表 -->
       <div class="flex items-center justify-between mb-3">
@@ -1172,6 +1172,21 @@
             </div>
             <p class="text-xs text-gray-400 mb-3">支持 Garmin Connect、Apple Health、华为健康、手动录入</p>
             <div id="dataSourceList" class="space-y-3"></div>
+          </div>
+
+          <!-- 就诊医院配置 -->
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-bold">🏥 就诊医院配置</h4>
+              <span class="text-xs text-blue-500 cursor-pointer hover:text-blue-600" onclick="loadHospitals()">🔄 刷新</span>
+            </div>
+            <p class="text-xs text-gray-400 mb-3">上传档案时"就诊医院"下拉的数据源（每行一个医院名）</p>
+            <textarea id="hospitalsTextarea" rows="6" placeholder="市第一人民医院&#10;市中心医院&#10;省人民医院&#10;..." class="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300 font-mono"></textarea>
+            <div class="flex gap-2 mt-2">
+              <button onclick="saveHospitals()" class="flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">💾 保存</button>
+              <button onclick="loadHospitals()" class="flex-1 py-2 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">↺ 重置</button>
+            </div>
+            <p id="hospitalsResult" class="text-xs text-gray-400 mt-2"></p>
           </div>
 
           <!-- 家务任务管理 -->
@@ -1640,7 +1655,9 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs text-gray-400 mb-1">就诊医院（可选）</label>
-            <input type="text" id="recordHospital" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="如：市第一人民医院">
+            <select id="recordHospital" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white">
+              <option value="">请选择医院...</option>
+            </select>
           </div>
           <div>
             <label class="block text-xs text-gray-400 mb-1">诊所/社康（可选）</label>
@@ -1868,6 +1885,8 @@
         loadDataSourceConfigs();
         loadNotifySettings();
         loadSyncSettings();
+        // v3.7.0 医院配置
+        loadHospitals();
         // v3.4.0 系统管理（原 admin Tab 迁入，仅 admin 加载）
         if (isCurrentUserAdmin()) {
           loadAdminOverview();
@@ -2587,23 +2606,25 @@
       results.forEach(function(r) { if (r.vote_count > maxVotes) maxVotes = r.vote_count; });
       var voteHTML = '';
       if (results.length === 0 || maxVotes === 0) {
-        voteHTML = '<p class="text-sm text-gray-400 text-center py-4">暂无投票，快去投票支持你喜欢的方案吧！</p>';
+        voteHTML = '<p class="text-sm text-gray-400 text-center py-4 col-span-full">暂无投票，快去投票支持你喜欢的方案吧！</p>';
       } else {
+        // 卡片图标映射（v3.7.0）
+        var propIcons = { '公园野餐':'🧺', '博物馆参观':'🏛️', '电影院':'🎬', '爬山':'⛰️', '骑行':'🚴', '烧烤':'🍢', '游泳':'🏊', '游乐园':'🎡' };
         results.forEach(function(r, i) {
           var pct = maxVotes > 0 ? Math.round(r.vote_count / maxVotes * 100) : 0;
           var winStyle = r.winning ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30' : 'border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800';
-          voteHTML += '<div class="flex items-center gap-3 p-3 rounded-lg border ' + winStyle + '">' +
-            '<div class="flex-1">' +
-              '<div class="flex items-center gap-2 mb-1">' +
-                (r.winning ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-500 text-white font-medium">领先</span>' : '<span class="text-xs text-gray-400 dark:text-gray-500">#' + (i+1) + '</span>') +
-                '<span class="text-sm font-medium dark:text-gray-100">' + r.proposal_name + '</span>' +
-              '</div>' +
-              '<div class="mt-1">' + renderVoterAvatars(r.voters) + '</div>' +
+          var icon = r.proposal_icon || propIcons[r.proposal_name] || '🎯';
+          voteHTML += '<div class="tilt-card rounded-xl p-4 shadow-sm border stagger-item ' + winStyle + '">' +
+            '<div class="flex items-center justify-between mb-3">' +
+              (r.winning ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-500 text-white font-medium">领先</span>' : '<span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">#' + (i+1) + '</span>') +
+              '<span class="text-lg font-bold" style="color:' + (r.winning ? 'var(--primary)' : '#6b7280') + '">' + r.vote_count + ' 票</span>' +
             '</div>' +
-            '<div class="text-right">' +
-              '<p class="text-lg font-bold" style="color:' + (r.winning ? 'var(--primary)' : '#6b7280') + '">' + r.vote_count + ' 票</p>' +
+            '<div class="flex items-center gap-2 mb-2">' +
+              '<span class="text-2xl">' + icon + '</span>' +
+              '<span class="text-sm font-medium truncate dark:text-gray-100" title="' + escapeHtml(r.proposal_name) + '">' + escapeHtml(r.proposal_name) + '</span>' +
             '</div>' +
-            '<div class="w-24 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="progress-fill h-full rounded-full" style="background:' + (r.winning ? 'var(--primary)' : '#cbd5e1') + ';width:' + pct + '%"></div></div>' +
+            '<div class="mt-2">' + renderVoterAvatars(r.voters) + '</div>' +
+            '<div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2"><div class="progress-fill h-full rounded-full" style="background:' + (r.winning ? 'var(--primary)' : '#cbd5e1') + ';width:' + pct + '%"></div></div>' +
           '</div>';
         });
       }
@@ -3243,6 +3264,8 @@
         data.members = members;
       }
       var sorted = members.slice().sort(function(a, b) { return b.total - a.total; });
+      // v3.7.0: 周目标（用于排行榜第一行进度条）
+      var weekGoal = data.weekly_goal || 500;
       var rankHTML = '';
       sorted.forEach(function(m, i) {
         var c = memberColors[m.name] || '#6b7280';
@@ -3270,7 +3293,11 @@
             '<div class="bg-orange-50 rounded-lg p-2"><p class="text-xs text-gray-400">劳动</p><p class="text-sm font-semibold text-orange-600">' + m.labor + '</p></div>' +
           '</div>' +
           '<div>' +
-            '<div class="flex justify-between text-xs text-gray-400 mb-1"><span>' + m.level + '</span><span>距「' + m.next_level + '」还需 ' + m.next_need + ' 分</span></div>' +
+            /* v3.7.0: 第一行 —— 周目标进度（动态，跟随周目标） */
+            '<div class="flex justify-between text-xs text-gray-400 mb-1"><span>本周目标</span><span>' + m.total + '/' + weekGoal + ' 分' + (m.total >= weekGoal ? ' ✓ 达成' : '') + '</span></div>' +
+            '<div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-3"><div class="progress-fill h-full rounded-full" style="background:var(--primary);width:' + Math.min(Math.round(m.total / weekGoal * 100), 100) + '%"></div></div>' +
+            /* v3.7.0: 第二行 —— 等级进度（固定阈值体系） */
+            '<div class="flex justify-between text-xs text-gray-400 mb-1"><span>' + m.level + '</span><span>' + (m.next_need === 0 ? '已满级「' + m.level + '」' : '距「' + m.next_level + '」还需 ' + m.next_need + ' 分') + '</span></div>' +
             '<div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div class="progress-fill h-full rounded-full" style="background:' + c + ';width:' + nextPct + '%"></div></div>' +
           '</div>' +
         '</div>';
@@ -3935,50 +3962,33 @@
         return;
       }
 
-      // 单条记录卡片渲染函数
+      // 单条记录卡片渲染函数（v3.7.0: 紧凑单行，展示 时间/分类/医院/文件）
       function recordCardHtml(r) {
         var icon = recordCategoryIcons[r.category] || '📁';
         var catLabel = recordCategoryLabels[r.category] || r.category;
         var memberColor = memberColors[r.member_name] || '#6b7280';
         var isSelected = selectedRecordIds.has(r.id);
         var hasAnalysis = r.is_analyzed === true || r.analysis_status === 'completed';
-        // 就诊信息（仅在有值时显示）
-        var visitInfo = '';
-        if (r.hospital || r.clinic) {
-          var parts = [];
-          if (r.hospital) parts.push('🏥 ' + escapeHtml(r.hospital));
-          if (r.clinic) parts.push('🏠 ' + escapeHtml(r.clinic));
-          visitInfo = '<div class="text-xs text-gray-500 mt-1">📍 ' + parts.join(' · ') + '</div>';
+        // 从文件名提取扩展名作为文件类型标签
+        var fileName = r.file_name || r.title || '未命名档案';
+        var ext = '';
+        var dotIdx = fileName.lastIndexOf('.');
+        if (dotIdx > 0 && dotIdx < fileName.length - 1) {
+          ext = fileName.slice(dotIdx + 1).toUpperCase();
         }
-        var descInfo = '';
-        if (r.description) {
-          descInfo = '<div class="text-xs text-gray-400 mt-1 line-clamp-1">📝 ' + escapeHtml(r.description) + '</div>';
-        }
-        return '<div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3 stagger-item' + (isSelected ? ' ring-2 ring-blue-300' : '') + '">' +
+        return '<div class="bg-white rounded-lg px-3 py-2 shadow-sm border border-gray-100 flex items-center gap-2 stagger-item hover:bg-gray-50 transition' + (isSelected ? ' ring-2 ring-blue-300' : '') + '">' +
           '<input type="checkbox" class="record-cb rounded accent-blue-500 flex-shrink-0" data-id="' + r.id + '" ' + (isSelected ? 'checked' : '') + ' onchange="toggleRecordSelect(' + r.id + ', this)">' +
-          '<div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-xl" style="background:#f0f9ff">' + icon + '</div>' +
-          '<div class="flex-1 min-w-0">' +
-            '<div class="flex items-center gap-2 flex-wrap">' +
-              '<p class="text-sm font-medium truncate">' + escapeHtml(r.file_name || r.title || '未命名档案') + '</p>' +
-              (currentRecordFilter !== 'all' ? '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + memberColor + '18;color:' + memberColor + '">' + escapeHtml(r.member_name || '未知') + '</span>' : '') +
-            '</div>' +
-            '<div class="flex items-center gap-2 mt-1 text-xs text-gray-400">' +
-              '<span>' + escapeHtml(catLabel) + '</span>' +
-              '<span>·</span>' +
-              '<span>' + escapeHtml(r.record_date || '--') + '</span>' +
-              (hasAnalysis ? '<span class="text-purple-500">· 已分析</span>' : '') +
-            '</div>' +
-            visitInfo + descInfo +
-          '</div>' +
-          '<div class="flex items-center gap-2 flex-shrink-0">' +
-            '<button onclick="analyzeSingleRecord(' + r.id + ')" class="text-xs px-2.5 py-1.5 rounded-lg font-medium border border-purple-200 text-purple-600 hover:bg-purple-50 transition" title="AI 分析">' +
-              '<svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>' +
-              ' 分析' +
-            '</button>' +
-            '<button onclick="deleteRecord(' + r.id + ')" class="text-xs text-red-400 hover:text-red-600 transition" title="删除">' +
-              '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>' +
-            '</button>' +
-          '</div>' +
+          '<span class="text-base flex-shrink-0">' + icon + '</span>' +
+          '<span class="text-sm font-medium flex-1 min-w-0 truncate" title="' + escapeHtml(fileName) + '">' + escapeHtml(fileName) + '</span>' +
+          '<span class="text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 hidden md:inline" style="background:' + memberColor + '18;color:' + memberColor + '">' + escapeHtml(catLabel) + '</span>' +
+          '<span class="text-xs text-gray-400 flex-shrink-0 hidden sm:inline">' + escapeHtml(r.record_date || '--') + '</span>' +
+          (r.hospital ? '<span class="text-xs text-gray-500 flex-shrink-0 hidden lg:inline truncate max-w-[120px]" title="' + escapeHtml(r.hospital) + '">🏥 ' + escapeHtml(r.hospital) + '</span>' : '') +
+          (ext ? '<span class="text-[10px] px-1 py-0.5 rounded bg-gray-100 text-gray-500 flex-shrink-0">' + escapeHtml(ext) + '</span>' : '') +
+          (hasAnalysis ? '<span class="text-[10px] px-1 py-0.5 rounded bg-purple-100 text-purple-600 flex-shrink-0">已分析</span>' : '') +
+          '<button onclick="analyzeSingleRecord(' + r.id + ')" class="text-xs px-2 py-1 rounded font-medium border border-purple-200 text-purple-600 hover:bg-purple-50 transition flex-shrink-0" title="AI 分析">分析</button>' +
+          '<button onclick="deleteRecord(' + r.id + ')" class="text-red-400 hover:text-red-600 transition flex-shrink-0" title="删除">' +
+            '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>' +
+          '</button>' +
         '</div>';
       }
 
@@ -4133,7 +4143,50 @@
       document.getElementById('recordDescription').value = '';
       document.getElementById('recordHospital').value = '';
       document.getElementById('recordClinic').value = '';
+      // v3.7.0: 动态加载医院下拉选项
+      loadHospitalOptions();
       showModal('recordUploadModal');
+    }
+
+    // v3.7.0: 就诊医院配置（设置中心）
+    var cachedHospitals = [];
+    function loadHospitals() {
+      authFetch('/api/settings/hospitals').then(function(res) { return res.json(); }).then(function(result) {
+        var list = (result && result.data && result.data.hospitals) || [];
+        cachedHospitals = list;
+        var ta = document.getElementById('hospitalsTextarea');
+        if (ta) ta.value = list.join('\n');
+        var r = document.getElementById('hospitalsResult');
+        if (r) { r.textContent = '已加载 ' + list.length + ' 家医院'; r.style.color = ''; }
+      }).catch(function(e) {
+        var r = document.getElementById('hospitalsResult');
+        if (r) { r.textContent = '加载失败: ' + (e && e.message ? e.message : e); r.style.color = '#ef4444'; }
+      });
+    }
+    function saveHospitals() {
+      var ta = document.getElementById('hospitalsTextarea');
+      if (!ta) return;
+      var list = ta.value.split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
+      authFetch('/api/settings/hospitals', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hospitals: list }) }).then(function(res) { return res.json(); }).then(function(result) {
+        var count = (result && result.data && result.data.count) || list.length;
+        cachedHospitals = (result && result.data && result.data.hospitals) || list;
+        var r = document.getElementById('hospitalsResult');
+        if (r) { r.textContent = '已保存 ' + count + ' 家医院'; r.style.color = '#10b981'; }
+      }).catch(function(e) {
+        var r = document.getElementById('hospitalsResult');
+        if (r) { r.textContent = '保存失败: ' + (e && e.message ? e.message : e); r.style.color = '#ef4444'; }
+      });
+    }
+    // 填充上传表单的医院下拉
+    function loadHospitalOptions() {
+      var sel = document.getElementById('recordHospital');
+      if (!sel) return;
+      var current = sel.value;
+      sel.innerHTML = '<option value="">请选择医院...</option>';
+      cachedHospitals.forEach(function(h) {
+        sel.innerHTML += '<option value="' + escapeHtml(h) + '">' + escapeHtml(h) + '</option>';
+      });
+      if (current) sel.value = current;
     }
 
     function handleRecordFileSelect(input) {
@@ -4771,12 +4824,13 @@
     // 日历事件分类（v3.3.5 妈妈体验优化）：家庭/财务/个人/健康/教育
     function calendarEventCategory(title) {
       var t = (title || '').toLowerCase();
-      if (/账单|还款|信用卡|保险|利率|工资|缴费|水电/.test(t)) return { key: 'finance', label: '财务', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', hideForKid: true };
-      if (/体检|看病|医院|就诊|挂号|复诊|牙|眼/.test(t)) return { key: 'health', label: '健康', cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', hideForKid: false };
-      if (/疫苗|接种|打针/.test(t)) return { key: 'vaccine', label: '疫苗', cls: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300', hideForKid: false };
-      if (/家长会|开学|放假|考试|作业|学校|课|接送/.test(t)) return { key: 'school', label: '学校', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', hideForKid: false };
-      if (/生日|纪念日|结婚|寿辰|满月|百日/.test(t)) return { key: 'anniversary', label: '纪念', cls: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300', hideForKid: false };
-      return { key: 'family', label: '家庭', cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', hideForKid: false };
+      // v3.7.0: 增加 icon 和 color（用于卡片化展示）
+      if (/账单|还款|信用卡|保险|利率|工资|缴费|水电/.test(t)) return { key: 'finance', label: '财务', icon: '💰', color: '#f59e0b', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', hideForKid: true };
+      if (/体检|看病|医院|就诊|挂号|复诊|牙|眼/.test(t)) return { key: 'health', label: '健康', icon: '🏥', color: '#10b981', cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', hideForKid: false };
+      if (/疫苗|接种|打针/.test(t)) return { key: 'vaccine', label: '疫苗', icon: '💉', color: '#14b8a6', cls: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300', hideForKid: false };
+      if (/家长会|开学|放假|考试|作业|学校|课|接送/.test(t)) return { key: 'school', label: '学校', icon: '🎓', color: '#3b82f6', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', hideForKid: false };
+      if (/生日|纪念日|结婚|寿辰|满月|百日/.test(t)) return { key: 'anniversary', label: '纪念', icon: '🎂', color: '#ec4899', cls: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300', hideForKid: false };
+      return { key: 'family', label: '家庭', icon: '🏠', color: '#8b5cf6', cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', hideForKid: false };
     }
 
     function renderCalendarList(events) {
@@ -4824,18 +4878,25 @@
           var imp = e.is_important ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">重要</span>' : '';
           var color = e.color ? '<span class="w-2.5 h-2.5 rounded-full inline-block ring-2 ring-offset-1 dark:ring-offset-gray-800" style="background:' + escapeHtml(e.color) + '"></span>' : '';
           var delBtn = isAdmin ? '<button onclick="event.stopPropagation();deleteCalendarEvent(' + e.id + ')" title="删除" aria-label="删除该日程" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
-          html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3 cursor-pointer hover:shadow-md transition" onclick="showCalendarDetail(' + e.id + ')">' +
-            color +
-            '<span class="text-xs text-gray-400 w-12 flex-shrink-0">' + escapeHtml(e.time || (e.start_time ? e.start_time.slice(11, 16) : '--')) + '</span>' +
-            '<div class="flex-1 min-w-0">' +
-              '<div class="flex items-center gap-2 flex-wrap">' +
-                '<span class="text-sm font-medium truncate dark:text-gray-100">' + escapeHtml(e.title || '') + '</span>' +
-                catBadge +
-                imp +
+          // v3.7.0: 卡片化展示，icon 色块 + 标题 + 时间 + 地点
+          var timeStr = escapeHtml(e.time || (e.start_time ? e.start_time.slice(11, 16) : '--'));
+          html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-md transition" onclick="showCalendarDetail(' + e.id + ')">' +
+            '<div class="flex items-start gap-3">' +
+              '<div class="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0" style="background:' + cat.color + '18">' + cat.icon + '</div>' +
+              '<div class="flex-1 min-w-0">' +
+                '<div class="flex items-center gap-2 flex-wrap mb-1">' +
+                  '<span class="text-sm font-bold truncate dark:text-gray-100" title="' + escapeHtml(e.title || '') + '">' + escapeHtml(e.title || '') + '</span>' +
+                  catBadge +
+                  imp +
+                  color +
+                '</div>' +
+                '<div class="flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500">' +
+                  '<span>🕐 ' + timeStr + '</span>' +
+                  (e.location ? '<span class="truncate">📍 ' + escapeHtml(e.location) + '</span>' : '') +
+                '</div>' +
               '</div>' +
-              (e.location ? '<p class="text-xs text-gray-400 dark:text-gray-500 truncate">📍 ' + escapeHtml(e.location) + '</p>' : '') +
+              delBtn +
             '</div>' +
-            delBtn +
           '</div>';
         });
         html += '</div></div>';
