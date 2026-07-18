@@ -83,6 +83,7 @@
     }
 
     tailwind.config = {
+      darkMode: ['selector', '[class~="dark-mode"]'],
       theme: {
         extend: {
           fontFamily: {
@@ -190,6 +191,22 @@
       50% { opacity: 0.82; transform: scale(1.04); }
     }
     .breathe { animation: breathe 2.5s ease-in-out infinite; }
+
+    /* ==================== 骨架屏 ==================== */
+    .skeleton {
+      background: linear-gradient(90deg, #eee 25%, #f5f5f5 37%, #eee 63%);
+      background-size: 400% 100%;
+      animation: skeleton-loading 1.4s ease infinite;
+      border-radius: 6px;
+    }
+    body.dark-mode .skeleton {
+      background: linear-gradient(90deg, #1e293b 25%, #334155 37%, #1e293b 63%);
+      background-size: 400% 100%;
+    }
+    @keyframes skeleton-loading {
+      0% { background-position: 100% 50%; }
+      100% { background-position: 0 50%; }
+    }
 
     /* ==================== 进度条填充动画 ==================== */
     .progress-fill {
@@ -553,10 +570,14 @@
       .tab-panel { padding-bottom: env(safe-area-inset-bottom, 0); }
     }
 
-    /* 触控设备：去除 hover 闪烁 */
+    /* 触控设备：去除 hover 闪烁 + 按下反馈 + actionBar 常显 */
     @media (hover: none) {
+      * { -webkit-tap-highlight-color: transparent; }
       .hover\:bg-gray-50:hover, .hover\:shadow-md:hover { background: transparent; box-shadow: none; }
       .tilt-card:hover { animation: none; transform: none; }
+      .tilt-card:active, .ripple-btn:active { transform: scale(0.98); transition: transform 0.08s ease; }
+      /* 触屏无 hover，方案编辑/删除按钮强制可见 */
+      .weekend-action-bar { opacity: 1 !important; }
     }
 
     /* 大字体模式（可访问性）：跟随儿童模式放大触控目标 */
@@ -575,15 +596,15 @@
         <span class="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">v3.1</span>
       </div>
       <!-- 中间 Tab 按钮 -->
-      <div class="flex items-center gap-1 md:gap-4 overflow-x-auto hide-scrollbar">
-        <button class="tab-btn active text-sm px-2 md:px-3 py-1" data-tab="home" onclick="switchTab('home')">家庭首页</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="health" onclick="switchTab('health')">健康总览</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="chores" onclick="switchTab('chores')">家务劳动</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="points" onclick="switchTab('points')">积分排行</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="weekend" onclick="switchTab('weekend')">休闲活动</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="records" onclick="switchTab('records')">健康档案</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="news" onclick="switchTab('news')">时事新闻</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="calendar" onclick="switchTab('calendar')">日历行程</button>
+      <div class="flex items-center gap-1 md:gap-4 overflow-x-auto hide-scrollbar" role="tablist" aria-label="主导航">
+        <button class="tab-btn active text-sm px-2 md:px-3 py-1" data-tab="home" role="tab" aria-controls="panel-home" aria-selected="true" onclick="switchTab('home')">家庭首页</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="health" role="tab" aria-controls="panel-health" aria-selected="false" onclick="switchTab('health')">健康总览</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="chores" role="tab" aria-controls="panel-chores" aria-selected="false" onclick="switchTab('chores')">家务劳动</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="points" role="tab" aria-controls="panel-points" aria-selected="false" onclick="switchTab('points')">积分排行</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="weekend" role="tab" aria-controls="panel-weekend" aria-selected="false" onclick="switchTab('weekend')">休闲活动</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="records" role="tab" aria-controls="panel-records" aria-selected="false" onclick="switchTab('records')">健康档案</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="news" role="tab" aria-controls="panel-news" aria-selected="false" onclick="switchTab('news')">时事新闻</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="calendar" role="tab" aria-controls="panel-calendar" aria-selected="false" onclick="switchTab('calendar')">日历行程</button>
       </div>
       <!-- 右侧：更新时间 + 刷新 -->
       <div class="flex items-center gap-2 flex-shrink-0 relative">
@@ -604,7 +625,7 @@
             <button onclick="doLogout()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 dark:hover:bg-gray-700">退出登录</button>
           </div>
         </div>
-        <button id="kidModeBtn" onclick="toggleKidMode()" class="text-xl p-1 rounded-lg hover:bg-gray-100 transition" title="儿童模式">🧒</button>
+        <button id="kidModeBtn" onclick="toggleKidMode()" class="text-xl p-1 rounded-lg hover:bg-gray-100 transition" title="儿童模式" aria-label="切换儿童模式">🧒</button>
         <button onclick="refreshAllData()" class="ripple-btn p-1.5 rounded-lg hover:bg-gray-100 transition" title="刷新数据">
           <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
         </button>
@@ -616,7 +637,7 @@
   <main class="pt-16 pb-8 px-4 md:px-6 max-w-7xl mx-auto">
 
     <!-- ========== Tab 1: 健康总览 ========== -->
-    <div id="panel-health" class="tab-panel">
+    <div id="panel-health" class="tab-panel" role="tabpanel">
       <!-- 概览卡片（4列网格） -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
         <div class="overview-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.05s">
@@ -659,7 +680,7 @@
     </div>
 
     <!-- ========== Tab 2: 家务劳动 ========== -->
-    <div id="panel-chores" class="tab-panel">
+    <div id="panel-chores" class="tab-panel" role="tabpanel">
       <!-- 顶部统计 -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
         <div class="overview-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.05s">
@@ -704,7 +725,7 @@
     </div>
 
     <!-- ========== Tab 3: 积分排行 ========== -->
-    <div id="panel-points" class="tab-panel">
+    <div id="panel-points" class="tab-panel" role="tabpanel">
       <!-- 家庭总积分 + 周目标进度环 -->
       <div class="flex flex-col md:flex-row items-center gap-6 mb-8">
         <div class="flex flex-col items-center">
@@ -742,7 +763,7 @@
     </div>
 
     <!-- ========== Tab 5: 休闲活动 ========== -->
-    <div id="panel-weekend" class="tab-panel">
+    <div id="panel-weekend" class="tab-panel" role="tabpanel">
       <!-- 休闲活动信息栏 -->
       <div class="bg-gradient-to-r from-blue-500 to-cyan-400 rounded-xl p-5 mb-6 text-white stagger-item">
         <div class="flex items-center justify-between flex-wrap gap-3">
@@ -752,7 +773,7 @@
           </div>
           <div id="weekendWeather" class="text-right text-sm">
             <p id="weekendSat">--</p>
-            <p id="weekendSun"--</p>
+            <p id="weekendSun">--</p>
             <p id="weekendTemp" class="opacity-80">--</p>
           </div>
         </div>
@@ -872,7 +893,7 @@
     </div>
 
     <!-- ========== Tab 4: 设置 ========== -->
-    <div id="panel-settings" class="tab-panel">
+    <div id="panel-settings" class="tab-panel" role="tabpanel">
       <div class="max-w-lg mx-auto space-y-6">
         <!-- 成员管理（原独立 Tab，已并入设置） -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
@@ -1000,7 +1021,7 @@
     </div>
 
     <!-- ========== Tab: 健康档案 ========== -->
-    <div id="panel-records" class="tab-panel">
+    <div id="panel-records" class="tab-panel" role="tabpanel">
       <!-- 顶部标题 + 上传按钮 -->
       <div class="flex items-center justify-between mb-4">
         <div>
@@ -1122,7 +1143,7 @@
     </div>
 
     <!-- ========== Tab: 时事新闻 ========== -->
-    <div id="panel-news" class="tab-panel">
+    <div id="panel-news" class="tab-panel" role="tabpanel">
       <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div>
           <h3 class="text-lg font-bold">📰 时事新闻</h3>
@@ -1142,7 +1163,7 @@
     </div>
 
     <!-- ========== Tab: 日历行程 ========== -->
-    <div id="panel-calendar" class="tab-panel">
+    <div id="panel-calendar" class="tab-panel" role="tabpanel">
       <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div>
           <h3 class="text-lg font-bold">📅 日历行程</h3>
@@ -1159,7 +1180,7 @@
     </div>
 
     <!-- ========== Tab: 家庭首页 ========== -->
-    <div id="panel-home" class="tab-panel active">
+    <div id="panel-home" class="tab-panel active" role="tabpanel">
       <div class="mb-4">
         <h3 class="text-lg font-bold">家庭首页</h3>
         <p class="text-xs text-gray-400">实时聚合健康、家务、活动推荐等数据</p>
@@ -1409,7 +1430,9 @@
       document.querySelectorAll('.tab-btn').forEach(function(btn) {
         btn.classList.remove('active');
         btn.classList.add('text-gray-500');
-        if (btn.getAttribute('data-tab') === tabName) {
+        var isSelected = btn.getAttribute('data-tab') === tabName;
+        btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        if (isSelected) {
           btn.classList.add('active');
           btn.classList.remove('text-gray-500');
         }
@@ -2075,6 +2098,34 @@
       }).catch(function(){ currentWeekendData=fallbackWeekend; renderWeekend(fallbackWeekend); });
     }
 
+    // 渲染投票人头像栈：从 window._allMembers 匹配头像，最多3个，超出 +N，无头像回退首字母圆
+    function renderVoterAvatars(voters) {
+      voters = voters || [];
+      if (!voters.length) return '<span class="text-xs text-gray-400 dark:text-gray-500">暂无投票</span>';
+      var all = (typeof window !== 'undefined' && window._allMembers) ? window._allMembers : [];
+      var byName = {};
+      all.forEach(function(m){ byName[m.name] = m; });
+      var max = 3;
+      var shown = voters.slice(0, max);
+      var rest = voters.length - shown.length;
+      var html = '<div class="flex items-center -space-x-1.5">';
+      shown.forEach(function(name) {
+        var m = byName[name];
+        var rc = (m && typeof roleColors !== 'undefined' && roleColors[m.role]) || '#6b7280';
+        var initial = escapeHtml((name || '?').slice(0,1));
+        if (m && m.avatar_url) {
+          html += '<img src="' + escapeHtml(m.avatar_url) + '" alt="' + escapeHtml(name) + '" title="' + escapeHtml(name) + '" class="w-6 h-6 rounded-full object-cover ring-2 ring-white dark:ring-gray-800 bg-gray-100" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;w-6 h-6 rounded-full ring-2 ring-white dark:ring-gray-800 flex items-center justify-center text-[10px] font-bold text-white&quot; style=&quot;background:' + rc + '&quot;>' + initial + '</div>\'">';
+        } else {
+          html += '<div class="w-6 h-6 rounded-full ring-2 ring-white dark:ring-gray-800 flex items-center justify-center text-[10px] font-bold text-white" style="background:' + rc + '" title="' + escapeHtml(name) + '">' + initial + '</div>';
+        }
+      });
+      if (rest > 0) {
+        html += '<div class="w-6 h-6 rounded-full ring-2 ring-white dark:ring-gray-800 flex items-center justify-center text-[10px] font-bold text-white bg-gray-400 dark:bg-gray-600">+' + rest + '</div>';
+      }
+      html += '</div>';
+      return html;
+    }
+
     function renderWeekend(data) {
       document.getElementById('weekendDate').textContent = '📅 ' + (data.weekend_date || '--');
       if (data.weather) {
@@ -2094,15 +2145,14 @@
       } else {
         results.forEach(function(r, i) {
           var pct = maxVotes > 0 ? Math.round(r.vote_count / maxVotes * 100) : 0;
-          var winStyle = r.winning ? 'border-blue-400 bg-blue-50' : 'border-gray-100 bg-white';
-          var voters = (r.voters || []).join('、') || '无人投票';
+          var winStyle = r.winning ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30' : 'border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800';
           voteHTML += '<div class="flex items-center gap-3 p-3 rounded-lg border ' + winStyle + '">' +
             '<div class="flex-1">' +
               '<div class="flex items-center gap-2 mb-1">' +
-                (r.winning ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-500 text-white font-medium">领先</span>' : '<span class="text-xs text-gray-400">#' + (i+1) + '</span>') +
-                '<span class="text-sm font-medium">' + r.proposal_name + '</span>' +
+                (r.winning ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-500 text-white font-medium">领先</span>' : '<span class="text-xs text-gray-400 dark:text-gray-500">#' + (i+1) + '</span>') +
+                '<span class="text-sm font-medium dark:text-gray-100">' + r.proposal_name + '</span>' +
               '</div>' +
-              '<p class="text-xs text-gray-400">' + voters + '</p>' +
+              '<div class="mt-1">' + renderVoterAvatars(r.voters) + '</div>' +
             '</div>' +
             '<div class="text-right">' +
               '<p class="text-lg font-bold" style="color:' + (r.winning ? 'var(--primary)' : '#6b7280') + '">' + r.vote_count + ' 票</p>' +
@@ -2129,15 +2179,15 @@
         var dl = diffLabels[p.difficulty] || p.difficulty;
         var cc = costColors[p.cost] || '#6b7280';
         var catLabel = catLabels[p.category] || p.category;
-        var tagsHTML = (p.tags || []).map(function(t) { return '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + t + '</span>'; }).join(' ');
+        var tagsHTML = (p.tags || []).map(function(t) { return '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">' + t + '</span>'; }).join(' ');
 
         var actionBar = canEditProposal(p) ?
-          '<div class="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10">' +
-            '<button onclick="event.stopPropagation();editProposal(' + p.id + ')" title="编辑" class="w-7 h-7 rounded-full bg-white/95 hover:bg-blue-50 text-blue-600 shadow-sm border border-gray-100 flex items-center justify-center text-xs">✏️</button>' +
-            '<button onclick="event.stopPropagation();deleteProposal(' + p.id + ')" title="删除" class="w-7 h-7 rounded-full bg-white/95 hover:bg-red-50 text-red-500 shadow-sm border border-gray-100 flex items-center justify-center text-xs">🗑️</button>' +
+          '<div class="weekend-action-bar absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10">' +
+            '<button onclick="event.stopPropagation();editProposal(' + p.id + ')" title="编辑" aria-label="编辑方案" class="w-7 h-7 rounded-full bg-white/95 hover:bg-blue-50 text-blue-600 shadow-sm border border-gray-100 flex items-center justify-center text-xs">✏️</button>' +
+            '<button onclick="event.stopPropagation();deleteProposal(' + p.id + ')" title="删除" aria-label="删除方案" class="w-7 h-7 rounded-full bg-white/95 hover:bg-red-50 text-red-500 shadow-sm border border-gray-100 flex items-center justify-center text-xs">🗑️</button>' +
           '</div>' : '';
 
-        propHTML += '<div class="tilt-card group relative bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item">' +
+        propHTML += '<div class="tilt-card group relative bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden stagger-item">' +
           actionBar +
           '<div class="p-4">' +
             '<div class="flex items-start gap-3 mb-3">' +
@@ -2147,8 +2197,8 @@
                 '<div class="flex items-center gap-1.5 mt-1 flex-wrap">' +
                   '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + cc + '18;color:' + cc + '">' + p.cost + '</span>' +
                   '<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:' + dc + '18;color:' + dc + '">' + dl + '</span>' +
-                  '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + p.duration + '</span>' +
-                  '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + catLabel + '</span>' +
+                  '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">' + p.duration + '</span>' +
+                  '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">' + catLabel + '</span>' +
                 '</div>' +
               '</div>' +
             '</div>' +
@@ -2899,6 +2949,10 @@
         if (result.code === 0) {
           currentMembers = Array.isArray(result.data) ? result.data : [];
           window._allMembers = result.data || [];
+          // 成员缓存就绪后，若周末投票已渲染则刷新头像栈（消除首次加载竞态）
+          if (window.currentWeekendData) {
+            try { renderWeekend(window.currentWeekendData); } catch(e) {}
+          }
           updateMemberMaps(currentMembers);
           renderMembersList();
           loadHealthMetrics();
@@ -3471,6 +3525,7 @@
     }
 
     function loadNewsList() {
+      injectSkeleton('newsList', 5);
       fetchWithFallback('/api/news?limit=' + newsCurrentPage.limit + '&offset=' + newsCurrentPage.offset + (newsCurrentCategory !== 'all' ? '&category=' + newsCurrentCategory : ''), null).then(function(data) {
         var list = (data && data.list) || [];
         newsCurrentPage.total = (data && data.total) || 0;
@@ -3487,7 +3542,7 @@
       var html = '';
       cats.forEach(function(c) {
         var label = c === 'all' ? '全部' : (newsCategoryLabels[c] || c);
-        var active = newsCurrentCategory === c ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
+        var active = newsCurrentCategory === c ? 'bg-blue-500 text-white dark:bg-blue-600 dark:text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
         html += '<button onclick="switchNewsCategory(\'' + c + '\')" class="px-2 py-1 rounded-full ' + active + '">' + label + '</button>';
       });
       box.innerHTML = html;
@@ -3512,8 +3567,8 @@
         var catLabel = newsCategoryLabels[n.category] || n.category;
         var catColor = { tech: 'blue', health: 'green', edu: 'purple', life: 'orange', finance: 'indigo', sports: 'red' }[n.category] || 'gray';
         var hotBadge = n.is_hot ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-500 text-white">🔥 热</span>' : '';
-        var img = n.image_url ? '<img src="' + escapeHtml(n.image_url) + '" class="w-16 h-16 rounded object-cover flex-shrink-0" onerror="this.style.display=\'none\'">' : '';
-        var delBtn = isAdmin ? '<button onclick="deleteNews(' + n.id + ')" title="删除" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
+        var img = n.image_url ? '<img src="' + escapeHtml(n.image_url) + '" class="w-16 h-16 rounded object-cover flex-shrink-0 bg-gray-100 dark:bg-gray-700" onerror="this.onerror=null;this.src=\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22><rect width=%2264%22 height=%2264%22 fill=%22%23e5e7eb%22/></svg>\'">' : '';
+        var delBtn = isAdmin ? '<button onclick="deleteNews(' + n.id + ')" title="删除" aria-label="删除该新闻" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
         html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex gap-3">' +
           img +
           '<div class="flex-1 min-w-0">' +
@@ -3596,6 +3651,7 @@
     }
 
     function loadCalendarList() {
+      injectSkeleton('calendarList', 4);
       var now = new Date();
       var from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
       var to = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString().slice(0, 10);
@@ -3611,6 +3667,18 @@
         box.innerHTML = '<div class="text-center py-12 text-sm text-gray-400">暂无日程，可点击「初始化Demo」生成示例数据</div>';
         return;
       }
+      // 相对时间标签 + 星期
+      function relDateLabel(dateStr) {
+        if (!dateStr || dateStr === '未排期') return '未排期';
+        var d = new Date(dateStr + 'T00:00:00');
+        if (isNaN(d.getTime())) return dateStr;
+        var today = new Date(); today.setHours(0,0,0,0);
+        var diff = Math.round((d - today) / 86400000);
+        var weekday = '日一二三四五六'[d.getDay()];
+        var prefix = diff === 0 ? '今天' : diff === 1 ? '明天' : diff === -1 ? '昨天' :
+                     (diff > 1 && diff <= 7) ? '本周' : (diff > 7 && diff <= 14) ? '下周' : '';
+        return (prefix ? prefix + ' · ' : '') + dateStr + ' 周' + weekday;
+      }
       // 按日期分组
       var groups = {};
       events.forEach(function(e) {
@@ -3622,14 +3690,14 @@
       var isAdmin = currentUser && currentUser.role === 'admin';
       var html = '';
       keys.forEach(function(key) {
-        var dayEvents = groups[key];
+        var dayEvents = groups[key].slice().sort(function(a,b){ return (b.is_important?1:0) - (a.is_important?1:0); });
         html += '<div class="mb-3">' +
-          '<div class="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 sticky top-0 bg-gray-50 dark:bg-gray-900 py-1">📅 ' + escapeHtml(key) + ' <span class="text-gray-400 font-normal">(' + dayEvents.length + ')</span></div>' +
+          '<div class="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 sticky top-0 bg-gray-50 dark:bg-gray-900 py-1">📅 ' + escapeHtml(relDateLabel(key)) + ' <span class="text-gray-400 font-normal">(' + dayEvents.length + ')</span></div>' +
           '<div class="space-y-2">';
         dayEvents.forEach(function(e) {
           var imp = e.is_important ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">重要</span>' : '';
-          var color = e.color ? '<span class="w-2 h-2 rounded-full inline-block" style="background:' + escapeHtml(e.color) + '"></span>' : '';
-          var delBtn = isAdmin ? '<button onclick="deleteCalendarEvent(' + e.id + ')" title="删除" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
+          var color = e.color ? '<span class="w-2.5 h-2.5 rounded-full inline-block ring-2 ring-offset-1 dark:ring-offset-gray-800" style="background:' + escapeHtml(e.color) + '"></span>' : '';
+          var delBtn = isAdmin ? '<button onclick="deleteCalendarEvent(' + e.id + ')" title="删除" aria-label="删除该日程" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
           html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3">' +
             color +
             '<span class="text-xs text-gray-400 w-12 flex-shrink-0">' + escapeHtml(e.time || (e.start_time ? e.start_time.slice(11, 16) : '--')) + '</span>' +
@@ -3688,7 +3756,20 @@
     }
 
     // ==================== 大屏展示 ====================
+    // ==================== 骨架屏工具 ====================
+    function injectSkeleton(boxId, rows) {
+      var box = document.getElementById(boxId);
+      if (!box) return;
+      var h = '';
+      for (var i = 0; i < rows; i++) {
+        h += '<div class="flex gap-3 p-4"><div class="skeleton w-16 h-16 rounded"></div><div class="flex-1 space-y-2"><div class="skeleton h-3 w-3/4"></div><div class="skeleton h-3 w-1/2"></div></div></div>';
+      }
+      box.innerHTML = h;
+    }
+
     function loadBigScreen() {
+      var box = document.getElementById('bigscreenContainer');
+      if (box && !box.children.length) box.innerHTML = '<div class="skeleton h-32"></div>';
       fetchWithFallback('/api/dashboard/bigscreen', null).then(function(data) {
         if (data && data.sections) {
           renderBigScreen(data);
@@ -3698,25 +3779,43 @@
 
     // ==================== 成员风采（自画像） ====================
     function loadMemberShowcase() {
+      var box = document.getElementById('memberShowcase');
+      if (box) box.innerHTML = '<div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700"><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><div class="text-center"><div class="skeleton w-16 h-16 rounded-full mx-auto"></div><div class="skeleton h-3 w-12 mx-auto mt-2"></div></div><div class="text-center"><div class="skeleton w-16 h-16 rounded-full mx-auto"></div><div class="skeleton h-3 w-12 mx-auto mt-2"></div></div></div></div>';
       fetchWithFallback('/api/members', null).then(function(members) {
         var box = document.getElementById('memberShowcase');
         if (!box) return;
-        if (!members || !members.length) { box.innerHTML = ''; return; }
-        var html = '<div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">' +
-          '<h4 class="text-base font-bold mb-3 flex items-center gap-2">👨‍👩‍👧‍👦 成员风采</h4>' +
-          '<div class="grid grid-cols-2 md:grid-cols-4 gap-4">';
+        if (!members || !members.length) {
+          box.innerHTML = '<div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 text-center">' +
+            '<div class="text-3xl mb-2">👨‍👩‍👧‍👦</div>' +
+            '<p class="text-sm font-medium text-gray-600 dark:text-gray-300">还没有家庭成员</p>' +
+            '<p class="text-xs text-gray-400 mt-1">添加成员后，这里会展示全家风采</p>' +
+            '<button onclick="switchTab(\'settings\')" class="mt-3 text-xs text-blue-500 hover:text-blue-600 font-medium">去添加成员 →</button>' +
+          '</div>';
+          return;
+        }
+        // 缓存成员供投票头像映射使用
+        window._allMembers = members;
+        var html = '<div class="bg-white dark:bg-gray-800 bs-section rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden stagger-item">' +
+          '<div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">' +
+            '<span class="text-lg">👨‍👩‍👧‍👦</span>' +
+            '<h4 class="text-base font-bold">成员风采</h4>' +
+          '</div>' +
+          '<div class="p-5"><div class="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">';
         members.forEach(function(m) {
           var rc = (typeof roleColors !== 'undefined' && roleColors[m.role]) || '#6b7280';
           var rl = (typeof roleLabels !== 'undefined' && roleLabels[m.role]) || m.role;
           var avatar = m.avatar_url ?
-            '<img src="' + escapeHtml(m.avatar_url) + '" class="w-16 h-16 rounded-full object-cover mx-auto border-2 border-gray-100" onerror="this.outerHTML=\'<div class=&quot;w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl&quot; style=&quot;background:' + rc + '&quot;>' + (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤') + '</div>\'">' :
+            '<img src="' + escapeHtml(m.avatar_url) + '" class="w-16 h-16 rounded-full object-cover mx-auto border-2 border-gray-100 dark:border-gray-700" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl&quot; style=&quot;background:' + rc + '&quot;>' + (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤') + '</div>\'">' :
             '<div class="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl" style="background:' + rc + '">' + (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤') + '</div>';
-          var bio = m.bio ? '<p class="text-xs text-gray-500 mt-1 line-clamp-2">' + escapeHtml(m.bio) + '</p>' : '';
+          var bio = m.bio ? '<p class="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">' + escapeHtml(m.bio) + '</p>' : '';
+          var ageTag = m.age ? '<span class="text-xs text-gray-400 dark:text-gray-500">· ' + escapeHtml(String(m.age)) + '岁</span>' : '';
+          var canEdit = (currentUser && (currentUser.role === 'admin' || currentUser.name === m.name));
+          var editBtn = canEdit ? '<button onclick="switchTab(\'settings\')" aria-label="编辑成员资料" class="mt-1 text-[10px] text-blue-500 hover:text-blue-600">编辑</button>' : '';
           html += '<div class="text-center">' + avatar +
-            '<p class="text-sm font-medium mt-2">' + escapeHtml(m.name) + '</p>' +
-            '<span class="text-xs text-gray-400">' + escapeHtml(rl) + '</span>' + bio + '</div>';
+            '<p class="text-sm font-medium mt-2 flex items-center justify-center gap-1">' + escapeHtml(m.name) + ageTag + '</p>' +
+            '<span class="text-xs text-gray-400 dark:text-gray-500">' + escapeHtml(rl) + '</span>' + bio + editBtn + '</div>';
         });
-        html += '</div></div>';
+        html += '</div></div></div>';
         box.innerHTML = html;
       });
     }
@@ -3839,7 +3938,7 @@
                               idx === 1 ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-gray-300 text-white">🥈 2</span>' :
                                           '<span class="text-xs px-1.5 py-0.5 rounded-full bg-orange-400 text-white">🥉 3</span>';
               // 领先方案：渐变高亮 + 发光边框
-              var cardCls = p.winning ? 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-300 ring-2 ring-blue-300 shadow-md' : 'border-gray-100 bg-white';
+              var cardCls = p.winning ? 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-300 ring-2 ring-blue-300 shadow-md dark:from-gray-800 dark:to-gray-700 dark:border-blue-500' : 'border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800';
               html += '<div class="rounded-lg border p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition ' + cardCls + '" onclick="switchTab(\'weekend\')">' +
                 '<div class="flex items-center gap-2 mb-2">' +
                   '<span class="text-xl">' + (p.icon || '🎯') + '</span>' +
@@ -3849,7 +3948,7 @@
                 '</div>' +
                 '<div class="flex items-center gap-1 flex-wrap mb-2">';
               (p.tags || []).slice(0, 3).forEach(function(t) {
-                html += '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">' + escapeHtml(t) + '</span>';
+                html += '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">' + escapeHtml(t) + '</span>';
               });
               html += '</div>' +
                 // 投票进度条（百分比可视化）
@@ -3880,7 +3979,7 @@
           html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-3">';
           (sec.ranking || []).forEach(function(r, i) {
             var rc = ['#f59e0b', '#94a3b8', '#cd7f32', '#6b7280'][i] || '#6b7280';
-            html += '<div class="text-center p-3 rounded-lg bg-gray-50">' +
+            html += '<div class="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800">' +
               '<div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold mx-auto mb-2" style="background:' + rc + '">' + (i + 1) + '</div>' +
               '<p class="text-sm font-bold">' + r.name + '</p>' +
               '<p class="text-xs text-gray-400">' + r.level + '</p>' +
