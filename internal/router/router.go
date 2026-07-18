@@ -250,6 +250,7 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	// --- 微信机器人（管理员配置） ---
 	adminGroup.PUT("/wechat/test-push", wechat.TestPushHandler)
 	adminGroup.PUT("/wecom/config", wechat.UpdateWeComConfigHandler)
+	adminGroup.GET("/wecom/config", wechat.GetWeComConfigHandler)
 
 	return r
 }

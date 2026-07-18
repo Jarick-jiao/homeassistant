@@ -820,9 +820,22 @@
             <h4 class="text-lg font-bold dark:text-gray-100">🎁 积分兑换商店</h4>
             <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none" onclick="closeRedeemShop()" aria-label="关闭">×</button>
           </div>
-          <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">用做家务和运动攒的积分，兑换家庭小奖励</p>
-          <div id="redeemItems" class="space-y-3"></div>
-          <p class="text-xs text-gray-300 dark:text-gray-600 mt-4 text-center">更多奖励持续上新中</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">用做家务和运动攒的积分，兑换家庭小奖励</p>
+          <div class="flex items-center justify-between mb-3 border-b border-gray-100 dark:border-gray-700 pb-2">
+            <button id="redeemTabShop" class="text-sm font-bold text-purple-600" onclick="switchRedeemTab('shop')">🛒 兑换商店</button>
+            <button id="redeemTabHistory" class="text-sm font-medium text-gray-400" onclick="switchRedeemTab('history')">📜 兑换记录</button>
+          </div>
+          <div id="redeemShopView">
+            <div id="redeemItems" class="space-y-3"></div>
+            <p class="text-xs text-gray-300 dark:text-gray-600 mt-4 text-center">更多奖励持续上新中</p>
+          </div>
+          <div id="redeemHistoryView" class="hidden">
+            <div id="redeemHistoryList" class="space-y-2"></div>
+            <div class="flex gap-2 mt-3">
+              <button onclick="clearRedeemHistory()" class="text-xs text-red-400 hover:underline">🗑️ 清空记录</button>
+            </div>
+            <p class="text-[10px] text-gray-300 dark:text-gray-600 mt-2">⚠️ 兑换记录仅保存在本设备浏览器，积分扣减需后端配套（规划中）。</p>
+          </div>
         </div>
       </div>
 
@@ -972,6 +985,7 @@
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
               新增成员
             </button>
+            <button onclick="exportMembersCSV()" id="memberExportBtn" class="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 hidden">📤 导出CSV</button>
           </div>
           <div id="membersList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
         </div>
@@ -1223,6 +1237,7 @@
           <button onclick="importNewsCSV()" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">📤 导入CSV</button>
           <button onclick="seedDemoNews()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#10b981">🌱 初始化Demo</button>
           <button onclick="clearAllNews()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#ef4444">🗑️ 清空全部</button>
+          <button onclick="exportNewsCSV()" class="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700">📤 导出CSV</button>
         </div>
       </div>
       <div id="newsCategoryFilter" class="flex items-center gap-2 mb-4 flex-wrap text-xs"></div>
@@ -1242,6 +1257,7 @@
           <button onclick="importCalendar()" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">📤 导入CSV</button>
           <button onclick="seedDemoCalendar()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#10b981">🌱 初始化Demo</button>
           <button onclick="clearAllCalendar()" class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#ef4444">🗑️ 清空全部</button>
+          <button onclick="exportCalendarCSV()" class="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700">📤 导出CSV</button>
         </div>
       </div>
       <div id="calendarList" class="space-y-2"></div>
@@ -1287,6 +1303,49 @@
           </div>
           <p class="text-xs text-gray-400 mb-3">定时任务运行状态与手动触发</p>
           <div id="schedulerStatus" class="space-y-2 text-xs"><div class="text-center text-gray-400 py-4">加载中...</div></div>
+        </div>
+      </div>
+
+      <!-- A1 归档查询（v3.3.9） -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 mb-5 border border-gray-100 dark:border-gray-700">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-sm font-bold">🗄️ 归档查询</h4>
+          <span class="text-xs text-blue-500 cursor-pointer" onclick="loadArchiveTables()">🔄 刷新</span>
+        </div>
+        <p class="text-xs text-gray-400 mb-3">历史归档数据浏览（只读）。超过容量上限的旧数据自动归档，可在此查看。</p>
+        <div id="archiveTableList" class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs"><div class="text-center text-gray-400 py-4">加载中...</div></div>
+        <div id="archiveDetailWrap" class="hidden mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+          <div class="flex items-center justify-between mb-2">
+            <h5 id="archiveDetailTitle" class="text-sm font-bold"></h5>
+            <button class="text-xs text-gray-400 hover:text-gray-600" onclick="closeArchiveDetail()">← 返回列表</button>
+          </div>
+          <div id="archiveDetailMeta" class="text-xs text-gray-400 mb-2"></div>
+          <div id="archiveDetailTable" class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700"></div>
+          <div id="archiveDetailPager" class="flex items-center justify-between mt-3 text-xs text-gray-400"></div>
+        </div>
+      </div>
+
+      <!-- A2 微信推送配置（v3.3.9） -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 mb-5 border border-gray-100 dark:border-gray-700">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-sm font-bold">💬 微信推送配置</h4>
+          <span class="text-xs text-blue-500 cursor-pointer" onclick="loadWeComConfig()">🔄 刷新</span>
+        </div>
+        <p class="text-xs text-gray-400 mb-3">企业微信机器人 Webhook 推送配置（仅当前运行时生效，重启后回退至 config.yaml）</p>
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Webhook URL</label>
+            <input id="wecomWebhookInput" type="text" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." class="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
+          </div>
+          <div class="flex items-center justify-between">
+            <label class="text-sm">启用推送</label>
+            <input id="wecomEnableToggle" type="checkbox" class="w-4 h-4 rounded accent-blue-500">
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button onclick="saveWeComConfig()" class="flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">💾 保存配置</button>
+            <button onclick="testWeComPush()" class="flex-1 py-2 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">🔔 测试推送</button>
+          </div>
+          <p id="wecomTestResult" class="text-xs text-gray-400"></p>
         </div>
       </div>
 
@@ -1646,6 +1705,8 @@
         loadAdminOverview();
         loadTokenList();
         loadSchedulerStatus();
+        loadArchiveTables();
+        loadWeComConfig();
       }
     }
 
@@ -2545,6 +2606,73 @@
       });
     }
 
+    // ===== A3 数据导出通用工具（v3.3.9） =====
+    function csvCell(v) {
+      if (v === null || v === undefined) v = '';
+      v = String(v);
+      if (/[",\n\r]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+      return v;
+    }
+    function exportToCSV(filename, headers, rows) {
+      var bom = '\uFEFF';
+      var head = headers.map(function(h){return csvCell(h.label);}).join(',');
+      var body = rows.map(function(row){
+        return headers.map(function(h){return csvCell(row[h.key]);}).join(',');
+      }).join('\n');
+      var csv = bom + head + '\n' + body;
+      var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      showToast('已导出 ' + rows.length + ' 条记录到 ' + filename);
+    }
+    function exportNewsCSV() {
+      showToast('正在导出新闻数据...');
+      authFetch('/api/news?limit=100&offset=0').then(function(r){return r.json();}).then(function(res){
+        var list = (res && res.data && res.data.list) || [];
+        if (!list.length) { showToast('暂无新闻数据'); return; }
+        var headers = [
+          {key:'id',label:'ID'},{key:'category',label:'分类'},{key:'title',label:'标题'},
+          {key:'summary',label:'摘要'},{key:'source',label:'来源'},{key:'source_url',label:'来源URL'},
+          {key:'published_at',label:'发布时间'},{key:'is_hot',label:'热门'},{key:'created_at',label:'创建时间'}
+        ];
+        var d = new Date(); var dateStr = d.getFullYear() + ('0'+(d.getMonth()+1)).slice(-2) + ('0'+d.getDate()).slice(-2);
+        exportToCSV('homemate_news_' + dateStr + '.csv', headers, list);
+        if (list.length >= 100) showToast('已导出最新 100 条（如需更多请联系管理员）');
+      }).catch(function(e){ showToast('导出失败：' + (e.message||'')); });
+    }
+    function exportCalendarCSV() {
+      showToast('正在导出日历数据...');
+      var now = new Date();
+      var from = new Date(now.getFullYear()-1, now.getMonth(), now.getDate()).toISOString().slice(0,10);
+      var to = new Date(now.getFullYear()+1, now.getMonth(), now.getDate()).toISOString().slice(0,10);
+      authFetch('/api/calendar/events?from=' + from + '&to=' + to).then(function(r){return r.json();}).then(function(res){
+        var list = (res && res.data) || [];
+        if (!list.length) { showToast('暂无日历数据'); return; }
+        var headers = [
+          {key:'id',label:'ID'},{key:'title',label:'标题'},{key:'date',label:'日期'},
+          {key:'time',label:'开始时间'},{key:'end_time',label:'结束时间'},{key:'location',label:'地点'},
+          {key:'event_type',label:'类型'},{key:'is_important',label:'重要'},{key:'description',label:'描述'}
+        ];
+        var d = new Date(); var dateStr = d.getFullYear() + ('0'+(d.getMonth()+1)).slice(-2) + ('0'+d.getDate()).slice(-2);
+        exportToCSV('homemate_calendar_' + dateStr + '.csv', headers, list);
+      }).catch(function(e){ showToast('导出失败：' + (e.message||'')); });
+    }
+    function exportMembersCSV() {
+      showToast('正在导出成员数据...');
+      authFetch('/api/members').then(function(r){return r.json();}).then(function(res){
+        var list = (res && res.data) || [];
+        if (!list.length) { showToast('暂无成员数据'); return; }
+        var headers = [
+          {key:'id',label:'ID'},{key:'name',label:'姓名'},{key:'role',label:'角色'},
+          {key:'age',label:'年龄'},{key:'data_source_plugin',label:'数据源插件'},{key:'health_focus',label:'健康关注'}
+        ];
+        var d = new Date(); var dateStr = d.getFullYear() + ('0'+(d.getMonth()+1)).slice(-2) + ('0'+d.getDate()).slice(-2);
+        exportToCSV('homemate_members_' + dateStr + '.csv', headers, list);
+      }).catch(function(e){ showToast('导出失败：' + (e.message||'')); });
+    }
+
     function importCSV(event) {
       var file = event.target.files[0];
       if (!file) return;
@@ -2727,8 +2855,85 @@
       modal.classList.remove('flex');
     }
     function redeemItem(id, name, cost) {
-      showToast('🎁 已申请兑换：' + name + '（-' + cost + '分），待爸妈确认', 'success');
-      closeRedeemShop();
+      showConfirmDialog('确认兑换', '将申请兑换：' + name + '（-' + cost + '分）', '兑换需爸妈确认后正式扣分。积分扣减需后端配套（规划中），当前仅记录申请。', function(){
+        var records = getRedeemRecords();
+        var rec = {
+          id: 'r' + Date.now() + Math.floor(Math.random()*1000),
+          itemId: id, itemName: name, cost: cost,
+          member: (currentUser && currentUser.name) || '未知',
+          createdAt: new Date().toISOString(),
+          status: 'pending'
+        };
+        records.unshift(rec);
+        saveRedeemRecords(records);
+        showToast('已提交兑换申请，待爸妈确认', 'success');
+        switchRedeemTab('history');
+      }, '确认兑换', '#8b5cf6');
+    }
+
+    // ===== A4 积分兑换记录管理（v3.3.9 localStorage 闭环） =====
+    function getRedeemRecords() {
+      try { return JSON.parse(localStorage.getItem('homemate_redeem_records') || '[]'); }
+      catch(e) { return []; }
+    }
+    function saveRedeemRecords(arr) {
+      localStorage.setItem('homemate_redeem_records', JSON.stringify(arr));
+    }
+    function switchRedeemTab(tab) {
+      var shopView = document.getElementById('redeemShopView');
+      var historyView = document.getElementById('redeemHistoryView');
+      var tabShop = document.getElementById('redeemTabShop');
+      var tabHistory = document.getElementById('redeemTabHistory');
+      if (!shopView || !historyView) return;
+      if (tab === 'history') {
+        shopView.classList.add('hidden');
+        historyView.classList.remove('hidden');
+        if (tabShop) { tabShop.classList.remove('text-purple-600','font-bold'); tabShop.classList.add('text-gray-400','font-medium'); }
+        if (tabHistory) { tabHistory.classList.add('text-purple-600','font-bold'); tabHistory.classList.remove('text-gray-400','font-medium'); }
+        renderRedeemHistory();
+      } else {
+        shopView.classList.remove('hidden');
+        historyView.classList.add('hidden');
+        if (tabShop) { tabShop.classList.add('text-purple-600','font-bold'); tabShop.classList.remove('text-gray-400','font-medium'); }
+        if (tabHistory) { tabHistory.classList.remove('text-purple-600','font-bold'); tabHistory.classList.add('text-gray-400','font-medium'); }
+      }
+    }
+    function renderRedeemHistory() {
+      var list = document.getElementById('redeemHistoryList');
+      if (!list) return;
+      var records = getRedeemRecords();
+      if (!records.length) {
+        list.innerHTML = '<div class="text-center text-gray-400 py-6 text-xs">暂无兑换记录</div>';
+        return;
+      }
+      var statusMap = {
+        'pending': {label:'⏳ 待确认', color:'#f59e0b', bg:'#f59e0b20'},
+        'confirmed': {label:'✅ 已确认', color:'#10b981', bg:'#10b98120'},
+        'rejected': {label:'❌ 已驳回', color:'#9ca3af', bg:'#9ca3af20'}
+      };
+      var isAdmin = (currentUser && currentUser.role === 'admin');
+      list.innerHTML = records.map(function(r){
+        var st = statusMap[r.status] || statusMap['pending'];
+        var d = new Date(r.createdAt);
+        var dateStr = (d.getMonth()+1) + '/' + d.getDate() + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+        var actions = '';
+        if (r.status === 'pending' && isAdmin) {
+          actions = '<div class="flex gap-1 mt-1"><button onclick="markRedeemStatus(\'' + r.id + '\',\'confirmed\')" class="text-[10px] px-2 py-0.5 rounded text-white" style="background:#10b981">确认</button><button onclick="markRedeemStatus(\'' + r.id + '\',\'rejected\')" class="text-[10px] px-2 py-0.5 rounded text-white" style="background:#9ca3af">驳回</button></div>';
+        }
+        return '<div class="border border-gray-100 dark:border-gray-700 rounded-lg p-2.5"><div class="flex items-center justify-between"><div><span class="font-medium text-sm">' + escapeHtml(r.itemName) + '</span><span class="text-xs text-red-400 ml-2">-' + r.cost + '分</span></div><span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style="background:'+st.bg+';color:'+st.color+'">' + st.label + '</span></div><div class="text-[10px] text-gray-400 mt-1">' + escapeHtml(r.member) + ' · ' + dateStr + '</div>' + actions + '</div>';
+      }).join('');
+    }
+    function markRedeemStatus(id, status) {
+      var records = getRedeemRecords();
+      var rec = records.find(function(r){return r.id === id;});
+      if (rec) { rec.status = status; saveRedeemRecords(records); renderRedeemHistory(); showToast(status === 'confirmed' ? '已确认兑换' : '已驳回兑换'); }
+    }
+    function clearRedeemHistory() {
+      showConfirmDialog('清空兑换记录', '确认要清空所有兑换记录吗？', '此操作不可恢复，仅清除本设备的记录，不影响实际积分', function(){
+        localStorage.removeItem('homemate_redeem_records');
+        renderRedeemHistory();
+        showToast('已清空兑换记录');
+      });
     }
 
     // ==================== 渲染积分 Tab ====================
@@ -3795,11 +4000,15 @@
     function updateNewsAdminBar() {
       var bar = document.getElementById('newsAdminBar');
       if (!bar) return;
-      if (currentUser && currentUser.role === 'admin') bar.classList.remove('hidden');
+      var isAdmin = (currentUser && currentUser.role === 'admin');
+      if (isAdmin) bar.classList.remove('hidden');
       else bar.classList.add('hidden');
       // v3.3.8 管理Tab按钮可见性同步
       var adminTabBtn = document.getElementById('adminTabBtn');
-      if (adminTabBtn) adminTabBtn.classList.toggle('hidden', !(currentUser && currentUser.role === 'admin'));
+      if (adminTabBtn) adminTabBtn.classList.toggle('hidden', !isAdmin);
+      // v3.3.9 成员导出按钮可见性同步
+      var memberExportBtn = document.getElementById('memberExportBtn');
+      if (memberExportBtn) memberExportBtn.classList.toggle('hidden', !isAdmin);
     }
 
     // ==================== 管理中心（v3.3.8） ====================
@@ -3900,6 +4109,124 @@
           setTimeout(loadSchedulerStatus, 1000);
         }).catch(function(){ showToast('触发失败'); });
       });
+    }
+
+    // ===== A1 归档查询（v3.3.9） =====
+    var archiveCurrent = {table:'', limit:50, offset:0, total:0};
+    function loadArchiveTables() {
+      var list = document.getElementById('archiveTableList');
+      list.innerHTML = '<div class="text-center text-gray-400 py-4">加载中...</div>';
+      document.getElementById('archiveDetailWrap').classList.add('hidden');
+      authFetch('/api/archive').then(function(r){return r.json();}).then(function(res){
+        var tables = (res && res.data && res.data.tables) || [];
+        if (!tables.length) { list.innerHTML = '<div class="text-center text-gray-400 py-4">暂无归档表</div>'; return; }
+        list.innerHTML = tables.map(function(t){
+          var pct = t.cap > 0 ? Math.min(100, Math.round((t.active_count / t.cap) * 100)) : 0;
+          var color = pct > 80 ? '#ef4444' : (pct > 50 ? '#f59e0b' : '#10b981');
+          return '<div class="border border-gray-100 dark:border-gray-700 rounded-lg p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onclick="openArchiveDetail(\'' + t.table + '\')">' +
+            '<div class="flex items-center justify-between mb-1"><span class="font-mono font-bold text-sm">' + escapeHtml(t.table) + '</span><span class="text-[10px] px-1.5 py-0.5 rounded-full" style="background:'+color+'20;color:'+color+'">' + pct + '%</span></div>' +
+            '<div class="flex items-center gap-3 text-gray-400"><span>活跃 ' + (t.active_count||0) + '</span><span>归档 ' + (t.archived_count||0) + '</span><span>上限 ' + (t.cap||0) + '</span></div>' +
+            '<div class="mt-1.5 h-1 bg-gray-100 dark:bg-gray-700 rounded overflow-hidden"><div style="width:'+pct+'%;background:'+color+';height:100%"></div></div>' +
+            '</div>';
+        }).join('');
+      }).catch(function(e){
+        list.innerHTML = '<div class="text-center text-red-400 py-4">加载失败（需管理员权限）<br><span class="text-[10px]">' + escapeHtml(e.message||'') + '</span></div>';
+      });
+    }
+    function openArchiveDetail(table) {
+      archiveCurrent.table = table;
+      document.getElementById('archiveTableList').classList.add('hidden');
+      document.getElementById('archiveDetailWrap').classList.remove('hidden');
+      document.getElementById('archiveDetailTitle').textContent = '📦 ' + table;
+      loadArchivePage(table, 1);
+    }
+    function loadArchivePage(table, page) {
+      archiveCurrent.offset = (page - 1) * archiveCurrent.limit;
+      var wrap = document.getElementById('archiveDetailTable');
+      var pager = document.getElementById('archiveDetailPager');
+      var meta = document.getElementById('archiveDetailMeta');
+      wrap.innerHTML = '<div class="text-center text-gray-400 py-4">加载中...</div>';
+      pager.innerHTML = '';
+      authFetch('/api/archive/' + table + '?limit=' + archiveCurrent.limit + '&offset=' + archiveCurrent.offset).then(function(r){return r.json();}).then(function(res){
+        var data = (res && res.data) || {};
+        var rows = data.list || [];
+        archiveCurrent.total = data.total || 0;
+        if (!rows.length) {
+          wrap.innerHTML = '<div class="text-center text-gray-400 py-4">暂无归档记录</div>';
+          meta.textContent = '活跃 ' + (data.active_count||0) + ' · 归档 0 条';
+          return;
+        }
+        var keys = Object.keys(rows[0]);
+        var html = '<table class="w-full text-xs"><thead><tr class="bg-gray-50 dark:bg-gray-700">' + keys.map(function(k){return '<th class="px-2 py-1.5 text-left font-medium whitespace-nowrap">' + escapeHtml(k) + '</th>';}).join('') + '</tr></thead><tbody>';
+        rows.forEach(function(row){
+          html += '<tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">' + keys.map(function(k){
+            var v = row[k]; if (v === null || v === undefined) v = '';
+            if (typeof v === 'object') v = JSON.stringify(v);
+            return '<td class="px-2 py-1 whitespace-nowrap' + (k==='archived_at'?' text-blue-500':'') + '">' + escapeHtml(String(v)) + '</td>';
+          }).join('') + '</tr>';
+        });
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+        meta.textContent = '活跃 ' + (data.active_count||0) + ' · 归档 ' + archiveCurrent.total + ' 条 · 时间列 ' + (data.time_column||'-');
+        var totalPages = Math.ceil(archiveCurrent.total / archiveCurrent.limit) || 1;
+        pager.innerHTML = '<span>共 ' + archiveCurrent.total + ' 条 · ' + (archiveCurrent.offset+1) + '-' + Math.min(archiveCurrent.offset+archiveCurrent.limit, archiveCurrent.total) + '</span>' +
+          '<span class="flex gap-2"><button class="' + (page<=1?'text-gray-300 cursor-not-allowed':'text-blue-500 cursor-pointer') + '" ' + (page<=1?'disabled':'onclick="archivePrevPage()"') + '>‹ 上一页</button><span>' + page + '/' + totalPages + '</span><button class="' + (page>=totalPages?'text-gray-300 cursor-not-allowed':'text-blue-500 cursor-pointer') + '" ' + (page>=totalPages?'disabled':'onclick="archiveNextPage()"') + '>下一页 ›</button></span>';
+      }).catch(function(e){
+        wrap.innerHTML = '<div class="text-center text-red-400 py-4">加载失败：' + escapeHtml(e.message||'') + '</div>';
+      });
+    }
+    function archivePrevPage() { if (archiveCurrent.offset >= archiveCurrent.limit) loadArchivePage(archiveCurrent.table, Math.floor(archiveCurrent.offset / archiveCurrent.limit)); }
+    function archiveNextPage() { if (archiveCurrent.offset + archiveCurrent.limit < archiveCurrent.total) loadArchivePage(archiveCurrent.table, Math.floor(archiveCurrent.offset / archiveCurrent.limit) + 2); }
+    function closeArchiveDetail() {
+      document.getElementById('archiveDetailWrap').classList.add('hidden');
+      document.getElementById('archiveTableList').classList.remove('hidden');
+    }
+
+    // ===== A2 微信配置（v3.3.9） =====
+    function loadWeComConfig() {
+      var input = document.getElementById('wecomWebhookInput');
+      var toggle = document.getElementById('wecomEnableToggle');
+      var result = document.getElementById('wecomTestResult');
+      if (!input) return;
+      authFetch('/api/wecom/config').then(function(r){
+        if (r.status === 404) { result.textContent = '⚠️ 接口未注册，请重启后端后重试'; return null; }
+        return r.json();
+      }).then(function(res){
+        if (!res) return;
+        var data = res.data || res;
+        input.value = data.webhook_url || '';
+        toggle.checked = !!data.enable_push;
+        result.textContent = '已加载当前配置';
+      }).catch(function(e){
+        result.textContent = '⚠️ 加载失败：' + (e.message || '接口未注册，请重启后端');
+      });
+    }
+    function saveWeComConfig() {
+      var input = document.getElementById('wecomWebhookInput');
+      var toggle = document.getElementById('wecomEnableToggle');
+      var result = document.getElementById('wecomTestResult');
+      authFetch('/api/wecom/config', {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({webhook_url: input.value, enable_push: toggle.checked})
+      }).then(function(r){return r.json();}).then(function(res){
+        if (res.code === 0) { showToast('配置已保存（运行时）'); result.textContent = '✅ 已保存（运行时生效，重启后回退至 config.yaml）'; }
+        else { showToast(res.message || '保存失败'); result.textContent = '❌ ' + (res.message || '保存失败'); }
+      }).catch(function(e){ showToast('保存失败'); result.textContent = '❌ ' + (e.message||''); });
+    }
+    function testWeComPush() {
+      var result = document.getElementById('wecomTestResult');
+      result.textContent = '推送中...';
+      authFetch('/api/wechat/test-push', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})}).then(function(r){return r.json();}).then(function(res){
+        if (res.code === 0) {
+          var data = res.data || {};
+          result.textContent = '✅ ' + (res.message || '推送成功') + (data.webhook_configured !== undefined ? ' · webhook_configured=' + data.webhook_configured : '');
+          showToast('推送成功');
+        } else {
+          result.textContent = '❌ ' + (res.message || '推送失败');
+          showToast(res.message || '推送失败');
+        }
+      }).catch(function(e){ result.textContent = '❌ 推送失败：' + (e.message||''); showToast('推送失败'); });
     }
 
     // ===== 通用确认对话框（危险操作二次确认） =====
