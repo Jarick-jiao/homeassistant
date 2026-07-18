@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/homemate/server/internal/handler/anniversary"
 	"github.com/homemate/server/internal/handler/auth"
 	"github.com/homemate/server/internal/handler/calendar"
 	"github.com/homemate/server/internal/handler/chat"
@@ -12,6 +13,7 @@ import (
 	"github.com/homemate/server/internal/handler/iot"
 	"github.com/homemate/server/internal/handler/member"
 	"github.com/homemate/server/internal/handler/messageboard"
+	"github.com/homemate/server/internal/handler/news"
 	"github.com/homemate/server/internal/handler/notification"
 	"github.com/homemate/server/internal/handler/points"
 	"github.com/homemate/server/internal/handler/records"
@@ -179,13 +181,40 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.GET("/trips", trip.ListTripsHandler)
 	authed.POST("/trips", trip.CreateTripHandler)
 
+	// --- 时事新闻（公开读取） ---
+	api.GET("/news", news.ListNewsHandler)
+	authed.DELETE("/news/:id", middleware.RequireAdmin(), news.DeleteNewsHandler)
+
+	// --- 纪念日（公开读取） ---
+	api.GET("/anniversaries", anniversary.ListAnniversariesHandler)
+	api.GET("/anniversaries/upcoming", anniversary.GetUpcomingAnniversariesHandler)
+	authed.POST("/anniversaries", anniversary.CreateAnniversaryHandler)
+	authed.PUT("/anniversaries/:id", anniversary.UpdateAnniversaryHandler)
+	authed.DELETE("/anniversaries/:id", anniversary.DeleteAnniversaryHandler)
+
+	// --- API Token 管理（管理员） ---
+	adminGroup := authed.Group("")
+	adminGroup.Use(middleware.RequireRole("admin"))
+	adminGroup.GET("/tokens", auth.ListAPITokensHandler)
+	adminGroup.POST("/tokens", auth.CreateAPITokenHandler)
+	adminGroup.DELETE("/tokens/:id", auth.DeleteAPITokenHandler)
+
+	// --- 外部数据写入接口（需 API Token） ---
+	external := api.Group("/external")
+	external.Use(dbInject(db, jwtSecret, sched))
+	external.POST("/news", middleware.APITokenAuth("news:write"), news.CreateNewsHandler)
+	external.POST("/news/batch", middleware.APITokenAuth("news:write"), news.BatchCreateNewsHandler)
+	external.POST("/anniversaries", middleware.APITokenAuth("anniversary:write"), anniversary.CreateAnniversaryHandler)
+	external.PUT("/anniversaries/:id", middleware.APITokenAuth("anniversary:write"), anniversary.UpdateAnniversaryHandler)
+	external.DELETE("/anniversaries/:id", middleware.APITokenAuth("anniversary:write"), anniversary.DeleteAnniversaryHandler)
+	external.POST("/weekend/proposals", middleware.APITokenAuth("weekend:write"), weekend.ExternalAddProposalHandler)
+	external.POST("/calendar/events", middleware.APITokenAuth("calendar:write"), calendar.ExternalCreateEventHandler)
+
 	// --- 微信 ---
 	api.POST("/wechat/callback", wechat.CallbackHandler)
 	api.POST("/wechat/bind", wechat.BindHandler)
 
 	// --- 调度器状态（管理员） ---
-	adminGroup := authed.Group("")
-	adminGroup.Use(middleware.RequireRole("admin"))
 	adminGroup.GET("/scheduler/status", func(c *gin.Context) {
 		if sched == nil {
 			c.JSON(200, gin.H{"running": false, "tasks": []interface{}{}})

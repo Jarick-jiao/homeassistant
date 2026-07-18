@@ -105,6 +105,10 @@ func (s *Scheduler) Start(cfg TaskConfig) {
 	// 日程提醒（每 1 分钟扫描需要提醒的事件）
 	s.wg.Add(1)
 	go s.calendarReminderLoop()
+
+	// 历史数据清理（每日 03:00 执行）
+	s.wg.Add(1)
+	go s.cleanupLoop(3)
 }
 
 // Stop 停止调度器
@@ -149,6 +153,9 @@ func (s *Scheduler) TriggerManual(taskName string) error {
 		return nil
 	case "calendar_reminder":
 		go s.runCalendarReminders()
+		return nil
+	case "cleanup":
+		go s.runCleanup()
 		return nil
 	default:
 		return fmt.Errorf("未知任务: %s", taskName)
@@ -700,5 +707,78 @@ func (s *Scheduler) Status() map[string]interface{} {
 		"running":     s.running,
 		"tasks":       tasks,
 	}
+}
+
+// ============ 历史数据清理 ============
+
+// cleanupLoop 每日指定小时执行清理
+func (s *Scheduler) cleanupLoop(hour int) {
+	defer s.wg.Done()
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case <-ticker.C:
+			now := time.Now()
+			if now.Hour() == hour {
+				s.runCleanup()
+			}
+		}
+	}
+}
+
+// runCleanup 执行历史数据清理
+func (s *Scheduler) runCleanup() {
+	s.lastRuns["cleanup"] = time.Now()
+	log.Println("[CLEANUP] 开始清理历史数据...")
+
+	if s.db == nil {
+		log.Println("[CLEANUP] 数据库不可用，跳过")
+		return
+	}
+
+	ctx := context.Background()
+	now := time.Now()
+	var totalDeleted int64
+
+	// 1. 新闻：30 天前的非热点
+	if n, err := s.db.DeleteNewsBefore(ctx, now.AddDate(0, 0, -30)); err == nil {
+		log.Printf("[CLEANUP] 新闻清理: %d 条", n)
+		totalDeleted += n
+	}
+
+	// 2. 通知：90 天前已读
+	if n, err := s.db.DeleteNotificationsBefore(ctx, now.AddDate(0, 0, -90)); err == nil {
+		log.Printf("[CLEANUP] 通知清理: %d 条", n)
+		totalDeleted += n
+	}
+
+	// 3. 积分记录：180 天前
+	if n, err := s.db.DeletePointsRecordsBefore(ctx, now.AddDate(0, 0, -180)); err == nil {
+		log.Printf("[CLEANUP] 积分记录清理: %d 条", n)
+		totalDeleted += n
+	}
+
+	// 4. 聊天消息：365 天前
+	if n, err := s.db.DeleteChatMessagesBefore(ctx, now.AddDate(0, 0, -365)); err == nil {
+		log.Printf("[CLEANUP] 聊天消息清理: %d 条", n)
+		totalDeleted += n
+	}
+
+	// 5. 留言板：180 天前已读
+	if n, err := s.db.DeleteMessagesBefore(ctx, now.AddDate(0, 0, -180)); err == nil {
+		log.Printf("[CLEANUP] 留言板清理: %d 条", n)
+		totalDeleted += n
+	}
+
+	// 6. 设备数据：90 天前
+	if n, err := s.db.DeleteDeviceDataBefore(ctx, now.AddDate(0, 0, -90)); err == nil {
+		log.Printf("[CLEANUP] 设备数据清理: %d 条", n)
+		totalDeleted += n
+	}
+
+	log.Printf("[CLEANUP] 清理完成，共删除 %d 条历史记录", totalDeleted)
 }
 

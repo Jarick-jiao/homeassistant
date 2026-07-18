@@ -204,10 +204,68 @@ func GetBigScreenHandler(c *gin.Context) {
 	}
 	// 按总积分排序
 	sort.Slice(bigscreenRanking, func(i, j int) bool {
-		return bigscreenRanking[i]["total"].(int) > bigscreenRanking[j]["total"].(int)
+		iv, _ := bigscreenRanking[i]["total"].(int)
+		jv, _ := bigscreenRanking[j]["total"].(int)
+		return iv > jv
 	})
 	for i := range bigscreenRanking {
 		bigscreenRanking[i]["rank"] = i + 1
+	}
+
+	// === 5. 时事新闻板块（最新 5 条）===
+	newsItems := []gin.H{}
+	if db != nil {
+		if list, _, err := db.ListNews(c.Request.Context(), "all", 5, 0); err == nil {
+			for _, n := range list {
+				newsItems = append(newsItems, gin.H{
+					"id":           n.ID,
+					"category":     n.Category,
+					"title":        n.Title,
+					"summary":      n.Summary,
+					"source":       n.Source,
+					"image_url":    n.ImageURL,
+					"published_at": n.PublishedAt.Format("01-02 15:04"),
+					"is_hot":       n.IsHot,
+				})
+			}
+		}
+	}
+
+	// === 6. 家庭日历板块（未来 7 天）===
+	calendarEvents := []gin.H{}
+	if db != nil {
+		from := time.Now().Format("2006-01-02")
+		to := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
+		if events, err := db.ListCalendarEventsByDateRange(c.Request.Context(), from, to); err == nil {
+			for _, e := range events {
+				calendarEvents = append(calendarEvents, gin.H{
+					"id":         e.ID,
+					"title":      e.Title,
+					"date":       e.Date,
+					"time":       e.Time,
+					"location":   e.Location,
+					"event_type": e.EventType,
+				})
+			}
+		}
+	}
+
+	// === 7. 纪念日板块（未来 30 天）===
+	anniversaryItems := []gin.H{}
+	if db != nil {
+		if items, err := db.GetUpcomingAnniversaries(c.Request.Context(), 30); err == nil {
+			for _, a := range items {
+				anniversaryItems = append(anniversaryItems, gin.H{
+					"id":         a.ID,
+					"title":      a.Title,
+					"date":       a.Date,
+					"type":       a.Type,
+					"days_until": a.DaysUntil,
+					"next_date":  a.NextDate,
+					"is_lunar":   a.IsLunar,
+				})
+			}
+		}
 	}
 
 	// === 4. 活动推荐板块 ===
@@ -263,6 +321,24 @@ func GetBigScreenHandler(c *gin.Context) {
 				"weekly_goal":     weeklyGoal,
 				"weekly_progress": weeklyProgress,
 				"ranking":         bigscreenRanking,
+			},
+			{
+				"type":  "news",
+				"title": "时事新闻",
+				"icon":  "📰",
+				"items": newsItems,
+			},
+			{
+				"type":   "calendar",
+				"title":  "家庭日历",
+				"icon":   "📅",
+				"events": calendarEvents,
+			},
+			{
+				"type":         "anniversary",
+				"title":        "纪念日",
+				"icon":         "💝",
+				"anniversaries": anniversaryItems,
 			},
 		},
 	}

@@ -345,6 +345,52 @@ CREATE TABLE IF NOT EXISTS family_settings (
     value TEXT NOT NULL DEFAULT '',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS api_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    scopes TEXT NOT NULL DEFAULT '[]',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME,
+    expires_at DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash, is_active);
+
+CREATE TABLE IF NOT EXISTS news (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL DEFAULT 'tech',
+    title TEXT NOT NULL,
+    summary TEXT DEFAULT '',
+    content TEXT DEFAULT '',
+    source TEXT DEFAULT 'api',
+    source_url TEXT DEFAULT '',
+    image_url TEXT DEFAULT '',
+    published_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_hot INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_category_pub ON news(category, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_source_url ON news(source_url);
+
+CREATE TABLE IF NOT EXISTS anniversaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    date TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'custom',
+    member_id INTEGER DEFAULT 0,
+    description TEXT DEFAULT '',
+    is_lunar INTEGER NOT NULL DEFAULT 0,
+    notify_days INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (member_id) REFERENCES family_members(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_anniversaries_date ON anniversaries(date);
 `
 	if _, err := db.conn.Exec(schema); err != nil {
 		return fmt.Errorf("执行建表语句失败: %w", err)

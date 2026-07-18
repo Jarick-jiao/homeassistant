@@ -3402,6 +3402,17 @@
       });
     }
 
+    // 独立加载函数（供各 Tab 页按需调用）
+    function loadNews() {
+      return fetchWithFallback('/api/news?limit=20', null);
+    }
+    function loadUpcomingCalendar() {
+      return fetchWithFallback('/api/calendar/upcoming', null);
+    }
+    function loadUpcomingAnniversaries() {
+      return fetchWithFallback('/api/anniversaries/upcoming?days=30', null);
+    }
+
     function renderBigScreen(data) {
       var container = document.getElementById('bigscreenContainer');
       if (!container) return;
@@ -3543,6 +3554,77 @@
             '</div>';
           });
           html += '</div>';
+        } else if (sec.type === 'news') {
+          // 时事新闻：最新 5 条列表
+          var items = sec.items || [];
+          if (items.length === 0) {
+            html += '<div class="text-center py-4 text-sm text-gray-400">暂无新闻</div>';
+          } else {
+            html += '<div class="space-y-2">';
+            items.forEach(function(n) {
+              var hotBadge = n.is_hot ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-500 text-white ml-1">热</span>' : '';
+              var img = n.image_url ? '<img src="' + escapeHtml(n.image_url) + '" class="w-12 h-12 rounded object-cover flex-shrink-0" onerror="this.style.display=\'none\'">' : '';
+              html += '<div class="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="switchTab(\'news\')">' +
+                img +
+                '<div class="flex-1 min-w-0">' +
+                  '<div class="flex items-center">' +
+                    '<span class="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">' + escapeHtml(n.category || 'tech') + '</span>' +
+                    hotBadge +
+                    '<span class="text-xs text-gray-400 ml-auto">' + escapeHtml(n.published_at || '') + '</span>' +
+                  '</div>' +
+                  '<p class="text-sm font-medium truncate mt-1">' + escapeHtml(n.title || '') + '</p>' +
+                  (n.summary ? '<p class="text-xs text-gray-500 truncate">' + escapeHtml(n.summary) + '</p>' : '') +
+                '</div>' +
+              '</div>';
+            });
+            html += '</div>';
+            html += '<div class="mt-3 text-center"><button onclick="switchTab(\'news\')" class="text-xs text-blue-500 hover:text-blue-600 font-medium">查看全部新闻 →</button></div>';
+          }
+        } else if (sec.type === 'calendar') {
+          // 家庭日历：未来 7 天事件
+          var events = sec.events || [];
+          if (events.length === 0) {
+            html += '<div class="text-center py-4 text-sm text-gray-400">未来 7 天无日程</div>';
+          } else {
+            html += '<div class="space-y-2">';
+            events.forEach(function(e) {
+              var typeColor = { meeting: '#3b82f6', activity: '#10b981', reminder: '#f59e0b', holiday: '#ef4444' }[e.event_type] || '#6b7280';
+              html += '<div class="flex items-center gap-3 p-2 rounded-lg bg-gray-50 cursor-pointer hover:bg-gray-100" onclick="switchTab(\'calendar\')">' +
+                '<div class="w-1 h-10 rounded-full flex-shrink-0" style="background:' + typeColor + '"></div>' +
+                '<div class="flex-1 min-w-0">' +
+                  '<p class="text-sm font-medium truncate">' + escapeHtml(e.title || '') + '</p>' +
+                  '<p class="text-xs text-gray-400">' + escapeHtml((e.date || '') + ' ' + (e.time || '')) + (e.location ? ' · ' + escapeHtml(e.location) : '') + '</p>' +
+                '</div>' +
+              '</div>';
+            });
+            html += '</div>';
+            html += '<div class="mt-3 text-center"><button onclick="switchTab(\'calendar\')" class="text-xs text-blue-500 hover:text-blue-600 font-medium">查看完整日历 →</button></div>';
+          }
+        } else if (sec.type === 'anniversary') {
+          // 纪念日：未来 30 天倒计时卡片
+          var anns = sec.anniversaries || [];
+          if (anns.length === 0) {
+            html += '<div class="text-center py-4 text-sm text-gray-400">近期无纪念日</div>';
+          } else {
+            html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">';
+            anns.forEach(function(a) {
+              var typeIcon = { birthday: '🎂', wedding: '💍', memorial: '🌸', custom: '💝' }[a.type] || '💝';
+              var daysText = a.days_until === 0 ? '今天' : a.days_until === 1 ? '明天' : '还有 ' + a.days_until + ' 天';
+              var lunarTag = a.is_lunar ? '<span class="text-xs text-orange-500">农历</span>' : '';
+              html += '<div class="rounded-lg border border-pink-100 bg-pink-50/50 p-3 cursor-pointer hover:shadow-md transition" onclick="switchTab(\'anniversary\')">' +
+                '<div class="flex items-center gap-2 mb-1">' +
+                  '<span class="text-xl">' + typeIcon + '</span>' +
+                  '<span class="text-sm font-bold flex-1 truncate">' + escapeHtml(a.title || '') + '</span>' +
+                  lunarTag +
+                '</div>' +
+                '<div class="flex justify-between text-xs">' +
+                  '<span class="text-gray-400">' + escapeHtml(a.next_date || '') + '</span>' +
+                  '<span class="font-semibold text-pink-600">' + daysText + '</span>' +
+                '</div>' +
+              '</div>';
+            });
+            html += '</div>';
+          }
         }
 
         html += '</div></div>';
