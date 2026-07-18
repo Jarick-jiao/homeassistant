@@ -19,12 +19,13 @@ type PointsRecordView struct {
 }
 
 // MemberPointsView 成员积分概览
+// v3.8.0 方案C：三类维度改为按家务难度划分（简单/进阶/挑战），每类都有真实数据
 type MemberPointsView struct {
 	Name      string `json:"name"`
 	Total     int    `json:"total"`
-	Sport     int    `json:"sport"`
-	Health    int    `json:"health"`
-	Labor     int    `json:"labor"`
+	Easy      int    `json:"easy"`   // 简单任务积分
+	Medium    int    `json:"medium"` // 进阶任务积分（中等难度）
+	Hard      int    `json:"hard"`   // 挑战任务积分（困难难度）
 	Level     string `json:"level"`
 	NextLevel string `json:"next_level"`
 	NextNeed  int    `json:"next_need"`
@@ -92,13 +93,13 @@ func GetPointsDashboardHandler(c *gin.Context) {
 	members := make([]MemberPointsView, 0, len(rankings))
 	familyTotal := 0
 	for i, r := range rankings {
-		sport, health, labor, _, err := db.GetPointsByMember(c.Request.Context(), r.Name)
+		easy, medium, hard, _, err := db.GetPointsByMember(c.Request.Context(), r.Name)
 		if err != nil {
-			sport, health, labor = 0, 0, 0
+			easy, medium, hard = 0, 0, 0
 		}
 		level, nextLevel, nextNeed := getLevel(r.Total)
 		members = append(members, MemberPointsView{
-			Name: r.Name, Total: r.Total, Sport: sport, Health: health, Labor: labor,
+			Name: r.Name, Total: r.Total, Easy: easy, Medium: medium, Hard: hard,
 			Level: level, NextLevel: nextLevel, NextNeed: nextNeed, Rank: i + 1,
 		})
 		familyTotal += r.Total

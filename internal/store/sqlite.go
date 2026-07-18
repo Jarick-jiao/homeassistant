@@ -505,6 +505,18 @@ func (db *DB) migrate() error {
 			log.Printf("[INFO] v3.6.0 迁移：已从 family_members 移除 %d 条 admin 成员记录", removed)
 		}
 	}
+
+	// v3.8.0 方案C：积分分类从"运动/健康/劳动"改为按家务难度"简单/中等/困难"
+	// 将旧记录 type_label='劳动' 统一迁移为'简单'（旧记录无法追溯具体难度，简单任务占多数）
+	if _, err := db.conn.Exec("UPDATE points_records SET type_label='简单' WHERE pts_type='chorse' AND type_label='劳动'"); err != nil {
+		log.Printf("[WARN] 迁移：points_records type_label '劳动'→'简单' 失败: %v", err)
+	} else {
+		var updated int
+		db.conn.QueryRow("SELECT changes()").Scan(&updated)
+		if updated > 0 {
+			log.Printf("[INFO] v3.8.0 迁移：已将 %d 条积分记录 type_label 从'劳动'迁移为'简单'", updated)
+		}
+	}
 	return nil
 }
 
@@ -943,11 +955,16 @@ func (db *DB) AddPointsRecord(ctx context.Context, memberName, ptsType, typeLabe
 	return err
 }
 
-// GetPointsByMember 获取成员总积分（按类型分组）
-func (db *DB) GetPointsByMember(ctx context.Context, memberName string) (total, sport, health, labor int, err error) {
+// GetPointsByMember 获取成员总积分（按家务难度分组：简单/中等/困难）
+// v3.8.0 方案C：三类积分维度改为按任务难度划分，每类都有真实数据支撑
+func (db *DB) GetPointsByMember(ctx context.Context, memberName string) (total, easy, medium, hard int, err error) {
 	err = db.conn.QueryRowContext(ctx,
-		"SELECT COALESCE(SUM(points),0), COALESCE(SUM(CASE WHEN pts_type='exercise' THEN points ELSE 0 END),0), COALESCE(SUM(CASE WHEN pts_type='health' THEN points ELSE 0 END),0), COALESCE(SUM(CASE WHEN pts_type='chorse' THEN points ELSE 0 END),0) FROM points_records WHERE member_name=?",
-		memberName).Scan(&total, &sport, &health, &labor)
+		"SELECT COALESCE(SUM(points),0), "+
+			"COALESCE(SUM(CASE WHEN type_label='简单' THEN points ELSE 0 END),0), "+
+			"COALESCE(SUM(CASE WHEN type_label='中等' THEN points ELSE 0 END),0), "+
+			"COALESCE(SUM(CASE WHEN type_label='困难' THEN points ELSE 0 END),0) "+
+			"FROM points_records WHERE member_name=?",
+		memberName).Scan(&total, &easy, &medium, &hard)
 	return
 }
 
@@ -1165,10 +1182,15 @@ func (db *DB) ConfirmChorseClaim(ctx context.Context, claimID, confirmerID int64
 		return nil, err
 	}
 
-	// 联动积分
+	// v3.8.0 方案C：查询任务难度，作为积分分类标签（简单/中等/困难）
+	var difficulty string
+	if err := tx.QueryRowContext(ctx, "SELECT COALESCE(difficulty,'简单') FROM chorse_tasks WHERE id=?", claim.TaskID).Scan(&difficulty); err != nil {
+		difficulty = "简单" // 查不到任务时默认简单
+	}
+	// 联动积分：type_label 存储难度，便于按维度统计
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO points_records (member_name, pts_type, type_label, title, points) VALUES (?, 'chorse', '劳动', ?, ?)",
-		claim.MemberName, claim.TaskName, claim.Points)
+		"INSERT INTO points_records (member_name, pts_type, type_label, title, points) VALUES (?, 'chorse', ?, ?, ?)",
+		claim.MemberName, difficulty, claim.TaskName, claim.Points)
 	if err != nil {
 		return nil, err
 	}

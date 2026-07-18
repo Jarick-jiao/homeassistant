@@ -692,7 +692,6 @@
       <!-- 中间 Tab 按钮（flex-1 占据剩余空间，min-w-0 允许收缩，overflow-x-auto 横向滚动） -->
       <div class="flex-1 min-w-0 flex items-center gap-1 md:gap-3 overflow-x-auto hide-scrollbar" role="tablist" aria-label="主导航">
         <button class="tab-btn active text-sm px-2 md:px-3 py-1" data-tab="home" role="tab" aria-controls="panel-home" aria-selected="true" onclick="switchTab('home')">首页</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="health" role="tab" aria-controls="panel-health" aria-selected="false" onclick="switchTab('health')">健康</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="chores" role="tab" aria-controls="panel-chores" aria-selected="false" onclick="switchTab('chores')">劳动</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="points" role="tab" aria-controls="panel-points" aria-selected="false" onclick="switchTab('points')">积分</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="weekend" role="tab" aria-controls="panel-weekend" aria-selected="false" onclick="switchTab('weekend')">休闲</button>
@@ -731,50 +730,7 @@
   <!-- ==================== 主内容区域 ==================== -->
   <main class="pt-16 pb-8 px-4 md:px-6 max-w-7xl mx-auto">
 
-    <!-- ========== Tab 1: 健康总览 ========== -->
-    <div id="panel-health" class="tab-panel" role="tabpanel">
-      <!-- 概览卡片（4列网格） -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-        <div class="overview-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.05s">
-          <div class="flex items-center justify-between">
-            <div><p class="text-xs text-gray-400">家庭成员</p><p id="statMembers" class="text-2xl font-bold mt-1">0</p></div>
-            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#eff6ff;color:#3b82f6">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            </div>
-          </div>
-        </div>
-        <div class="overview-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.1s">
-          <div class="flex items-center justify-between">
-            <div><p class="text-xs text-gray-400">平均步数</p><p id="statSteps" class="text-2xl font-bold mt-1">0</p></div>
-            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#ecfdf5;color:#10b981">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            </div>
-          </div>
-        </div>
-        <div class="overview-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.15s">
-          <div class="flex items-center justify-between">
-            <div><p class="text-xs text-gray-400">平均睡眠</p><p id="statSleep" class="text-2xl font-bold mt-1">0h</p></div>
-            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#f5f3ff;color:#8b5cf6">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-            </div>
-          </div>
-        </div>
-        <div class="overview-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.2s">
-          <div class="flex items-center justify-between">
-            <div><p class="text-xs text-gray-400">异常提醒</p><p id="statAlerts" class="text-2xl font-bold mt-1">0</p></div>
-            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#fffbeb;color:#f59e0b">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 个人健康卡片区域 -->
-      <h3 class="text-lg font-bold mb-4 stagger-item" style="animation-delay:0.25s">家庭成员健康</h3>
-      <div id="membersContainer" class="space-y-4"></div>
-    </div>
-
-    <!-- ========== Tab 2: 家务劳动 ========== -->
+    <!-- ========== Tab: 家务劳动 ========== -->
     <div id="panel-chores" class="tab-panel" role="tabpanel">
       <!-- 合并卡片：今日劳动概览 + 成员贡献排行 -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-5 mb-6">
@@ -924,47 +880,75 @@
       <div id="pointsFeed"></div>
     </div>
 
-    <!-- ========== Tab 5: 休闲活动 ========== -->
+    <!-- ========== Tab 5: 休闲活动（v3.8.0 重设计） ========== -->
     <div id="panel-weekend" class="tab-panel" role="tabpanel">
-      <!-- 休闲活动信息栏 -->
-      <div class="bg-gradient-to-r from-blue-500 to-cyan-400 rounded-xl p-5 mb-6 text-white stagger-item">
-        <div class="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h3 class="text-lg font-bold">🎯 休闲活动计划</h3>
-            <p id="weekendDate" class="text-sm opacity-90 mt-1">--</p>
+      <!-- 沉浸式 Hero 信息栏 -->
+      <div class="relative overflow-hidden rounded-2xl mb-6 stagger-item shadow-lg">
+        <!-- 渐变背景层 -->
+        <div class="absolute inset-0 bg-gradient-to-br from-indigo-500 via-blue-500 to-cyan-400"></div>
+        <!-- 装饰圆 -->
+        <div class="absolute -top-12 -right-12 w-48 h-48 bg-white/10 rounded-full blur-2xl"></div>
+        <div class="absolute -bottom-16 -left-16 w-56 h-56 bg-purple-300/20 rounded-full blur-3xl"></div>
+        <!-- 内容层 -->
+        <div class="relative p-5 md:p-6 text-white">
+          <div class="flex items-start justify-between flex-wrap gap-4">
+            <div class="flex-1 min-w-[220px]">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-2xl">🎯</span>
+                <h3 class="text-xl font-bold">周末休闲计划</h3>
+              </div>
+              <p id="weekendDate" class="text-sm opacity-90">📅 --</p>
+              <div id="weekendWeather" class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs">
+                <span id="weekendSat" class="opacity-90">周六: --</span>
+                <span id="weekendSun" class="opacity-90">周日: --</span>
+                <span id="weekendTemp" class="opacity-75">--</span>
+              </div>
+            </div>
+            <!-- 统计胶囊 -->
+            <div class="flex gap-2">
+              <div class="bg-white/20 backdrop-blur rounded-xl px-3 py-2 text-center min-w-[64px]">
+                <p id="weekendStatProposals" class="text-xl font-bold leading-tight">0</p>
+                <p class="text-[10px] opacity-80">方案</p>
+              </div>
+              <div class="bg-white/20 backdrop-blur rounded-xl px-3 py-2 text-center min-w-[64px]">
+                <p id="weekendStatVotes" class="text-xl font-bold leading-tight">0</p>
+                <p class="text-[10px] opacity-80">总票数</p>
+              </div>
+              <div class="bg-white/20 backdrop-blur rounded-xl px-3 py-2 text-center min-w-[64px]">
+                <p id="weekendStatVoters" class="text-xl font-bold leading-tight">0</p>
+                <p class="text-[10px] opacity-80">参与人</p>
+              </div>
+            </div>
           </div>
-          <div id="weekendWeather" class="text-right text-sm">
-            <p id="weekendSat">--</p>
-            <p id="weekendSun">--</p>
-            <p id="weekendTemp" class="opacity-80">--</p>
+          <p id="weekendAdvice" class="text-sm mt-4 bg-white/20 backdrop-blur rounded-lg px-3 py-2 inline-block">💡 --</p>
+          <!-- 快捷操作 -->
+          <div class="flex flex-wrap gap-2 mt-4">
+            <button onclick="openProposalForm()" class="ripple-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-white text-blue-600 hover:bg-blue-50 transition shadow-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              推荐方案
+            </button>
+            <button onclick="downloadCSVTemplate()" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm bg-white/20 hover:bg-white/30 transition backdrop-blur">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              下载模板
+            </button>
+            <label class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm bg-white/20 hover:bg-white/30 transition backdrop-blur cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+              导入CSV
+              <input type="file" accept=".csv" onchange="importCSV(event)" class="hidden">
+            </label>
           </div>
         </div>
-        <p id="weekendAdvice" class="text-sm mt-3 bg-white/20 rounded-lg px-3 py-1.5">--</p>
       </div>
 
       <!-- 投票结果实时排行 -->
-      <h3 class="text-lg font-bold mb-3">📊 投票排行</h3>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-bold">📊 投票排行</h3>
+        <span class="text-xs text-gray-400">按票数排序，实时更新</span>
+      </div>
       <div id="voteResults" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6"></div>
 
       <!-- 出行方案列表 -->
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="text-lg font-bold">🎯 推荐方案</h3>
-        <button onclick="openProposalForm()" class="ripple-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          推荐方案
-        </button>
-        <div class="flex gap-2 mt-2">
-          <button onclick="downloadCSVTemplate()" class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-            下载模板
-          </button>
-          <label class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg cursor-pointer border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-green-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-            导入CSV
-            <input type="file" accept=".csv" onchange="importCSV(event)" class="hidden">
-          </label>
-        </div>
-      </div>
+      <h3 class="text-lg font-bold mb-3">🎯 推荐方案</h3>
       <div id="proposalsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"></div>
 
       <!-- 投票成员选择对话框 -->
@@ -1600,6 +1584,36 @@
         <p class="text-xs text-gray-400">实时聚合健康、家务、活动推荐等数据</p>
       </div>
       <div id="memberShowcase" class="mb-6"></div>
+
+      <!-- ========== 家庭健康总览（合并自原健康 Tab，v3.8.0） ========== -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-5 mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-bold">❤️ 家庭健康总览</h3>
+          <span class="text-xs text-gray-400">实时聚合成员健康指标</span>
+        </div>
+        <!-- 概览统计（4列） -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-5">
+          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
+            <p class="text-[10px] text-gray-400">家庭成员</p>
+            <p id="statMembers" class="text-xl font-bold mt-1" style="color:#3b82f6">0</p>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
+            <p class="text-[10px] text-gray-400">平均步数</p>
+            <p id="statSteps" class="text-xl font-bold mt-1" style="color:#10b981">0</p>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
+            <p class="text-[10px] text-gray-400">平均睡眠</p>
+            <p id="statSleep" class="text-xl font-bold mt-1" style="color:#8b5cf6">0h</p>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
+            <p class="text-[10px] text-gray-400">异常提醒</p>
+            <p id="statAlerts" class="text-xl font-bold mt-1" style="color:#f59e0b">0</p>
+          </div>
+        </div>
+        <!-- 成员健康卡片 -->
+        <div id="membersContainer" class="space-y-3"></div>
+      </div>
+
       <div id="bigscreenContainer" class="space-y-6"></div>
     </div>
   </main>
@@ -2193,18 +2207,18 @@
             '<div class="grid grid-cols-4 gap-2 mt-4">' + previewHTML + '</div>' +
             '<div class="metric-expand-area' + (isExpanded ? ' open' : '') + '" id="expand-' + escapeHtml(member.name) + '">' +
               '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">' + expandedHTML + '</div>' +
-              '<div class="mt-4">' +
-                '<button class="ripple-btn text-xs px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition" onclick="showCustomForm(' + idx + ', this)">+ 添加自定义指标</button>' +
-                '<div id="customForm-' + idx + '" data-member-name="' + escapeHtml(member.name) + '" class="hidden mt-3" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">' +
-                  '<select id="customType-' + idx + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5">' +
-                    '<option value="">选择指标...</option><option value="血糖">血糖</option><option value="体温">体温</option><option value="腰围">腰围</option><option value="臀围">臀围</option><option value="视力">视力</option><option value="BMI">BMI</option><option value="__custom">自定义</option>' +
-                  '</select>' +
-                  '<input id="customName-' + idx + '" style="display:none" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-24" placeholder="指标名称">' +
-                  '<input id="customVal-' + idx + '" type="number" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-20" placeholder="数值">' +
-                  '<input id="customUnit-' + idx + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-16" placeholder="单位">' +
-                  '<button onclick="addCustomMetric(' + idx + ')" class="ripple-btn text-xs px-3 py-1.5 rounded-lg text-white" style="background:var(--primary)">添加</button>' +
-                  '<button onclick="hideCustomForm(' + idx + ')" class="text-xs px-2 py-1.5 text-gray-400 hover:text-gray-600">取消</button>' +
-                '</div>' +
+            '</div>' +
+            '<div class="mt-4">' +
+              '<button class="ripple-btn text-xs px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition" onclick="showCustomForm(' + idx + ', this)">+ 添加自定义指标</button>' +
+              '<div id="customForm-' + idx + '" data-member-name="' + escapeHtml(member.name) + '" class="hidden mt-3" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">' +
+                '<select id="customType-' + idx + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5">' +
+                  '<option value="">选择指标...</option><option value="血糖">血糖</option><option value="体温">体温</option><option value="腰围">腰围</option><option value="臀围">臀围</option><option value="视力">视力</option><option value="BMI">BMI</option><option value="__custom">自定义</option>' +
+                '</select>' +
+                '<input id="customName-' + idx + '" style="display:none" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-24" placeholder="指标名称">' +
+                '<input id="customVal-' + idx + '" type="number" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-20" placeholder="数值">' +
+                '<input id="customUnit-' + idx + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-16" placeholder="单位">' +
+                '<button onclick="addCustomMetric(' + idx + ')" class="ripple-btn text-xs px-3 py-1.5 rounded-lg text-white" style="background:var(--primary)">添加</button>' +
+                '<button onclick="hideCustomForm(' + idx + ')" class="text-xs px-2 py-1.5 text-gray-400 hover:text-gray-600">取消</button>' +
               '</div>' +
             '</div>' +
           '</div>' +
@@ -2594,37 +2608,60 @@
     function renderWeekend(data) {
       document.getElementById('weekendDate').textContent = '📅 ' + (data.weekend_date || '--');
       if (data.weather) {
-        document.getElementById('weekendSat').textContent = '周六: ' + data.weather.saturday;
-        document.getElementById('weekendSun').textContent = '周日: ' + data.weather.sunday;
-        document.getElementById('weekendTemp').textContent = data.weather.temperature;
-        document.getElementById('weekendAdvice').textContent = '💡 ' + data.weather.advice;
+        document.getElementById('weekendSat').textContent = '周六: ' + (data.weather.saturday || '--');
+        document.getElementById('weekendSun').textContent = '周日: ' + (data.weather.sunday || '--');
+        document.getElementById('weekendTemp').textContent = data.weather.temperature || '';
+        document.getElementById('weekendAdvice').textContent = '💡 ' + (data.weather.advice || '');
       }
 
-      // 投票排行
+      // 统计胶囊（v3.8.0）
       var results = data.vote_results || [];
+      var proposals = data.proposals || [];
+      var totalVotes = 0, voterSet = {};
+      results.forEach(function(r) {
+        totalVotes += (r.vote_count || 0);
+        (r.voters || []).forEach(function(v) { voterSet[v] = true; });
+      });
+      var elP = document.getElementById('weekendStatProposals');
+      var elV = document.getElementById('weekendStatVotes');
+      var elU = document.getElementById('weekendStatVoters');
+      if (elP) elP.textContent = proposals.length;
+      if (elV) elV.textContent = totalVotes;
+      if (elU) elU.textContent = Object.keys(voterSet).length;
+
+      // 投票排行（v3.8.0 奖牌样式增强）
       var maxVotes = 0;
       results.forEach(function(r) { if (r.vote_count > maxVotes) maxVotes = r.vote_count; });
       var voteHTML = '';
       if (results.length === 0 || maxVotes === 0) {
-        voteHTML = '<p class="text-sm text-gray-400 text-center py-4 col-span-full">暂无投票，快去投票支持你喜欢的方案吧！</p>';
+        voteHTML = '<p class="text-sm text-gray-400 dark:text-gray-500 text-center py-8 col-span-full">暂无投票，快去投票支持你喜欢的方案吧！</p>';
       } else {
-        // 卡片图标映射（v3.7.0）
         var propIcons = { '公园野餐':'🧺', '博物馆参观':'🏛️', '电影院':'🎬', '爬山':'⛰️', '骑行':'🚴', '烧烤':'🍢', '游泳':'🏊', '游乐园':'🎡' };
+        var medals = ['🥇', '🥈', '🥉'];
+        var rankColors = ['#f59e0b', '#9ca3af', '#d97706'];
         results.forEach(function(r, i) {
           var pct = maxVotes > 0 ? Math.round(r.vote_count / maxVotes * 100) : 0;
-          var winStyle = r.winning ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30' : 'border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800';
+          var medal = medals[i] || '';
+          var rankColor = rankColors[i] || '#6b7280';
+          var winStyle = r.winning ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-white dark:from-amber-900/20 dark:to-gray-800' : 'border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800';
           var icon = r.proposal_icon || propIcons[r.proposal_name] || '🎯';
-          voteHTML += '<div class="tilt-card rounded-xl p-4 shadow-sm border stagger-item ' + winStyle + '">' +
+          var rankBadge = medal
+            ? '<span class="text-2xl" title="第' + (i+1) + '名">' + medal + '</span>'
+            : '<span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 text-xs font-bold text-gray-500">#' + (i+1) + '</span>';
+          voteHTML += '<div class="tilt-card rounded-xl p-4 shadow-sm border stagger-item ' + winStyle + '" style="animation-delay:' + (i*0.05) + 's">' +
             '<div class="flex items-center justify-between mb-3">' +
-              (r.winning ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-500 text-white font-medium">领先</span>' : '<span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">#' + (i+1) + '</span>') +
-              '<span class="text-lg font-bold" style="color:' + (r.winning ? 'var(--primary)' : '#6b7280') + '">' + r.vote_count + ' 票</span>' +
+              rankBadge +
+              '<span class="text-lg font-bold" style="color:' + (r.winning ? rankColor : '#6b7280') + '">' + r.vote_count + ' 票</span>' +
             '</div>' +
-            '<div class="flex items-center gap-2 mb-2">' +
+            '<div class="flex items-center gap-2 mb-3">' +
               '<span class="text-2xl">' + icon + '</span>' +
-              '<span class="text-sm font-medium truncate dark:text-gray-100" title="' + escapeHtml(r.proposal_name) + '">' + escapeHtml(r.proposal_name) + '</span>' +
+              '<span class="text-sm font-semibold truncate dark:text-gray-100" title="' + escapeHtml(r.proposal_name) + '">' + escapeHtml(r.proposal_name) + '</span>' +
             '</div>' +
-            '<div class="mt-2">' + renderVoterAvatars(r.voters) + '</div>' +
-            '<div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2"><div class="progress-fill h-full rounded-full" style="background:' + (r.winning ? 'var(--primary)' : '#cbd5e1') + ';width:' + pct + '%"></div></div>' +
+            '<div class="mb-2">' + renderVoterAvatars(r.voters) + '</div>' +
+            '<div class="flex items-center gap-2">' +
+              '<div class="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden"><div class="progress-fill h-full rounded-full transition-all duration-500" style="background:linear-gradient(90deg,' + rankColor + ',' + (r.winning ? 'var(--primary)' : '#cbd5e1') + ');width:' + pct + '%"></div></div>' +
+              '<span class="text-[10px] text-gray-400 min-w-[28px] text-right">' + pct + '%</span>' +
+            '</div>' +
           '</div>';
         });
       }
@@ -3259,7 +3296,7 @@
       // 空数据兜底：从 _allMembers 构造 0 积分成员
       if (members.length === 0 && window._allMembers && window._allMembers.length > 0) {
         members = window._allMembers.map(function(m) {
-          return { name: m.name, total: 0, sport: 0, health: 0, labor: 0, level: '新手', next_level: '全能小能手', next_need: 500, rank: 0 };
+          return { name: m.name, total: 0, easy: 0, medium: 0, hard: 0, level: '新手', next_level: '全能小能手', next_need: 500, rank: 0 };
         });
         data.members = members;
       }
@@ -3287,10 +3324,19 @@
             '<div class="flex-1"><p class="text-sm font-bold">' + m.name + '</p><p class="text-xs text-gray-400">' + m.level + '</p></div>' +
             '<p class="text-2xl font-bold" style="color:' + c + '">' + m.total.toLocaleString() + '</p>' +
           '</div>' +
-          '<div class="grid grid-cols-3 gap-2 text-center mb-3">' +
-            '<div class="bg-blue-50 rounded-lg p-2"><p class="text-xs text-gray-400">运动</p><p class="text-sm font-semibold text-blue-600">' + m.sport + '</p></div>' +
-            '<div class="bg-green-50 rounded-lg p-2"><p class="text-xs text-gray-400">健康</p><p class="text-sm font-semibold text-green-600">' + m.health + '</p></div>' +
-            '<div class="bg-orange-50 rounded-lg p-2"><p class="text-xs text-gray-400">劳动</p><p class="text-sm font-semibold text-orange-600">' + m.labor + '</p></div>' +
+          '<div class="grid grid-cols-3 gap-2 mb-3">' +
+            '<div class="bg-green-50 dark:bg-green-900/20 rounded-lg px-2 py-2 text-center">' +
+              '<p class="text-[10px] text-gray-400">🟢 简单</p>' +
+              '<p class="text-sm font-semibold text-green-600 dark:text-green-400">' + m.easy + '</p>' +
+            '</div>' +
+            '<div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg px-2 py-2 text-center">' +
+              '<p class="text-[10px] text-gray-400">🟡 进阶</p>' +
+              '<p class="text-sm font-semibold text-amber-600 dark:text-amber-400">' + m.medium + '</p>' +
+            '</div>' +
+            '<div class="bg-red-50 dark:bg-red-900/20 rounded-lg px-2 py-2 text-center">' +
+              '<p class="text-[10px] text-gray-400">🔴 挑战</p>' +
+              '<p class="text-sm font-semibold text-red-600 dark:text-red-400">' + m.hard + '</p>' +
+            '</div>' +
           '</div>' +
           '<div>' +
             /* v3.7.0: 第一行 —— 周目标进度（动态，跟随周目标） */
@@ -3305,7 +3351,8 @@
       document.getElementById('pointsRanking').innerHTML = rankHTML;
 
       // 最近积分动态 Feed
-      var typeColors = { '运动': '#3b82f6', '健康': '#10b981', '劳动': '#f97316' };
+      // v3.8.0 方案C：积分分类按家务难度（简单/中等/困难）
+      var typeColors = { '简单': '#10b981', '中等': '#f59e0b', '困难': '#ef4444', '劳动': '#f97316' };
       var canDeletePoints = isCurrentUserAdmin();
       var feedHTML = '<div class="relative pl-6 space-y-3">' +
         '<div class="absolute left-2 top-2 bottom-2 w-0.5 bg-gray-200"></div>';
@@ -5089,10 +5136,16 @@
         }
         // 缓存成员供投票头像映射使用
         window._allMembers = members;
-        var html = '<div class="bg-white dark:bg-gray-800 bs-section rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden stagger-item">' +
-          '<div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">' +
+        var adultCount = members.filter(function(m){ return m.role === 'adult' || m.role === 'admin'; }).length;
+        var kidCount = members.length - adultCount;
+        var html = '<div class="bg-white dark:bg-gray-800 bs-section rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden stagger-item">' +
+          '<div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-pink-50 to-purple-50 dark:from-gray-700/40 dark:to-gray-700/20">' +
             '<div class="flex items-center gap-2"><span class="text-lg">👨‍👩‍👧‍👦</span><h4 class="text-base font-bold">成员风采</h4></div>' +
-            '<span class="text-xs text-gray-400">点击卡片可编辑资料</span>' +
+            '<div class="flex items-center gap-3 text-xs">' +
+              '<span class="text-gray-400">共 <b class="text-gray-700 dark:text-gray-200">' + members.length + '</b> 人</span>' +
+              (adultCount > 0 ? '<span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">成人 ' + adultCount + '</span>' : '') +
+              (kidCount > 0 ? '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">儿童 ' + kidCount + '</span>' : '') +
+            '</div>' +
           '</div>' +
           '<div class="p-5"><div class="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">';
         members.forEach(function(m) {
@@ -5101,16 +5154,20 @@
           var emoji = (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤');
           var canEdit = (isCurrentUserAdmin() || (currentUser && currentUser.name === m.name));
           var avatar = m.avatar_url ?
-            '<img src="' + escapeHtml(m.avatar_url) + '" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-gray-100 dark:border-gray-700" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;w-20 h-20 rounded-full mx-auto flex items-center justify-center text-3xl&quot; style=&quot;background:' + rc + '&quot;>' + emoji + '</div>\'">' :
-            '<div class="w-20 h-20 rounded-full mx-auto flex items-center justify-center text-3xl" style="background:' + rc + '">' + emoji + '</div>';
-          var bio = m.bio ? '<p class="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">' + escapeHtml(m.bio) + '</p>' : '';
+            '<img src="' + escapeHtml(m.avatar_url) + '" class="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-gray-700 shadow-md" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;w-20 h-20 rounded-full flex items-center justify-center text-3xl text-white border-4 border-white shadow-md&quot; style=&quot;background:' + rc + '&quot;>' + emoji + '</div>\'">' :
+            '<div class="w-20 h-20 rounded-full mx-auto flex items-center justify-center text-3xl text-white border-4 border-white dark:border-gray-700 shadow-md" style="background:' + rc + '">' + emoji + '</div>';
+          var bio = m.bio ? '<p class="text-xs text-gray-500 dark:text-gray-400 mt-2 line-clamp-2 min-h-[2rem]">' + escapeHtml(m.bio) + '</p>' : '<p class="text-xs text-gray-300 dark:text-gray-600 mt-2 min-h-[2rem]">暂无简介</p>';
           var ageTag = m.age ? '<span class="text-xs text-gray-400 dark:text-gray-500">· ' + escapeHtml(String(m.age)) + '岁</span>' : '';
-          var cardClass = canEdit ? 'tilt-card cursor-pointer hover:shadow-md transition' : 'cursor-default';
+          var cardClass = canEdit ? 'tilt-card cursor-pointer hover:-translate-y-1 transition-all' : 'cursor-default';
           var clickHandler = canEdit ? ' onclick="editMember(' + (m.id || 0) + ')"' : '';
-          var editBadge = canEdit ? '<span class="absolute top-1 right-1 bg-black/40 text-white text-[10px] px-1.5 py-0.5 rounded">✏️</span>' : '';
-          html += '<div class="relative text-center p-3 rounded-xl ' + cardClass + '"' + clickHandler + '>' + editBadge + avatar +
-            '<p class="text-sm font-medium mt-2 flex items-center justify-center gap-1">' + escapeHtml(m.name) + ageTag + '</p>' +
-            '<span class="inline-block text-xs px-2 py-0.5 rounded-full" style="background:' + rc + '18;color:' + rc + '">' + escapeHtml(rl) + '</span>' + bio + '</div>';
+          var editBadge = canEdit ? '<span class="absolute top-2 right-2 bg-black/40 text-white text-[10px] px-1.5 py-0.5 rounded-full backdrop-blur">✏️</span>' : '';
+          html += '<div class="relative text-center p-4 rounded-xl bg-gradient-to-b from-gray-50 to-white dark:from-gray-700/30 dark:to-gray-800 border border-gray-100 dark:border-gray-700 ' + cardClass + '"' + clickHandler + '>' + editBadge +
+            '<div class="relative inline-block">' +
+              '<div class="absolute inset-0 rounded-full blur-sm opacity-30" style="background:' + rc + '"></div>' +
+              '<div class="relative">' + avatar + '</div>' +
+            '</div>' +
+            '<p class="text-sm font-semibold mt-3 flex items-center justify-center gap-1 text-gray-800 dark:text-gray-100">' + escapeHtml(m.name) + ageTag + '</p>' +
+            '<span class="inline-block text-xs px-2.5 py-0.5 rounded-full mt-1 font-medium" style="background:' + rc + '18;color:' + rc + '">' + escapeHtml(rl) + '</span>' + bio + '</div>';
         });
         html += '</div></div></div>';
         box.innerHTML = html;
