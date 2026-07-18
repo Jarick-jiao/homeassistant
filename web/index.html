@@ -1384,8 +1384,21 @@
             </div>
             <div>
               <label class="block text-xs text-gray-400 mb-1">头像照片 URL（自画像）</label>
-              <input type="text" id="memberFormAvatar" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="留空则自动加载本地 /assets/avatars/用户名.jpg">
-              <p class="text-[10px] text-gray-400 mt-1">💡 留空可自动加载本地照片：将照片命名为「用户名.jpg」放入 <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">web/assets/avatars/</code> 目录即可（支持 jpg/png/jpeg/webp）</p>
+              <div class="flex items-center gap-2">
+                <div class="relative flex-shrink-0">
+                  <img id="memberFormAvatarPreview" src="" alt="预览" class="w-12 h-12 rounded-full object-cover border border-gray-200 bg-gray-100 hidden">
+                  <div id="memberFormAvatarPlaceholder" class="w-12 h-12 rounded-full flex items-center justify-center text-gray-400 border border-dashed border-gray-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  </div>
+                </div>
+                <input type="text" id="memberFormAvatar" class="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="留空则自动加载本地 /assets/avatars/用户名.jpg">
+                <input type="file" id="memberFormAvatarFile" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadMemberAvatar(this)">
+                <button type="button" onclick="document.getElementById('memberFormAvatarFile').click()" class="ripple-btn flex-shrink-0 px-3 py-2 rounded-lg text-xs border border-gray-200 hover:bg-gray-50 transition flex items-center gap-1">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                  上传
+                </button>
+              </div>
+              <p class="text-[10px] text-gray-400 mt-1">💡 上传照片将自动命名为「用户名.扩展名」保存到 <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">web/assets/avatars/</code>；也可留空手动放文件或填外链 URL</p>
             </div>
             <div>
               <label class="block text-xs text-gray-400 mb-1">自我介绍</label>
@@ -3847,6 +3860,8 @@
       document.getElementById('memberFormBio').value = '';
       var adminCb = document.getElementById('memberFormIsAdmin');
       if (adminCb) adminCb.checked = false;
+      // v3.8.0: 重置头像预览
+      syncAvatarPreview('');
       document.querySelectorAll('.member-health-focus').forEach(function(cb) { cb.checked = false; });
       var pwd = document.getElementById('memberPassword');
       if (pwd) pwd.value = '';
@@ -3867,6 +3882,8 @@
       document.getElementById('memberFormDataSource').value = m.data_source_plugin || 'manual';
       document.getElementById('memberFormAvatar').value = m.avatar_url || '';
       document.getElementById('memberFormBio').value = m.bio || '';
+      // v3.8.0: 同步头像预览
+      syncAvatarPreview(m.avatar_url || '');
       var adminCb = document.getElementById('memberFormIsAdmin');
       if (adminCb) adminCb.checked = !!m.is_admin;
       var focuses = (m.health_focus || '').split(',').filter(function(f) { return f; });
@@ -3929,6 +3946,75 @@
         showToast(id ? '成员已更新（本地）' : '成员已添加（本地）', 'success');
       });
     }
+
+    // v3.8.0: 头像照片上传
+    // 照片自动命名为 {用户名}.{ext} 保存到 web/assets/avatars/，与本地静态文件方案一致
+    function uploadMemberAvatar(fileInput) {
+      if (!fileInput.files || fileInput.files.length === 0) return;
+      var name = document.getElementById('memberFormName').value.trim();
+      if (!name) {
+        showToast('请先填写成员姓名再上传头像', 'error');
+        fileInput.value = '';
+        return;
+      }
+      var formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('name', name);
+
+      // 上传按钮显示加载态
+      var btn = fileInput.nextElementSibling || document.querySelector('button[onclick*="memberFormAvatarFile"]');
+      var btnHTML = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="4" stroke-opacity="0.25"/><path stroke-linecap="round" stroke-width="4" d="M12 2a10 10 0 0110 10"/></svg> 上传中'; }
+
+      authFetch('/api/members/avatar', {
+        method: 'POST',
+        body: formData
+      }).then(function(r) { return r.json(); }).then(function(result) {
+        if (result.code === 0 && result.data && result.data.avatar_url) {
+          // 写回 URL 输入框 + 更新预览
+          document.getElementById('memberFormAvatar').value = result.data.avatar_url;
+          syncAvatarPreview(result.data.avatar_url);
+          showToast('头像上传成功', 'success');
+        } else {
+          showToast(result.message || '头像上传失败', 'error');
+        }
+      }).catch(function() {
+        showToast('头像上传失败，请重试', 'error');
+      }).finally(function() {
+        fileInput.value = '';
+        if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
+      });
+    }
+
+    // 同步头像预览图（有 URL 显示图片，无 URL 显示占位）
+    function syncAvatarPreview(url) {
+      var preview = document.getElementById('memberFormAvatarPreview');
+      var placeholder = document.getElementById('memberFormAvatarPlaceholder');
+      if (!preview || !placeholder) return;
+      if (url) {
+        // 加时间戳避免缓存
+        var src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now();
+        preview.src = src;
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        preview.onerror = function() {
+          preview.classList.add('hidden');
+          placeholder.classList.remove('hidden');
+        };
+      } else {
+        preview.src = '';
+        preview.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+      }
+    }
+
+    // URL 输入框失焦时同步预览
+    document.addEventListener('DOMContentLoaded', function() {
+      var avatarInput = document.getElementById('memberFormAvatar');
+      if (avatarInput) {
+        avatarInput.addEventListener('blur', function() { syncAvatarPreview(this.value.trim()); });
+      }
+    });
 
     function deleteMember(id) {
       confirmDialog('确定要删除该成员吗？删除后不可恢复。', function() {

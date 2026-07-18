@@ -149,6 +149,8 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.PUT("/members/:id/role", middleware.RequireAdmin(), member.UpdateMemberRoleHandler)
 	authed.PUT("/members/:id/admin", middleware.RequireAdmin(), member.UpdateMemberAdminHandler)
 	authed.DELETE("/members/:id", middleware.RequireAdmin(), member.DeleteMemberHandler)
+	// v3.8.0: 头像照片上传（保存到 web/assets/avatars/{用户名}.{ext}）
+	authed.POST("/members/avatar", middleware.RequireAdmin(), member.UploadAvatarHandler)
 
 	// --- 留言板 ---
 	authed.GET("/messages", messageboard.ListMessagesHandler)
