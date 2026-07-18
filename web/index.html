@@ -1354,9 +1354,11 @@
       <h4 class="text-lg font-bold mb-1">认领家务</h4>
       <p id="claimTaskName" class="text-sm text-gray-400 mb-4"></p>
       <label class="block text-sm font-medium mb-1">选择完成成员</label>
-      <select id="claimMember" class="w-full border border-gray-200 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-1 focus:ring-blue-300">
+      <select id="claimMember" class="w-full border border-gray-200 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-300">
         <option value="">请选择...</option>
       </select>
+      <!-- v3.3.7 爸爸视角：管理员可代家人认领 + 验收人自动指派说明 -->
+      <p class="text-xs text-gray-400 dark:text-gray-500 mb-4 leading-relaxed">💡 管理员可代家人选择成员认领；认领后系统会自动指派另一位家人作为验收人，验收确认后积分正式入账。</p>
       <div class="flex gap-3">
         <button onclick="closeClaimModal()" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
         <button onclick="confirmClaim()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">确认认领</button>
@@ -2090,7 +2092,8 @@
             var statusHTML = '';
             if (cl.status === 'pending') {
               var verifier = cl.verifier_name || '其他成员';
-              statusHTML = '<button onclick="markComplete(' + cl.id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--success)">标记完成</button><span class="text-xs text-gray-400 ml-1">验收人：' + escapeHTML(verifier) + '</span>';
+              // v3.3.7 爸爸视角：验收人透明化，标注"系统自动指派"
+              statusHTML = '<button onclick="markComplete(' + cl.id + ')" class="px-3 py-1 rounded-lg text-xs font-medium text-white" style="background:var(--success)">标记完成</button><span class="text-xs text-gray-400 ml-1">👤 验收人：<b>' + escapeHTML(verifier) + '</b>（系统指派）</span>';
             } else if (cl.status === 'completed') {
               var verifier = cl.verifier_name || '其他成员';
               var isVerifier = (currentUser && (currentUser.name === verifier || currentUser.role === 'admin'));
