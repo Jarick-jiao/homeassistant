@@ -398,6 +398,30 @@
       background: rgba(255, 255, 255, 0.85) !important;
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
+    /* v3.8.5: 指标卡片删除按钮（隐藏式设计，hover 显示） */
+    .metric-card { position: relative; }
+    .metric-del-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: none;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
+      z-index: 5;
+      padding: 0;
+    }
+    .metric-card:hover .metric-del-btn { opacity: 1; }
+    .metric-del-btn:hover { background: rgba(239, 68, 68, 0.9); color: #fff; }
+    body.dark-mode .metric-del-btn { background: rgba(239, 68, 68, 0.2); }
     /* 紧凑视图指标 mini 卡片（修复：添加完整透明背景样式） */
     .metric-mini {
       background: transparent !important;
@@ -2269,8 +2293,13 @@
         var customs = customMetrics[member.name] || [];
         var roleEmoji = getRoleEmoji(member.role);
 
-        // 紧凑视图：取前4个指标
-        var preview = member.metrics.slice(0, 4);
+        // v3.8.5: 过滤掉 member.metrics 中 custom_ 开头的（后端 GetHealthSummaryHandler 已 append 但无 id）
+        // 统一用 customs（带 id，可删除）渲染自定义指标，避免重复
+        var builtInMetrics = member.metrics.filter(function(m) {
+          return !m.type || String(m.type).indexOf('custom_') !== 0;
+        });
+        // 紧凑视图：内置 + 自定义，取前4个
+        var preview = builtInMetrics.concat(customs).slice(0, 4);
         var previewHTML = '';
         if (preview.length === 0) {
           previewHTML = '<div class="col-span-4 text-center py-2">' +
@@ -2286,12 +2315,15 @@
           }).join('');
         }
 
-        // 展开视图：所有指标 + 自定义（带详情点击）
-        var allMetrics = member.metrics.concat(customs);
+        // 展开视图：内置指标 + 自定义指标（带 id 可删除）
+        var allMetrics = builtInMetrics.concat(customs);
         var expandedHTML = allMetrics.map(function(m) {
           var bc = metricBorderColor(m.status);
           var statusBadge = m.status && m.status !== 'normal' ? '<span class="ml-1 text-xs px-1.5 py-0.5 rounded" style="background:' + bc + '22;color:' + bc + '">' + (m.status==='warning'?'偏高':m.status==='danger'?'异常':'') + '</span>' : '';
+          // v3.8.5: 自定义指标（有 id）显示删除按钮，hover 显示
+          var delBtn = m.id ? '<button class="metric-del-btn" onclick="event.stopPropagation();deleteMetric(' + m.id + ',\'' + escapeHtml(member.name) + '\',\'' + escapeHtml(m.label) + '\')" title="删除指标" aria-label="删除指标"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>' : '';
           return '<div class="metric-card rounded-lg p-3 border-l-4 cursor-pointer" style="border-left-color:' + bc + '" onclick="showMetricDetail(\'' + escapeHtml(member.name) + '\',' + JSON.stringify(m).replace(/"/g,'&quot;') + ')">' +
+            delBtn +
             '<div class="flex items-center gap-2 mb-1"><span class="text-lg">' + (m.icon || '📊') + '</span><span class="text-xs text-gray-400 flex-1">' + escapeHtml(m.label) + '</span>' + statusBadge + '</div>' +
             '<div class="flex items-baseline"><span class="text-lg font-semibold">' + fmtVal(m) + '</span><span class="text-xs text-gray-400 ml-1">' + m.unit + '</span>' + trendHTML(m.trend) + '</div>' +
             (m.ref ? '<div class="text-xs text-gray-400 mt-1">参考: ' + escapeHtml(m.ref) + '</div>' : '') +
@@ -2424,6 +2456,21 @@
           loadHealthMetrics(); // 重新拉取指标列表并刷新卡片
         })
         .catch(function() { showToast('网络错误，保存失败', 'error'); });
+    }
+
+    // v3.8.5: 删除自定义健康指标（仅对有 id 的自定义指标生效，内置指标无删除入口）
+    // 后端 DELETE /api/health/metrics/:id，需管理员权限
+    function deleteMetric(id, memberName, label) {
+      if (!id) return;
+      if (!confirm('确定删除「' + label + '」指标吗？此操作不可撤销。')) return;
+      authFetch('/api/health/metrics/' + id, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+          if (result.code !== 0) { showToast(result.message || '删除失败', 'error'); return; }
+          showToast('「' + label + '」已删除', 'success');
+          loadHealthMetrics(); // 重新拉取并刷新卡片
+        })
+        .catch(function() { showToast('网络错误，删除失败', 'error'); });
     }
 
 
