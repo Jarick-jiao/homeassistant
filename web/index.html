@@ -1384,7 +1384,8 @@
             </div>
             <div>
               <label class="block text-xs text-gray-400 mb-1">头像照片 URL（自画像）</label>
-              <input type="text" id="memberFormAvatar" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="https://...图片链接">
+              <input type="text" id="memberFormAvatar" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="留空则自动加载本地 /assets/avatars/用户名.jpg">
+              <p class="text-[10px] text-gray-400 mt-1">💡 留空可自动加载本地照片：将照片命名为「用户名.jpg」放入 <code class="px-1 bg-gray-100 dark:bg-gray-700 rounded">web/assets/avatars/</code> 目录即可（支持 jpg/png/jpeg/webp）</p>
             </div>
             <div>
               <label class="block text-xs text-gray-400 mb-1">自我介绍</label>
@@ -2023,6 +2024,33 @@
         .replace(/'/g, '&#39;');
     }
 
+    // v3.8.0: 本地头像按用户名自动关联
+    // 照片放 web/assets/avatars/{用户名}.{jpg|png|jpeg|webp}，命名规则即关联规则
+    // 优先级：avatar_url 字段 > 本地 avatars 目录 > emoji 占位
+    // buildLocalAvatar 生成 onerror 回退链：jpg → png → jpeg → webp → fallbackHtml
+    function sanitizeFileName(name) {
+      // 文件名安全：去除路径分隔符和特殊字符，保留中文
+      return String(name || '').replace(/[\\/:*?"<>|]/g, '_').trim();
+    }
+    function buildLocalAvatar(name, fallbackHtml) {
+      var base = '/assets/avatars/' + encodeURIComponent(sanitizeFileName(name));
+      var exts = ['jpg', 'png', 'jpeg', 'webp'];
+      // 构造 onerror 链：当前扩展失败则尝试下一个，全部失败则渲染 fallbackHtml
+      var onerror = '';
+      for (var i = exts.length - 1; i >= 0; i--) {
+        var trySrc = base + '.' + exts[i];
+        var next = (i + 1 < exts.length) ? (base + '.' + exts[i + 1]) : null;
+        if (next) {
+          onerror = 'this.onerror=null;this.src=\'' + next + '\';';
+        } else {
+          // 最后一个扩展也失败，替换为 fallback
+          onerror = 'this.onerror=null;this.outerHTML=\'' + fallbackHtml.replace(/'/g, '&#39;') + '\';';
+        }
+      }
+      // 第一个尝试 jpg
+      return { src: base + '.jpg', onerror: onerror };
+    }
+
     // ==================== 指标详情弹窗 ====================
     var _metricPopover = null;
     function closeMetricDetail() {
@@ -2186,7 +2214,16 @@
         var card = '<div class="tilt-card health-member-card rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.3 + idx * 0.08) + 's">' +
           '<div class="p-4 md:p-5">' +
             '<div class="flex items-center gap-4">' +
-              '<div class="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0" style="background:' + color + '">' + roleEmoji + '</div>' +
+              // v3.8.0: 成员头像支持本地 avatars 目录（按用户名关联）
+              (function() {
+                var fbDiv = '<div class=\"w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0\" style=\"background:' + color + '\">' + roleEmoji + '</div>';
+                var memberInfo = (window._allMembers || []).find(function(mm){ return mm.name === member.name; });
+                if (memberInfo && memberInfo.avatar_url) {
+                  return '<img src="' + escapeHtml(memberInfo.avatar_url) + '" class="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" onerror="this.onerror=null;this.outerHTML=\'' + fbDiv.replace(/'/g, '&#39;') + '\';">';
+                }
+                var la = buildLocalAvatar(member.name, fbDiv);
+                return '<img src="' + escapeHtml(la.src) + '" class="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" onerror="' + la.onerror.replace(/"/g, '&quot;') + '">';
+              })() +
               '<div class="flex-1 min-w-0">' +
                 '<div class="flex items-center gap-2 flex-wrap">' +
                   '<h4 class="text-base font-bold">' + escapeHtml(member.name) + '</h4>' +
@@ -2588,8 +2625,18 @@
         var m = byName[name];
         var rc = (m && typeof roleColors !== 'undefined' && roleColors[m.role]) || '#6b7280';
         var initial = escapeHtml((name || '?').slice(0,1));
-        if (m && m.avatar_url) {
-          html += '<img src="' + escapeHtml(m.avatar_url) + '" alt="' + escapeHtml(name) + '" title="' + escapeHtml(name) + '" class="w-6 h-6 rounded-full object-cover ring-2 ring-white dark:ring-gray-800 bg-gray-100" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;w-6 h-6 rounded-full ring-2 ring-white dark:ring-gray-800 flex items-center justify-center text-[10px] font-bold text-white&quot; style=&quot;background:' + rc + '&quot;>' + initial + '</div>\'">';
+        if (m && (m.avatar_url || m.name)) {
+          var fbDiv = '<div class=\"w-6 h-6 rounded-full ring-2 ring-white dark:ring-gray-800 flex items-center justify-center text-[10px] font-bold text-white\" style=\"background:' + rc + '\">' + initial + '</div>';
+          var avatarSrc = m.avatar_url || '';
+          var onerr = '';
+          if (!m.avatar_url && m.name) {
+            var la = buildLocalAvatar(m.name, fbDiv);
+            avatarSrc = la.src;
+            onerr = ' onerror="' + la.onerror.replace(/"/g, '&quot;') + '"';
+          } else {
+            onerr = ' onerror="this.onerror=null;this.outerHTML=\'' + fbDiv.replace(/'/g, '&#39;') + '\';"';
+          }
+          html += '<img src="' + escapeHtml(avatarSrc) + '" alt="' + escapeHtml(name) + '" title="' + escapeHtml(name) + '" class="w-6 h-6 rounded-full object-cover ring-2 ring-white dark:ring-gray-800 bg-gray-100"' + onerr + '>';
         } else {
           html += '<div class="w-6 h-6 rounded-full ring-2 ring-white dark:ring-gray-800 flex items-center justify-center text-[10px] font-bold text-white" style="background:' + rc + '" title="' + escapeHtml(name) + '">' + initial + '</div>';
         }
@@ -5149,9 +5196,15 @@
           var rl = (typeof roleLabels !== 'undefined' && roleLabels[m.role]) || m.role;
           var emoji = (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤');
           var canEdit = (isCurrentUserAdmin() || (currentUser && currentUser.name === m.name));
-          var avatar = m.avatar_url ?
-            '<img src="' + escapeHtml(m.avatar_url) + '" class="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-gray-700 shadow-md" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;w-20 h-20 rounded-full flex items-center justify-center text-3xl text-white border-4 border-white shadow-md&quot; style=&quot;background:' + rc + '&quot;>' + emoji + '</div>\'">' :
-            '<div class="w-20 h-20 rounded-full mx-auto flex items-center justify-center text-3xl text-white border-4 border-white dark:border-gray-700 shadow-md" style="background:' + rc + '">' + emoji + '</div>';
+          // v3.8.0: 优先 avatar_url，其次本地 avatars 目录按用户名关联，最后 emoji 占位
+          var fbAvatar = '<div class=\"w-20 h-20 rounded-full flex items-center justify-center text-3xl text-white border-4 border-white shadow-md\" style=\"background:' + rc + '\">' + emoji + '</div>';
+          var avatar = '';
+          if (m.avatar_url) {
+            avatar = '<img src="' + escapeHtml(m.avatar_url) + '" class="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-gray-700 shadow-md" onerror="this.onerror=null;this.outerHTML=\'' + fbAvatar.replace(/'/g, '&#39;') + '\';">';
+          } else {
+            var la = buildLocalAvatar(m.name, fbAvatar);
+            avatar = '<img src="' + escapeHtml(la.src) + '" class="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-gray-700 shadow-md" onerror="' + la.onerror.replace(/"/g, '&quot;') + '">';
+          }
           var bio = m.bio ? '<p class="text-xs text-gray-500 dark:text-gray-400 mt-2 line-clamp-2 min-h-[2rem]">' + escapeHtml(m.bio) + '</p>' : '<p class="text-xs text-gray-300 dark:text-gray-600 mt-2 min-h-[2rem]">暂无简介</p>';
           var ageTag = m.age ? '<span class="text-xs text-gray-400 dark:text-gray-500">· ' + escapeHtml(String(m.age)) + '岁</span>' : '';
           var cardClass = canEdit ? 'tilt-card cursor-pointer hover:-translate-y-1 transition-all' : 'cursor-default';
@@ -5701,6 +5754,7 @@
       loadDataSourceConfigs();
       loadRealHealthData();
       loadMembers();
+      loadMemberShowcase();
       loadBigScreen();
       updateAuthUI();
       loadNotifySettings();
