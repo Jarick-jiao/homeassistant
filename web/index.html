@@ -782,8 +782,26 @@
       </div>
 
       <!-- 成员积分排行榜（卡片式） -->
-      <h3 class="text-lg font-bold mb-3">积分排行榜</h3>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-bold">积分排行榜</h3>
+        <button class="ripple-btn bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm px-3 py-1.5 rounded-full font-medium shadow-sm hover:shadow-md transition" onclick="openRedeemShop()">
+          🎁 积分兑换
+        </button>
+      </div>
       <div id="pointsRanking" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8"></div>
+
+      <!-- 积分兑换商店 Modal -->
+      <div id="redeemShopModal" class="fixed inset-0 bg-black/40 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[85vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h4 class="text-lg font-bold dark:text-gray-100">🎁 积分兑换商店</h4>
+            <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none" onclick="closeRedeemShop()" aria-label="关闭">×</button>
+          </div>
+          <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">用做家务和运动攒的积分，兑换家庭小奖励</p>
+          <div id="redeemItems" class="space-y-3"></div>
+          <p class="text-xs text-gray-300 dark:text-gray-600 mt-4 text-center">更多奖励持续上新中</p>
+        </div>
+      </div>
 
       <!-- 最近积分动态（Feed 流） -->
       <h3 class="text-lg font-bold mb-3">最近积分动态</h3>
@@ -1568,6 +1586,22 @@
       if (status === 'warning') return '#f59e0b';
       if (status === 'alert')   return '#ef4444';
       return '#10b981';
+    }
+
+    // ==================== 新闻日期格式化（v3.3.5 妈妈体验优化）====================
+    // ISO 时间戳 → "今天 04:09" / "昨天 04:09" / "07-18 04:09"
+    function fmtNewsDate(iso) {
+      if (!iso) return '';
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return String(iso).slice(0, 16).replace('T', ' ');
+      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+      var hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
+      var today = new Date(); today.setHours(0,0,0,0);
+      var that = new Date(d); that.setHours(0,0,0,0);
+      var diff = Math.round((today - that) / 86400000);
+      if (diff === 0) return '今天 ' + hm;
+      if (diff === 1) return '昨天 ' + hm;
+      return pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + hm;
     }
 
     // ==================== 格式化数值 ====================
@@ -2504,6 +2538,54 @@
         if(result.code===0) { currentPointsData=result.data; renderPoints(result.data); }
         else { currentPointsData=fallbackPoints; renderPoints(fallbackPoints); }
       }).catch(function(){ currentPointsData=fallbackPoints; renderPoints(fallbackPoints); });
+    }
+
+    // === 积分兑换商店（v3.3.5 妈妈体验优化）===
+    var redeemShopItems = [
+      { id: 1, icon: '🎮', name: '额外 30 分钟游戏时间', desc: '周末额外游戏时长', cost: 50, tag: '儿童最爱' },
+      { id: 2, icon: '🍦', name: '周末零食券', desc: '指定一款零食', cost: 30, tag: '小确幸' },
+      { id: 3, icon: '🎬', name: '周末选片权', desc: '决定全家电影之夜看什么', cost: 40, tag: '全家参与' },
+      { id: 4, icon: '🧹', name: '免做家务券', desc: '指定一次家务免做', cost: 80, tag: '稀缺' },
+      { id: 5, icon: '🎯', name: '周末活动决定权', desc: '周末去哪玩你说了算', cost: 100, tag: '高价值' },
+      { id: 6, icon: '🎁', name: '神秘小礼物', desc: '爸妈准备的小惊喜', cost: 150, tag: '惊喜' }
+    ];
+    function openRedeemShop() {
+      var modal = document.getElementById('redeemShopModal');
+      var box = document.getElementById('redeemItems');
+      var myPoints = 0;
+      try {
+        var rank = (currentPointsData && currentPointsData.ranking) ? currentPointsData.ranking : [];
+        var me = rank.find(function(m){ return m.name === (currentUser && currentUser.name); });
+        if (me) myPoints = me.total || 0;
+      } catch(e) {}
+      box.innerHTML = redeemShopItems.map(function(it) {
+        var canAfford = myPoints >= it.cost;
+        return '<div class="flex items-center gap-3 p-3 rounded-xl border ' + (canAfford ? 'border-purple-200 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/20' : 'border-gray-100 dark:border-gray-700 opacity-60') + '">' +
+          '<div class="text-2xl">' + it.icon + '</div>' +
+          '<div class="flex-1 min-w-0">' +
+            '<div class="flex items-center gap-2 flex-wrap">' +
+              '<span class="text-sm font-medium dark:text-gray-100">' + escapeHtml(it.name) + '</span>' +
+              '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-300">' + it.tag + '</span>' +
+            '</div>' +
+            '<p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">' + escapeHtml(it.desc) + '</p>' +
+          '</div>' +
+          '<div class="text-right shrink-0">' +
+            '<div class="text-sm font-bold ' + (canAfford ? 'text-purple-600 dark:text-purple-300' : 'text-gray-400') + '">' + it.cost + ' 分</div>' +
+            '<button class="text-xs px-2 py-1 rounded-full mt-1 ' + (canAfford ? 'bg-purple-500 text-white hover:bg-purple-600' : 'bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed') + '" ' + (canAfford ? 'onclick="redeemItem(' + it.id + ',\'' + it.name.replace(/'/g,'') + '\',' + it.cost + ')"' : 'disabled') + '>' + (canAfford ? '兑换' : '积分不足') + '</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+    function closeRedeemShop() {
+      var modal = document.getElementById('redeemShopModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+    function redeemItem(id, name, cost) {
+      showToast('🎁 已申请兑换：' + name + '（-' + cost + '分），待爸妈确认', 'success');
+      closeRedeemShop();
     }
 
     // ==================== 渲染积分 Tab ====================
@@ -3603,7 +3685,7 @@
             '<div class="flex items-center gap-2 mb-1">' +
               '<span class="text-xs px-1.5 py-0.5 rounded bg-' + catColor + '-50 text-' + catColor + '-600">' + catLabel + '</span>' +
               hotBadge +
-              '<span class="text-xs text-gray-400 ml-auto">' + escapeHtml(n.published_at || '') + '</span>' +
+              '<span class="text-xs text-gray-400 ml-auto">' + fmtNewsDate(n.published_at) + '</span>' +
               delBtn +
             '</div>' +
             '<p class="text-sm font-medium truncate">' + escapeHtml(n.title || '') + '</p>' +
@@ -3688,6 +3770,17 @@
       });
     }
 
+    // 日历事件分类（v3.3.5 妈妈体验优化）：家庭/财务/个人/健康/教育
+    function calendarEventCategory(title) {
+      var t = (title || '').toLowerCase();
+      if (/账单|还款|信用卡|保险|利率|工资|缴费|水电/.test(t)) return { key: 'finance', label: '财务', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', hideForKid: true };
+      if (/体检|看病|医院|就诊|挂号|复诊|牙|眼/.test(t)) return { key: 'health', label: '健康', cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', hideForKid: false };
+      if (/疫苗|接种|打针/.test(t)) return { key: 'vaccine', label: '疫苗', cls: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300', hideForKid: false };
+      if (/家长会|开学|放假|考试|作业|学校|课|接送/.test(t)) return { key: 'school', label: '学校', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', hideForKid: false };
+      if (/生日|纪念日|结婚|寿辰|满月|百日/.test(t)) return { key: 'anniversary', label: '纪念', cls: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300', hideForKid: false };
+      return { key: 'family', label: '家庭', cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', hideForKid: false };
+    }
+
     function renderCalendarList(events) {
       var box = document.getElementById('calendarList');
       if (!box) return;
@@ -3723,18 +3816,24 @@
           '<div class="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 sticky top-0 bg-gray-50 dark:bg-gray-900 py-1">📅 ' + escapeHtml(relDateLabel(key)) + ' <span class="text-gray-400 font-normal">(' + dayEvents.length + ')</span></div>' +
           '<div class="space-y-2">';
         dayEvents.forEach(function(e) {
-          var imp = e.is_important ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">重要</span>' : '';
+          var cat = calendarEventCategory(e.title);
+          var isKid = document.body.classList.contains('kid-friendly');
+          // 儿童模式隐藏财务类事件
+          if (isKid && cat.hideForKid) return;
+          var catBadge = '<span class="text-[10px] px-1.5 py-0.5 rounded-full ' + cat.cls + '">' + cat.label + '</span>';
+          var imp = e.is_important ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">重要</span>' : '';
           var color = e.color ? '<span class="w-2.5 h-2.5 rounded-full inline-block ring-2 ring-offset-1 dark:ring-offset-gray-800" style="background:' + escapeHtml(e.color) + '"></span>' : '';
           var delBtn = isAdmin ? '<button onclick="deleteCalendarEvent(' + e.id + ')" title="删除" aria-label="删除该日程" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
           html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3">' +
             color +
             '<span class="text-xs text-gray-400 w-12 flex-shrink-0">' + escapeHtml(e.time || (e.start_time ? e.start_time.slice(11, 16) : '--')) + '</span>' +
             '<div class="flex-1 min-w-0">' +
-              '<div class="flex items-center gap-2">' +
-                '<span class="text-sm font-medium truncate">' + escapeHtml(e.title || '') + '</span>' +
+              '<div class="flex items-center gap-2 flex-wrap">' +
+                '<span class="text-sm font-medium truncate dark:text-gray-100">' + escapeHtml(e.title || '') + '</span>' +
+                catBadge +
                 imp +
               '</div>' +
-              (e.location ? '<p class="text-xs text-gray-400 truncate">📍 ' + escapeHtml(e.location) + '</p>' : '') +
+              (e.location ? '<p class="text-xs text-gray-400 dark:text-gray-500 truncate">📍 ' + escapeHtml(e.location) + '</p>' : '') +
             '</div>' +
             delBtn +
           '</div>';
@@ -3953,7 +4052,7 @@
         } else if (sec.type === 'activities') {
           // 活动推荐 TOP3 + 投票结果可视化
           var w = sec.weather || {};
-          var wText = (w.saturday || w.sunday || w.temperature) ? ('🌤️ ' + (w.saturday || '-') + ' / ' + (w.sunday || '-') + ' · ' + (w.temperature || '-')) : '🌤️ 天气数据未配置';
+          var wText = (w.saturday || w.sunday || w.temperature) ? ('🌤️ ' + (w.saturday || '-') + ' / ' + (w.sunday || '-') + ' · ' + (w.temperature || '-')) : '🌤️ 周末天气待确认 · 户外方案建议晴天';
           var allProps = sec.proposals || [];
           // 按票数降序取 TOP3
           var sortedProps = allProps.slice().sort(function(a,b){ return (b.votes||0) - (a.votes||0); });
@@ -4050,7 +4149,7 @@
                   '<div class="flex items-center">' +
                     '<span class="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">' + escapeHtml(n.category || 'tech') + '</span>' +
                     hotBadge +
-                    '<span class="text-xs text-gray-400 ml-auto">' + escapeHtml(n.published_at || '') + '</span>' +
+                    '<span class="text-xs text-gray-400 ml-auto">' + fmtNewsDate(n.published_at) + '</span>' +
                   '</div>' +
                   '<p class="text-sm font-medium truncate mt-1">' + escapeHtml(n.title || '') + '</p>' +
                   (n.summary ? '<p class="text-xs text-gray-500 truncate">' + escapeHtml(n.summary) + '</p>' : '') +
