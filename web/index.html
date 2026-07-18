@@ -283,26 +283,60 @@
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
     }
-    body.dark-mode .health-member-card {
+    body.dark-mode .health-member-card,
+    body.dark-mode .tilt-card.health-member-card {
       background: rgba(30, 41, 59, 0.55) !important;
       border-color: rgba(148, 163, 184, 0.15) !important;
     }
-    body:not(.dark-mode) .health-member-card {
+    body:not(.dark-mode) .health-member-card,
+    body:not(.dark-mode) .tilt-card.health-member-card {
       background: rgba(255, 255, 255, 0.6) !important;
     }
-    /* 指标卡片透明化 */
+    /* 指标卡片透明化（展开视图） */
     .metric-card {
       background: transparent !important;
       backdrop-filter: blur(4px);
+      transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
     }
-    body.dark-mode .metric-card {
+    body.dark-mode .metric-card,
+    body.dark-mode .metric-card:hover {
       background: rgba(51, 65, 85, 0.35) !important;
       border-color: rgba(148, 163, 184, 0.12) !important;
+    }
+    body.dark-mode .metric-card:hover {
+      background: rgba(51, 65, 85, 0.55) !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
     }
     body:not(.dark-mode) .metric-card {
       background: rgba(255, 255, 255, 0.5) !important;
     }
-    body.dark-mode .metric-card:hover { background: rgba(51, 65, 85, 0.6) !important; }
+    body:not(.dark-mode) .metric-card:hover {
+      background: rgba(255, 255, 255, 0.85) !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    /* 紧凑视图指标 mini 卡片（修复：添加完整透明背景样式） */
+    .metric-mini {
+      background: transparent !important;
+      backdrop-filter: blur(4px);
+      transition: transform 0.2s ease, background 0.2s ease;
+      border-radius: 10px;
+      padding: 8px 6px;
+      border-left: 3px solid transparent;
+    }
+    body.dark-mode .metric-mini {
+      background: rgba(51, 65, 85, 0.3) !important;
+    }
+    body.dark-mode .metric-mini:hover {
+      background: rgba(51, 65, 85, 0.55) !important;
+      transform: scale(1.05);
+    }
+    body:not(.dark-mode) .metric-mini {
+      background: rgba(255, 255, 255, 0.45) !important;
+    }
+    body:not(.dark-mode) .metric-mini:hover {
+      background: rgba(255, 255, 255, 0.9) !important;
+      transform: scale(1.05);
+    }
     /* 展开区域 */
     .metric-expand-area {
       max-height: 0;
@@ -314,23 +348,83 @@
       max-height: 2000px;
       opacity: 1;
     }
-    /* 指标详情弹窗 */
+    /* 指标详情弹窗（优化视觉风格） */
     .metric-detail-popover {
       position: fixed;
       z-index: 60;
-      max-width: 320px;
-      padding: 16px;
-      border-radius: 12px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+      max-width: 340px;
+      width: 90vw;
+      padding: 0;
+      border-radius: 16px;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+      overflow: hidden;
+      animation: popoverIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes popoverIn {
+      from { opacity: 0; transform: scale(0.92) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
     }
     body.dark-mode .metric-detail-popover {
-      background: rgba(30, 41, 59, 0.95);
-      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: rgba(30, 41, 59, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.25);
       color: #e2e8f0;
+      backdrop-filter: blur(16px);
     }
     body:not(.dark-mode) .metric-detail-popover {
       background: rgba(255, 255, 255, 0.98);
       border: 1px solid #e5e7eb;
+      backdrop-filter: blur(16px);
+    }
+    /* ==================== 首页健康总览卡片透明化（修复深色模式白色块） ==================== */
+    .bs-section {
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    body.dark-mode .bs-section {
+      background: rgba(30, 41, 59, 0.55) !important;
+      border-color: rgba(148, 163, 184, 0.15) !important;
+    }
+    body:not(.dark-mode) .bs-section {
+      background: rgba(255, 255, 255, 0.7) !important;
+    }
+    /* 首页成员卡片透明化 */
+    .bs-member-card {
+      background: transparent !important;
+      transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+    body.dark-mode .bs-member-card {
+      background: rgba(51, 65, 85, 0.3) !important;
+      border-color: rgba(148, 163, 184, 0.12) !important;
+    }
+    body.dark-mode .bs-member-card:hover {
+      background: rgba(51, 65, 85, 0.5) !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    body:not(.dark-mode) .bs-member-card {
+      background: rgba(255, 255, 255, 0.5) !important;
+    }
+    body:not(.dark-mode) .bs-member-card:hover {
+      background: rgba(255, 255, 255, 0.85) !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    /* 首页指标块透明化（修复硬编码 #f8fafc 白色块） */
+    .bs-metric-block {
+      background: transparent !important;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    body.dark-mode .bs-metric-block {
+      background: rgba(51, 65, 85, 0.35) !important;
+    }
+    body.dark-mode .bs-metric-block:hover {
+      background: rgba(51, 65, 85, 0.6) !important;
+      transform: scale(1.04);
+    }
+    body:not(.dark-mode) .bs-metric-block {
+      background: rgba(248, 250, 252, 0.6) !important;
+    }
+    body:not(.dark-mode) .bs-metric-block:hover {
+      background: rgba(255, 255, 255, 0.95) !important;
+      transform: scale(1.04);
     }
     body.dark-mode .modal-box { background: var(--card); }
     body.dark-mode .bg-gray-50 { background: #1e293b !important; }
@@ -3124,7 +3218,7 @@
       var html = '';
 
       (data.sections || []).forEach(function(sec, idx) {
-        html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.05 + idx * 0.1) + 's">' +
+        html += '<div class="bg-white bs-section rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.05 + idx * 0.1) + 's">' +
           '<div class="px-5 py-4 border-b border-gray-100 flex items-center gap-2">' +
             '<span class="text-lg">' + (sec.icon || '📊') + '</span>' +
             '<h4 class="text-base font-bold">' + sec.title + '</h4>' +
@@ -3132,29 +3226,34 @@
           '<div class="p-5">';
 
         if (sec.type === 'health') {
-          // 健康概览
+          // 健康概览（透明化 + 点击查看详情）
           html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
           (sec.members || []).forEach(function(m) {
             var statusColor = m.status === 'warning' ? '#f59e0b' : m.status === 'alert' ? '#ef4444' : '#10b981';
-            html += '<div class="rounded-lg border border-gray-100 p-4">' +
+            var mEsc = escapeHtml(m.name);
+            html += '<div class="bs-member-card rounded-lg border border-gray-100 p-4">' +
               '<div class="flex items-center gap-3 mb-3">' +
-                '<div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background:' + statusColor + '">' + m.name.charAt(0) + '</div>' +
-                '<div>' +
-                  '<p class="text-sm font-bold">' + m.name + '</p>' +
-                  '<p class="text-xs text-gray-400">' + m.status_text + '</p>' +
+                '<div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background:' + statusColor + '">' + escapeHtml(m.name.charAt(0)) + '</div>' +
+                '<div class="flex-1 min-w-0">' +
+                  '<p class="text-sm font-bold truncate">' + mEsc + '</p>' +
+                  '<p class="text-xs text-gray-400 truncate">' + escapeHtml(m.status_text || '') + '</p>' +
                 '</div>' +
+                '<button onclick="switchTab(\'health\')" class="text-xs text-blue-500 hover:text-blue-600 flex-shrink-0">详情 →</button>' +
               '</div>' +
               '<div class="grid grid-cols-2 gap-2">';
             (m.metrics || []).forEach(function(mt) {
               var mc = mt.status === 'warning' ? '#f59e0b' : mt.status === 'alert' ? '#ef4444' : '#10b981';
-              html += '<div class="rounded-lg p-2" style="background:#f8fafc;border-left:3px solid ' + mc + '">' +
-                '<p class="text-xs text-gray-400">' + mt.icon + ' ' + mt.label + '</p>' +
-                '<p class="text-sm font-semibold">' + mt.value + '<span class="text-xs text-gray-400 ml-0.5">' + mt.unit + '</span></p>' +
+              var mtJson = JSON.stringify(mt).replace(/"/g, '&quot;');
+              html += '<div class="bs-metric-block rounded-lg p-2 cursor-pointer" style="border-left:3px solid ' + mc + '" onclick="showMetricDetail(\'' + mEsc + '\',' + mtJson + ')" title="点击查看详情">' +
+                '<p class="text-xs text-gray-400">' + (mt.icon || '📊') + ' ' + escapeHtml(mt.label) + '</p>' +
+                '<p class="text-sm font-semibold">' + escapeHtml(String(mt.value)) + '<span class="text-xs text-gray-400 ml-0.5">' + escapeHtml(mt.unit || '') + '</span></p>' +
               '</div>';
             });
             html += '</div></div>';
           });
           html += '</div>';
+          // 查看全部健康数据链接
+          html += '<div class="mt-4 text-center"><button onclick="switchTab(\'health\')" class="text-xs text-blue-500 hover:text-blue-600 font-medium">查看全部健康数据 →</button></div>';
           // 告警
           if (sec.alerts && sec.alerts.length > 0) {
             html += '<div class="mt-4 space-y-2">';
