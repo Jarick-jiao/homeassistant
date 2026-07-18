@@ -1599,33 +1599,33 @@
       </div>
       <div id="memberShowcase" class="mb-6"></div>
 
-      <!-- ========== 家庭健康总览（合并自原健康 Tab，v3.8.0） ========== -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-5 mb-6">
-        <div class="flex items-center justify-between mb-4">
+      <!-- ========== 家庭健康总览（合并自原健康 Tab，v3.8.0；v3.8.2 紧凑化） ========== -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-3 md:p-4 mb-4">
+        <div class="flex items-center justify-between mb-3">
           <h3 class="text-base font-bold">❤️ 家庭健康总览</h3>
           <span class="text-xs text-gray-400">实时聚合成员健康指标</span>
         </div>
-        <!-- 概览统计（4列） -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-5">
-          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
-            <p class="text-[10px] text-gray-400">家庭成员</p>
-            <p id="statMembers" class="text-xl font-bold mt-1" style="color:#3b82f6">0</p>
+        <!-- 概览统计（4列，紧凑） -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 mb-3">
+          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-2 text-center">
+            <p class="text-[9px] text-gray-400">家庭成员</p>
+            <p id="statMembers" class="text-base font-bold mt-0.5" style="color:#3b82f6">0</p>
           </div>
-          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
-            <p class="text-[10px] text-gray-400">平均步数</p>
-            <p id="statSteps" class="text-xl font-bold mt-1" style="color:#10b981">0</p>
+          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-2 text-center">
+            <p class="text-[9px] text-gray-400">平均步数</p>
+            <p id="statSteps" class="text-base font-bold mt-0.5" style="color:#10b981">0</p>
           </div>
-          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
-            <p class="text-[10px] text-gray-400">平均睡眠</p>
-            <p id="statSleep" class="text-xl font-bold mt-1" style="color:#8b5cf6">0h</p>
+          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-2 text-center">
+            <p class="text-[9px] text-gray-400">平均睡眠</p>
+            <p id="statSleep" class="text-base font-bold mt-0.5" style="color:#8b5cf6">0h</p>
           </div>
-          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
-            <p class="text-[10px] text-gray-400">异常提醒</p>
-            <p id="statAlerts" class="text-xl font-bold mt-1" style="color:#f59e0b">0</p>
+          <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-2 text-center">
+            <p class="text-[9px] text-gray-400">异常提醒</p>
+            <p id="statAlerts" class="text-base font-bold mt-0.5" style="color:#f59e0b">0</p>
           </div>
         </div>
         <!-- 成员健康卡片 -->
-        <div id="membersContainer" class="space-y-3"></div>
+        <div id="membersContainer" class="space-y-2"></div>
       </div>
 
       <div id="bigscreenContainer" class="space-y-6"></div>
@@ -2048,21 +2048,44 @@
     function buildLocalAvatar(name, fallbackHtml) {
       var base = '/assets/avatars/' + encodeURIComponent(sanitizeFileName(name));
       var exts = ['jpg', 'png', 'jpeg', 'webp'];
-      // 构造 onerror 链：当前扩展失败则尝试下一个，全部失败则渲染 fallbackHtml
-      var onerror = '';
-      for (var i = exts.length - 1; i >= 0; i--) {
-        var trySrc = base + '.' + exts[i];
-        var next = (i + 1 < exts.length) ? (base + '.' + exts[i + 1]) : null;
-        if (next) {
-          onerror = 'this.onerror=null;this.src=\'' + next + '\';';
-        } else {
-          // 最后一个扩展也失败，替换为 fallback
-          // v3.8.1: 双引号也要转义（fallback HTML 含 class="..." 等），否则破坏外层 onerror="..." 属性
-          onerror = 'this.onerror=null;this.outerHTML=\'' + fallbackHtml.replace(/'/g, '&#39;').replace(/"/g, '&quot;') + '\';';
-        }
+      // v3.8.2: 修复 onerror 回退链——逐级重新设置 onerror 再赋 src
+      // jpg 失败 → 设 onerror 试 png + 赋 png；png 失败 → 设 onerror 试 jpeg + 赋 jpeg；...
+      // webp 失败 → outerHTML 替换为 fallback
+      // 注意：onerror 事件处理函数内 this 指向触发事件的 img 元素（DOM 规范）
+      var fbEscaped = fallbackHtml.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+      // 最内层：webp 失败 → 替换为 fallback
+      var onerrFn = 'this.onerror=null;this.outerHTML=\'' + fbEscaped + '\';';
+      // 从倒数第二个扩展（jpeg）往前构建 onerror 链
+      for (var i = exts.length - 2; i >= 0; i--) {
+        var nextSrc = base + '.' + exts[i + 1];
+        // 当前级（exts[i]）失败时：设置下一级 onerror 处理函数，然后赋下一级 src
+        onerrFn = 'this.onerror=function(){this.onerror=null;' + onerrFn + '};this.src=\'' + nextSrc + '\';';
       }
-      // 第一个尝试 jpg
-      return { src: base + '.jpg', onerror: onerror };
+      // onerrFn 此时是 jpg 失败时的处理：设 onerror 指向 png 失败处理，赋 png src
+      return { src: base + '.jpg', onerror: onerrFn };
+    }
+
+    // v3.8.2: 统一微缩头像 HTML 生成器
+    // 优先级：memberInfo.avatar_url > 本地 avatars/{用户名} > fallback 圆形首字母
+    // opts: { size: 'w-7 h-7'|'w-10 h-10'..., rounded: 'rounded-full', extraClass: 'ring-2 ring-white', fallbackBg, fallbackText }
+    function buildMiniAvatar(name, opts) {
+      opts = opts || {};
+      var sizeCls = opts.size || 'w-7 h-7';
+      var roundedCls = opts.rounded || 'rounded-full';
+      var extraCls = opts.extraClass || '';
+      var bg = opts.fallbackBg || '#6b7280';
+      var text = opts.fallbackText != null ? opts.fallbackText : (name || '?').charAt(0);
+      var fontSizeCls = opts.fontSizeCls || 'text-xs';
+      // fallback 圆形 div（首字母占位）
+      var fbDiv = '<div class="' + sizeCls + ' ' + roundedCls + ' flex items-center justify-center text-white ' + fontSizeCls + ' font-bold flex-shrink-0 ' + extraCls + '" style="background:' + bg + '">' + escapeHtml(text) + '</div>';
+      // 优先用 avatar_url（从 window._allMembers 查找）
+      var info = (window._allMembers || []).find(function(mm){ return mm.name === name; });
+      if (info && info.avatar_url) {
+        return '<img src="' + escapeHtml(info.avatar_url) + '" class="' + sizeCls + ' ' + roundedCls + ' object-cover flex-shrink-0 ' + extraCls + '" onerror="this.onerror=null;this.outerHTML=\'' + fbDiv.replace(/'/g, '&#39;').replace(/"/g, '&quot;') + '\';">';
+      }
+      // 否则用本地 avatars 目录回退链
+      var la = buildLocalAvatar(name, fbDiv);
+      return '<img src="' + escapeHtml(la.src) + '" class="' + sizeCls + ' ' + roundedCls + ' object-cover flex-shrink-0 ' + extraCls + '" onerror="' + la.onerror.replace(/"/g, '&quot;') + '">';
     }
 
     // ==================== 指标详情弹窗 ====================
@@ -2226,7 +2249,7 @@
         var expandLabel = isExpanded ? '收起' : (metricCount > 4 ? '查看全部 ' + metricCount + ' 项' : '查看详情');
 
         var card = '<div class="tilt-card health-member-card rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.3 + idx * 0.08) + 's">' +
-          '<div class="p-4 md:p-5">' +
+          '<div class="p-3 md:p-4">' +
             '<div class="flex items-center gap-4">' +
               // v3.8.0: 成员头像支持本地 avatars 目录（按用户名关联）
               (function() {
@@ -2327,7 +2350,7 @@
         recHTML += '<div class="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition">' +
           '<span class="text-base flex-shrink-0">' + (r.icon || '📋') + '</span>' +
           '<span class="text-sm font-medium flex-1 truncate">' + (r.task || r.item || '') + '</span>' +
-          '<div class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style="background:' + c + '">' + s + '</div>' +
+          buildMiniAvatar(r.member, { size: 'w-5 h-5', fontSizeCls: 'text-[10px]', fallbackBg: c, fallbackText: s }) +
           '<span class="text-xs text-gray-500 flex-shrink-0 hidden sm:inline">' + r.member + '</span>' +
           '<span class="text-xs font-medium flex-shrink-0" style="color:' + c + '">+' + r.points + '</span>' +
           '<span class="text-[10px] text-gray-400 flex-shrink-0">' + r.time + '</span>' +
@@ -2347,7 +2370,7 @@
         var s = memberShortName[m.name] || m.name.charAt(0);
         var pct = maxDone > 0 ? Math.round(m.done / maxDone * 100) : 0;
         contribHTML += '<div class="flex items-center gap-2 min-w-0">' +
-          '<div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style="background:' + c + '">' + s + '</div>' +
+          buildMiniAvatar(m.name, { size: 'w-7 h-7', fontSizeCls: 'text-xs', fallbackBg: c, fallbackText: s }) +
           '<div class="w-14 text-sm font-medium truncate flex-shrink-0">' + m.name + '</div>' +
           '<div class="flex-1 min-w-0 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">' +
             '<div class="h-full rounded-full" style="background:' + c + ';width:' + pct + '%"></div>' +
@@ -3313,7 +3336,7 @@
         rankHTML += '<div class="tilt-card bg-white rounded-xl p-5 shadow-sm border border-gray-100 stagger-item" style="animation-delay:' + (0.1 + i * 0.1) + 's">' +
           '<div class="flex items-center gap-3 mb-4">' +
             '<div class="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm" style="background:' + rc + '">' + (i + 1) + '</div>' +
-            '<div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style="background:' + c + '">' + s + '</div>' +
+            buildMiniAvatar(m.name, { size: 'w-10 h-10', fontSizeCls: 'text-sm', fallbackBg: c, fallbackText: s }) +
             '<div class="flex-1"><p class="text-sm font-bold">' + m.name + '</p><p class="text-xs text-gray-400">' + m.level + '</p></div>' +
             '<p class="text-2xl font-bold" style="color:' + c + '">' + m.total.toLocaleString() + '</p>' +
           '</div>' +
@@ -3757,6 +3780,10 @@
         if (result.code === 0) {
           currentMembers = Array.isArray(result.data) ? result.data : [];
           window._allMembers = result.data || [];
+          // v3.8.2: 成员缓存就绪后刷新右上角用户头像（消除首次登录竞态，此时 avatar_url 才可用）
+          if (typeof currentUser !== 'undefined' && currentUser) {
+            try { updateAuthUI(); } catch(e) {}
+          }
           // 成员缓存就绪后，若周末投票已渲染则刷新头像栈（消除首次加载竞态）
           if (window.currentWeekendData) {
             try { renderWeekend(window.currentWeekendData); } catch(e) {}
@@ -4129,7 +4156,7 @@
           html += '<div class="border border-gray-100 rounded-xl overflow-hidden">' +
             '<button onclick="toggleRecordGroup(\'' + mkey + '\')" class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition">' +
               '<span class="flex items-center gap-2 text-sm font-semibold">' +
-                '<span class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:' + mc + '">' + escapeHtml(mname.charAt(0)) + '</span>' + escapeHtml(mname) +
+                buildMiniAvatar(mname, { size: 'w-7 h-7', fontSizeCls: 'text-xs', fallbackBg: mc }) + escapeHtml(mname) +
                 '<span class="text-xs text-gray-400">(' + list.length + ' 份)</span>' +
               '</span>' +
               '<svg id="recordGroupArrow-' + mkey + '" class="w-4 h-4 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transform:' + (recordGroupCollapsed[mkey] ? 'rotate(-90deg)' : 'rotate(0deg)') + '"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>' +
@@ -4156,7 +4183,7 @@
           html2 += '<div class="border border-gray-100 rounded-xl overflow-hidden mb-3">' +
             '<button onclick="toggleRecordGroup(\'' + mkey + '\')" class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition">' +
               '<span class="flex items-center gap-2 text-sm font-semibold">' +
-                '<span class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:' + mc2 + '">' + escapeHtml(mname.charAt(0)) + '</span>' + escapeHtml(mname) +
+                buildMiniAvatar(mname, { size: 'w-7 h-7', fontSizeCls: 'text-xs', fallbackBg: mc2 }) + escapeHtml(mname) +
                 '<span class="text-xs text-gray-400">(' + list2.length + ' 份)</span>' +
               '</span>' +
               '<svg id="recordGroupArrow-' + mkey + '" class="w-4 h-4 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transform:' + (recordGroupCollapsed[mkey] ? 'rotate(-90deg)' : 'rotate(0deg)') + '"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>' +
@@ -5669,8 +5696,14 @@
       if (display) {
         display.style.display = 'flex';
         display.classList.remove('hidden');
-        document.getElementById('userName').textContent = currentUser.name || currentUser.username || '用户';
-        document.getElementById('userAvatar').textContent = (currentUser.name || currentUser.username || 'U').charAt(0).toUpperCase();
+        var uname = currentUser.name || currentUser.username || '用户';
+        document.getElementById('userName').textContent = uname;
+        // v3.8.2: 右上角用户区接入微缩头像（avatar_url > 本地文件 > 首字母）
+        var ua = document.getElementById('userAvatar');
+        if (ua) {
+          var initial = uname.charAt(0).toUpperCase();
+          ua.innerHTML = buildMiniAvatar(uname, { size: 'w-6 h-6', fontSizeCls: 'text-[10px]', fallbackBg: 'var(--primary)', fallbackText: initial });
+        }
       }
       document.getElementById('menuUserName').textContent = (currentUser.name || currentUser.username || '用户');
       // v3.6.2: 不再展示角色标签（成人/管理员等），仅展示用户名
