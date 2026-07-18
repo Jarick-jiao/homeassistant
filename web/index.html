@@ -633,6 +633,7 @@
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="records" role="tab" aria-controls="panel-records" aria-selected="false" onclick="switchTab('records')">健康档案</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="news" role="tab" aria-controls="panel-news" aria-selected="false" onclick="switchTab('news')">时事新闻</button>
         <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="calendar" role="tab" aria-controls="panel-calendar" aria-selected="false" onclick="switchTab('calendar')">日历行程</button>
+        <button id="adminTabBtn" class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500 hidden" data-tab="admin" role="tab" aria-controls="panel-admin" aria-selected="false" onclick="switchTab('admin')">⚙️ 管理</button>
       </div>
       <!-- 右侧：更新时间 + 刷新 -->
       <div class="flex items-center gap-2 flex-shrink-0 relative">
@@ -1247,6 +1248,97 @@
       <input type="file" id="calendarCSVInput" accept=".csv" class="hidden" onchange="doImportCalendarCSV(this)">
     </div>
 
+    <!-- ========== Tab: 管理中心（v3.3.8 仅管理员可见） ========== -->
+    <div id="panel-admin" class="tab-panel" role="tabpanel">
+      <div class="mb-4">
+        <h3 class="text-lg font-bold">⚙️ 管理中心</h3>
+        <p class="text-xs text-gray-400">系统状态、Token、调度器与各模块管理入口聚合</p>
+      </div>
+
+      <!-- P2 系统状态总览卡 -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 mb-5 border border-gray-100 dark:border-gray-700">
+        <h4 class="text-sm font-bold mb-3 flex items-center gap-1">📊 系统状态总览 <span id="adminStatusRefreshBtn" class="text-xs text-blue-500 cursor-pointer ml-2" onclick="loadAdminOverview()">🔄 刷新</span></h4>
+        <div id="adminOverviewGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">👥 成员</p><p id="ovMembers" class="text-xl font-bold text-blue-600">-</p></div>
+          <div class="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">📰 新闻</p><p id="ovNews" class="text-xl font-bold text-green-600">-</p></div>
+          <div class="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">📅 日历事件</p><p id="ovCalendar" class="text-xl font-bold text-purple-600">-</p></div>
+          <div class="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">🧹 家务任务</p><p id="ovChores" class="text-xl font-bold text-amber-600">-</p></div>
+        </div>
+        <p id="adminOverviewMeta" class="text-xs text-gray-400 mt-3">加载中...</p>
+      </div>
+
+      <!-- 双列：Token + 调度器 -->
+      <div class="grid md:grid-cols-2 gap-5 mb-5">
+        <!-- P3 Token 管理 -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-sm font-bold">🔑 API Token 管理</h4>
+            <button onclick="showCreateTokenModal()" class="text-xs px-2.5 py-1 rounded-lg text-white" style="background:var(--primary)">➕ 新建</button>
+          </div>
+          <p class="text-xs text-gray-400 mb-3">外部系统写入数据（新闻/日历/纪念日/周末方案）的鉴权 Token</p>
+          <div id="tokenList" class="space-y-2 text-xs"><div class="text-center text-gray-400 py-4">加载中...</div></div>
+        </div>
+
+        <!-- P4 调度器状态 -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-sm font-bold">⏱️ 调度器状态</h4>
+            <span id="schedulerRefreshBtn" class="text-xs text-blue-500 cursor-pointer" onclick="loadSchedulerStatus()">🔄 刷新</span>
+          </div>
+          <p class="text-xs text-gray-400 mb-3">定时任务运行状态与手动触发</p>
+          <div id="schedulerStatus" class="space-y-2 text-xs"><div class="text-center text-gray-400 py-4">加载中...</div></div>
+        </div>
+      </div>
+
+      <!-- 模块管理快捷入口 -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+        <h4 class="text-sm font-bold mb-3">🧩 模块管理快捷入口</h4>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+          <button onclick="switchTab('records');setTimeout(function(){openSettings();},200)" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">👥 成员管理<br><span class="text-gray-400">新增/编辑/删除成员</span></button>
+          <button onclick="switchTab('news')" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">📰 新闻管理<br><span class="text-gray-400">CSV导入/Demo/清空</span></button>
+          <button onclick="switchTab('calendar')" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">📅 日历管理<br><span class="text-gray-400">CSV导入/Demo/清空</span></button>
+          <button onclick="switchTab('records')" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">📋 健康档案<br><span class="text-gray-400">上传/AI分析</span></button>
+          <button onclick="switchTab('chores')" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">🧹 家务任务<br><span class="text-gray-400">新增/认领/验收</span></button>
+          <button onclick="switchTab('points')" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">🏆 积分管理<br><span class="text-gray-400">排行/兑换/周目标</span></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Token 创建对话框 ========== -->
+    <div id="createTokenModal" class="modal-overlay">
+      <div class="modal-box">
+        <h4 class="text-lg font-bold mb-1">新建 API Token</h4>
+        <p class="text-sm text-gray-400 mb-4">用于外部系统写入数据鉴权</p>
+        <label class="block text-sm font-medium mb-1">Token 名称</label>
+        <input id="tokenNameInput" type="text" placeholder="如：新闻同步服务" class="w-full border border-gray-200 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-300">
+        <label class="block text-sm font-medium mb-1">权限范围</label>
+        <select id="tokenScopesInput" multiple class="w-full border border-gray-200 rounded-lg px-3 py-2 mb-2 h-24 focus:outline-none focus:ring-1 focus:ring-blue-300">
+          <option value="news:write">news:write（写新闻）</option>
+          <option value="calendar:write">calendar:write（写日历）</option>
+          <option value="anniversary:write">anniversary:write（写纪念日）</option>
+          <option value="weekend:write">weekend:write（写周末方案）</option>
+        </select>
+        <p class="text-xs text-gray-400 mb-4">按住 Ctrl/Cmd 多选</p>
+        <div class="flex gap-3">
+          <button onclick="closeCreateTokenModal()" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
+          <button onclick="createToken()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 通用确认对话框（v3.3.8 危险操作二次确认） ========== -->
+    <div id="confirmDialog" class="modal-overlay">
+      <div class="modal-box">
+        <h4 id="confirmTitle" class="text-lg font-bold mb-2">确认操作</h4>
+        <p id="confirmMessage" class="text-sm text-gray-600 dark:text-gray-300 mb-4 leading-relaxed"></p>
+        <p id="confirmWarning" class="hidden text-xs text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg p-2 mb-4"></p>
+        <div class="flex gap-3">
+          <button onclick="closeConfirmDialog()" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
+          <button id="confirmOkBtn" class="flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:#ef4444">确认</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ========== Tab: 家庭首页 ========== -->
     <div id="panel-home" class="tab-panel active" role="tabpanel">
       <div class="mb-4">
@@ -1548,6 +1640,12 @@
       // v3.3.6 爸爸视角：按需加载积分数据（含待验收积分口径三卡）
       if (tabName === 'points') {
         loadPointsData();
+      }
+      // v3.3.8 管理中心按需加载
+      if (tabName === 'admin') {
+        loadAdminOverview();
+        loadTokenList();
+        loadSchedulerStatus();
       }
     }
 
@@ -3175,7 +3273,7 @@
           '<div class="flex items-center gap-2 flex-wrap">' +
             '<span class="text-sm font-bold">' + m.name + '</span>' +
             '<span class="px-1.5 py-0.5 text-xs rounded-full font-medium" style="background:' + rc + '18;color:' + rc + '">' + rl + '</span>' +
-            '<span class="text-xs text-gray-400">' + (m.age || '-') + '岁</span>' +
+            '<span class="text-xs text-gray-400">' + (m.age ? m.age + '岁' : '未填写') + '</span>' +
             '<div class="ml-auto flex gap-1">' +
               '<button onclick="editMember(' + m.id + ')" title="编辑" class="w-6 h-6 rounded text-blue-500 hover:bg-blue-50 flex items-center justify-center text-xs">✏️</button>' +
               '<button onclick="deleteMember(' + m.id + ')" title="删除" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' +
@@ -3699,7 +3797,130 @@
       if (!bar) return;
       if (currentUser && currentUser.role === 'admin') bar.classList.remove('hidden');
       else bar.classList.add('hidden');
+      // v3.3.8 管理Tab按钮可见性同步
+      var adminTabBtn = document.getElementById('adminTabBtn');
+      if (adminTabBtn) adminTabBtn.classList.toggle('hidden', !(currentUser && currentUser.role === 'admin'));
     }
+
+    // ==================== 管理中心（v3.3.8） ====================
+    function loadAdminOverview() {
+      var meta = document.getElementById('adminOverviewMeta');
+      if (meta) meta.textContent = '加载中...';
+      Promise.all([
+        authFetch('/api/members').then(function(r){return r.json();}).catch(function(){return {data:[]};}),
+        authFetch('/api/news?limit=1&offset=0').then(function(r){return r.json();}).catch(function(){return {data:{total:0}};}),
+        authFetch('/api/calendar/events').then(function(r){return r.json();}).catch(function(){return {data:[]};}),
+        authFetch('/api/chorse/tasks').then(function(r){return r.json();}).catch(function(){return {data:[]};})
+      ]).then(function(results){
+        var members = (results[0] && results[0].data) || [];
+        var newsTotal = (results[1] && results[1].data && results[1].data.total) || 0;
+        var calEvents = (results[2] && results[2].data) || [];
+        var chores = (results[3] && results[3].data) || [];
+        var setText = function(id, v){ var el=document.getElementById(id); if(el) el.textContent=v; };
+        setText('ovMembers', members.length);
+        setText('ovNews', newsTotal);
+        setText('ovCalendar', calEvents.length);
+        setText('ovChores', chores.length);
+        if (meta) meta.textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN') + ' · 成员 ' + members.length + ' / 新闻 ' + newsTotal + ' / 日历 ' + calEvents.length + ' / 家务 ' + chores.length;
+      });
+    }
+
+    // ===== Token 管理 =====
+    function loadTokenList() {
+      var list = document.getElementById('tokenList');
+      if (!list) return;
+      list.innerHTML = '<div class="text-center text-gray-400 py-4">加载中...</div>';
+      authFetch('/api/tokens').then(function(r){return r.json();}).then(function(res){
+        var tokens = (res && res.data) || [];
+        if (tokens.length === 0) { list.innerHTML = '<div class="text-center text-gray-400 py-4">暂无 Token，点击右上「新建」</div>'; return; }
+        list.innerHTML = tokens.map(function(t){
+          var scopes = (t.scopes||[]).join(', ') || '-';
+          var created = t.created_at ? new Date(t.created_at).toLocaleDateString('zh-CN') : '-';
+          var lastUsed = t.last_used_at ? new Date(t.last_used_at).toLocaleDateString('zh-CN') : '未使用';
+          return '<div class="border border-gray-100 dark:border-gray-700 rounded-lg p-2.5"><div class="flex items-center justify-between mb-1"><span class="font-medium">' + escapeHtml(t.name||'未命名') + '</span><button onclick="revokeToken(' + t.id + ',\'' + escapeHtml(t.name||'') + '\')" class="text-red-500 hover:underline text-xs">撤销</button></div><div class="text-gray-400 text-[11px]">权限: ' + escapeHtml(scopes) + ' · 创建: ' + created + ' · 最近使用: ' + lastUsed + '</div></div>';
+        }).join('');
+      }).catch(function(){ list.innerHTML = '<div class="text-center text-red-400 py-4">加载失败</div>'; });
+    }
+
+    function showCreateTokenModal() { document.getElementById('createTokenModal').classList.add('show'); }
+    function closeCreateTokenModal() { document.getElementById('createTokenModal').classList.remove('show'); }
+
+    function createToken() {
+      var name = document.getElementById('tokenNameInput').value.trim();
+      var scopesSel = document.getElementById('tokenScopesInput');
+      var scopes = [];
+      for (var i=0;i<scopesSel.options.length;i++){ if(scopesSel.options[i].selected) scopes.push(scopesSel.options[i].value); }
+      if (!name) { showToast('请填写Token名称'); return; }
+      if (scopes.length === 0) { showToast('请至少选择一个权限'); return; }
+      authFetch('/api/tokens', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name, scopes:scopes})}).then(function(r){return r.json();}).then(function(res){
+        closeCreateTokenModal();
+        if (res && res.data && res.data.token) {
+          showConfirmDialog('Token 创建成功', '请立即复制保存，此 Token 仅显示一次：\n\n' + res.data.token, '⚠️ 关闭后无法再次查看', function(){}, '我知道了', '#10b981');
+        } else { showToast('创建成功'); }
+        loadTokenList();
+        document.getElementById('tokenNameInput').value = '';
+      }).catch(function(){ showToast('创建失败'); });
+    }
+
+    function revokeToken(id, name) {
+      showConfirmDialog('撤销 Token', '确定要撤销 Token「' + name + '」吗？撤销后使用此 Token 的外部系统将无法再写入数据。', '此操作不可恢复', function(){
+        authFetch('/api/tokens/' + id, {method:'DELETE'}).then(function(r){return r.json();}).then(function(){
+          showToast('已撤销');
+          loadTokenList();
+        }).catch(function(){ showToast('撤销失败'); });
+      });
+    }
+
+    // ===== 调度器状态 =====
+    function loadSchedulerStatus() {
+      var el = document.getElementById('schedulerStatus');
+      if (!el) return;
+      el.innerHTML = '<div class="text-center text-gray-400 py-4">加载中...</div>';
+      authFetch('/api/scheduler/status').then(function(r){return r.json();}).then(function(res){
+        var running = res.running, tasks = res.tasks || [];
+        var html = '<div class="flex items-center gap-2 mb-2"><span class="w-2 h-2 rounded-full ' + (running?'bg-green-500':'bg-gray-400') + '"></span><span class="font-medium">' + (running?'运行中':'未运行') + '</span><span class="text-gray-400">· ' + tasks.length + ' 个任务</span></div>';
+        if (tasks.length === 0) { html += '<div class="text-gray-400 text-center py-3">无定时任务</div>'; }
+        else {
+          html += tasks.map(function(t){
+            var lastRun = t.last_run ? new Date(t.last_run).toLocaleString('zh-CN') : '从未';
+            var nextRun = t.next_run ? new Date(t.next_run).toLocaleString('zh-CN') : '-';
+            var status = t.last_status || '-';
+            var statusColor = status === 'success' ? 'text-green-600' : (status === 'error' ? 'text-red-600' : 'text-gray-400');
+            return '<div class="border border-gray-100 dark:border-gray-700 rounded-lg p-2.5"><div class="flex items-center justify-between mb-1"><span class="font-medium">' + escapeHtml(t.name||t.task||'-') + '</span><button onclick="triggerSchedulerTask(\'' + escapeHtml(t.task||t.name) + '\')" class="text-blue-500 hover:underline text-xs">▶ 手动触发</button></div><div class="text-gray-400 text-[11px]">上次: <span class="' + statusColor + '">' + status + '</span> · ' + lastRun + '<br>下次: ' + nextRun + '</div></div>';
+          }).join('');
+        }
+        el.innerHTML = html;
+      }).catch(function(){ el.innerHTML = '<div class="text-center text-red-400 py-4">加载失败（需管理员权限）</div>'; });
+    }
+
+    function triggerSchedulerTask(task) {
+      showConfirmDialog('手动触发任务', '确定要立即触发任务「' + task + '」吗？', '请避免与定时执行冲突', function(){
+        authFetch('/api/scheduler/trigger/' + task, {method:'POST'}).then(function(r){return r.json();}).then(function(res){
+          showToast(res.message || '已触发');
+          setTimeout(loadSchedulerStatus, 1000);
+        }).catch(function(){ showToast('触发失败'); });
+      });
+    }
+
+    // ===== 通用确认对话框（危险操作二次确认） =====
+    var _confirmCallback = null;
+    function showConfirmDialog(title, message, warning, callback, okText, okColor) {
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMessage').textContent = message;
+      var wEl = document.getElementById('confirmWarning');
+      if (warning) { wEl.textContent = '⚠️ ' + warning; wEl.classList.remove('hidden'); } else { wEl.classList.add('hidden'); }
+      var okBtn = document.getElementById('confirmOkBtn');
+      okBtn.textContent = okText || '确认';
+      okBtn.style.background = okColor || '#ef4444';
+      _confirmCallback = callback;
+      document.getElementById('confirmDialog').classList.add('show');
+    }
+    function closeConfirmDialog() { document.getElementById('confirmDialog').classList.remove('show'); _confirmCallback = null; }
+    // 确认按钮回调（由 HTML onclick 直接调用闭包，这里用全局变量桥接）
+    document.addEventListener('DOMContentLoaded', function(){
+      var okBtn = document.getElementById('confirmOkBtn');
+      if (okBtn) okBtn.addEventListener('click', function(){ var cb=_confirmCallback; closeConfirmDialog(); if(cb) cb(); });
+    });
 
     function loadNewsList() {
       injectSkeleton('newsList', 5);
@@ -3789,21 +4010,23 @@
     }
 
     function clearAllNews() {
-      if (!confirm('确认清空全部新闻？此操作不可恢复！')) return;
-      if (!confirm('再次确认：将删除所有新闻记录，继续？')) return;
-      authFetch('/api/news/all', { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function() {
-        showToast('已清空全部新闻', 'success');
-        loadNewsList();
+      // v3.3.8 统一二次确认对话框
+      showConfirmDialog('清空全部新闻', '确认要清空全部新闻记录吗？此操作将删除所有新闻，不可恢复。', '此操作不可恢复，请谨慎确认', function(){
+        authFetch('/api/news/all', { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function() {
+          showToast('已清空全部新闻', 'success');
+          loadNewsList();
+        });
       });
     }
 
     function seedDemoNews() {
-      if (!confirm('将初始化 8 条 Demo 新闻（已有的不重复），继续？')) return;
-      authFetch('/api/news/demo', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(result) {
-        var data = result.data || result;
-        showToast('已初始化 ' + (data && data.seeded || 0) + ' 条 Demo 新闻', 'success');
-        loadNewsList();
-      });
+      showConfirmDialog('初始化 Demo 新闻', '将初始化 8 条 Demo 新闻（已有的不重复），继续？', null, function(){
+        authFetch('/api/news/demo', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(result) {
+          var data = result.data || result;
+          showToast('已初始化 ' + (data && data.seeded || 0) + ' 条 Demo 新闻', 'success');
+          loadNewsList();
+        });
+      }, '初始化', '#10b981');
     }
 
     function importNewsCSV() { document.getElementById('newsCSVInput').click(); }
@@ -3919,21 +4142,23 @@
     }
 
     function clearAllCalendar() {
-      if (!confirm('确认清空全部日程？此操作不可恢复！')) return;
-      if (!confirm('再次确认：将删除所有日历事件，继续？')) return;
-      authFetch('/api/calendar/events/all', { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function() {
-        showToast('已清空全部日程', 'success');
-        loadCalendarList();
+      // v3.3.8 统一二次确认对话框
+      showConfirmDialog('清空全部日程', '确认要清空全部日历事件吗？此操作将删除所有日程，不可恢复。', '此操作不可恢复，请谨慎确认', function(){
+        authFetch('/api/calendar/events/all', { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function() {
+          showToast('已清空全部日程', 'success');
+          loadCalendarList();
+        });
       });
     }
 
     function seedDemoCalendar() {
-      if (!confirm('将初始化 8 条 Demo 日程（已有的不重复），继续？')) return;
-      authFetch('/api/calendar/demo', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(result) {
-        var data = result.data || result;
-        showToast('已初始化 ' + (data && data.seeded || 0) + ' 条 Demo 日程', 'success');
-        loadCalendarList();
-      });
+      showConfirmDialog('初始化 Demo 日程', '将初始化 8 条 Demo 日程（已有的不重复），继续？', null, function(){
+        authFetch('/api/calendar/demo', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(result) {
+          var data = result.data || result;
+          showToast('已初始化 ' + (data && data.seeded || 0) + ' 条 Demo 日程', 'success');
+          loadCalendarList();
+        });
+      }, '初始化', '#10b981');
     }
 
     function importCalendar() { document.getElementById('calendarCSVInput').click(); }
