@@ -65,6 +65,28 @@
       }
     })();
 
+    // v3.6.5: 统一弹框打开辅助函数（防御性）
+    // 1) 再次确认弹框挂在 <body> 下（防止动态渲染后被移回 transformed 容器）
+    // 2) 添加 show 类
+    // 3) 聚焦弹框（draw attention，解决"弹框居中但用户看不到"的感知问题）
+    function showModal(idOrEl) {
+      var m = (typeof idOrEl === 'string') ? document.getElementById(idOrEl) : idOrEl;
+      if (!m) return;
+      // 防御性重新挂载到 body
+      if (m.parentNode !== document.body) {
+        document.body.appendChild(m);
+      }
+      m.classList.add('show');
+      // 聚焦弹框内容，吸引注意力（用户在长页面底部点击时可能没注意到视口中央的弹框）
+      try {
+        var box = m.querySelector('.modal-box');
+        if (box) {
+          box.setAttribute('tabindex', '-1');
+          box.focus({ preventScroll: true });
+        }
+      } catch(e) {}
+    }
+
     // ===== 认证系统 =====
     var authToken = localStorage.getItem('homemate_token') || '';
     var currentUser = JSON.parse(localStorage.getItem('homemate_user') || 'null');
@@ -2328,7 +2350,7 @@
       document.getElementById('claimTaskName').textContent = taskName;
       document.getElementById('claimTaskName').dataset.taskId = taskId || '';
       document.getElementById('claimMember').value = '';
-      document.getElementById('claimModal').classList.add('show');
+      showModal('claimModal');
     }
     function closeClaimModal() {
       document.getElementById('claimModal').classList.remove('show');
@@ -2651,7 +2673,7 @@
       }
       document.getElementById('voteProposalName').textContent = name;
       document.getElementById('voteMember').value = '';
-      document.getElementById('voteModal').classList.add('show');
+      showModal('voteModal');
     }
 
     function confirmVote() {
@@ -2679,7 +2701,7 @@
       document.getElementById('propTitle').value = '';
       document.getElementById('propDesc').value = '';
       document.getElementById('propIcon').value = '';
-      document.getElementById('proposalFormModal').classList.add('show');
+      showModal('proposalFormModal');
     }
 
     // 判断当前用户是否可编辑/删除该方案（作者或管理员）
@@ -2705,7 +2727,7 @@
       document.getElementById('propDuration').value = p.duration || '半天';
       document.getElementById('propCost').value = p.cost || '低';
       document.getElementById('propDifficulty').value = p.difficulty || 'easy';
-      document.getElementById('proposalFormModal').classList.add('show');
+      showModal('proposalFormModal');
     }
 
     function deleteProposal(id) {
@@ -2898,7 +2920,7 @@
         title.textContent = '新增家务';
         deleteBtn.classList.add('hidden');
       }
-      modal.classList.add('show');
+      showModal(modal);
     }
 
     function closeTaskForm() {
@@ -3291,7 +3313,7 @@
     function openWeeklyGoalModal() {
       var cur = document.getElementById('weeklyGoalText').textContent.replace(/[^\d]/g, '');
       document.getElementById('weeklyGoalInput').value = cur || '500';
-      document.getElementById('weeklyGoalModal').classList.add('show');
+      showModal('weeklyGoalModal');
     }
 
     function saveWeeklyGoal() {
@@ -3565,7 +3587,7 @@
       document.getElementById('dataSourceApiKey').value = '';
       document.getElementById('dataSourceUserId').value = String(memberId);
       document.getElementById('dataSourceActive').checked = true;
-      document.getElementById('dataSourceModal').classList.add('show');
+      showModal('dataSourceModal');
     }
 
     function submitDataSourceConfig() {
@@ -3775,7 +3797,7 @@
       document.querySelectorAll('.member-health-focus').forEach(function(cb) { cb.checked = false; });
       var pwd = document.getElementById('memberPassword');
       if (pwd) pwd.value = '';
-      document.getElementById('memberFormModal').classList.add('show');
+      showModal('memberFormModal');
     }
 
     function editMember(id) {
@@ -3798,7 +3820,7 @@
       document.querySelectorAll('.member-health-focus').forEach(function(cb) {
         cb.checked = focuses.indexOf(cb.value) >= 0;
       });
-      document.getElementById('memberFormModal').classList.add('show');
+      showModal('memberFormModal');
     }
 
     function saveMember() {
@@ -4111,7 +4133,7 @@
       document.getElementById('recordDescription').value = '';
       document.getElementById('recordHospital').value = '';
       document.getElementById('recordClinic').value = '';
-      document.getElementById('recordUploadModal').classList.add('show');
+      showModal('recordUploadModal');
     }
 
     function handleRecordFileSelect(input) {
@@ -4267,7 +4289,7 @@
         '</div>' +
         '<div class="text-xs text-gray-400 text-right">分析时间：' + (report.created_at || '--') + '</div>' +
       '</div>';
-      document.getElementById('analysisReportModal').classList.add('show');
+      showModal('analysisReportModal');
     }
 
     // ==================== 时事新闻管理 ====================
@@ -4329,7 +4351,7 @@
       }).catch(function(){ list.innerHTML = '<div class="text-center text-red-400 py-4">加载失败</div>'; });
     }
 
-    function showCreateTokenModal() { document.getElementById('createTokenModal').classList.add('show'); }
+    function showCreateTokenModal() { showModal('createTokenModal'); }
     function closeCreateTokenModal() { document.getElementById('createTokenModal').classList.remove('show'); }
 
     function createToken() {
@@ -4521,7 +4543,7 @@
       okBtn.textContent = okText || '确认';
       okBtn.style.background = okColor || '#ef4444';
       _confirmCallback = callback;
-      document.getElementById('confirmDialog').classList.add('show');
+      showModal('confirmDialog');
     }
     function closeConfirmDialog() { document.getElementById('confirmDialog').classList.remove('show'); _confirmCallback = null; }
     // 确认按钮回调（由 HTML onclick 直接调用闭包，这里用全局变量桥接）
@@ -4688,7 +4710,7 @@
       } else {
         link.classList.add('hidden');
       }
-      document.getElementById('newsDetailModal').classList.add('show');
+      showModal('newsDetailModal');
     }
 
     function closeNewsDetail() {
@@ -4849,7 +4871,7 @@
       if (e.location) metaParts.push('📍 ' + escapeHtml(e.location));
       document.getElementById('calendarDetailMeta').innerHTML = metaParts.join('　');
       document.getElementById('calendarDetailDesc').textContent = e.description || '（无描述）';
-      document.getElementById('calendarDetailModal').classList.add('show');
+      showModal('calendarDetailModal');
     }
 
     function closeCalendarDetail() {
@@ -4886,7 +4908,7 @@
         document.getElementById('calendarFormType').value = '家庭';
         document.getElementById('calendarFormImportant').checked = false;
       }
-      modal.classList.add('show');
+      showModal(modal);
     }
 
     function saveCalendarEvent() {
