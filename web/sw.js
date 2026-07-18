@@ -1,5 +1,6 @@
 // HomeMate Service Worker - PWA 离线缓存
-var CACHE_NAME = 'homemate-v3.1.0';
+// v3.8.3: 升级缓存版本号，清理 v3.1.0 旧缓存；HTML 导航请求改网络优先
+var CACHE_NAME = 'homemate-v3.8.3';
 var PRECACHE_URLS = ['/', '/index.html', '/manifest.json'];
 
 // 安装：预缓存关键页面
@@ -47,7 +48,28 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // 静态资源：缓存优先，失败回退网络
+  // v3.8.3: HTML 导航请求改网络优先，确保用户拿到最新版页面
+  // 避免 SW 缓存旧版 index.html 导致功能不生效
+  if (req.mode === 'navigate' || (req.headers.get('accept') || '').indexOf('text/html') !== -1) {
+    event.respondWith(
+      fetch(req).then(function(resp) {
+        if (!resp || resp.status !== 200) return resp;
+        var respClone = resp.clone();
+        caches.open(CACHE_NAME).then(function(cache) {
+          cache.put(req, respClone);
+        });
+        return resp;
+      }).catch(function() {
+        // 离线兜底：返回缓存的首页
+        return caches.match('/index.html').then(function(cached) {
+          return cached || caches.match('/');
+        });
+      })
+    );
+    return;
+  }
+
+  // 其他静态资源：缓存优先，失败回退网络
   event.respondWith(
     caches.match(req).then(function(cached) {
       if (cached) {
