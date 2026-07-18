@@ -754,23 +754,39 @@
 
     <!-- ========== Tab 2: 家务劳动 ========== -->
     <div id="panel-chores" class="tab-panel" role="tabpanel">
-      <!-- 顶部统计 -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-        <div class="overview-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.05s">
-          <p class="text-xs text-gray-400">今日总积分</p>
-          <p id="choreTotalPts" class="text-2xl font-bold mt-1" style="color:var(--primary)">0</p>
+      <!-- 合并卡片：今日劳动概览 + 成员贡献排行 -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-5 mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-bold">📊 今日劳动概览</h3>
+          <span class="text-xs text-gray-400" id="choreStreakBadge">连续 0 天</span>
         </div>
-        <div class="overview-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.1s">
-          <p class="text-xs text-gray-400">完成家务数</p>
-          <p id="choreDoneCount" class="text-2xl font-bold mt-1" style="color:var(--success)">0</p>
-        </div>
-        <div class="overview-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.15s">
-          <p class="text-xs text-gray-400">参与成员数</p>
-          <p id="choreActiveMembers" class="text-2xl font-bold mt-1" style="color:var(--warning)">0</p>
-        </div>
-        <div class="overview-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 stagger-item" style="animation-delay:0.2s">
-          <p class="text-xs text-gray-400">连续打卡天数</p>
-          <p id="choreStreak" class="text-2xl font-bold mt-1" style="color:var(--danger)">0</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- 左：今日统计（2×2） -->
+          <div class="md:col-span-1 grid grid-cols-2 gap-3">
+            <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
+              <p class="text-[10px] text-gray-400">今日积分</p>
+              <p id="choreTotalPts" class="text-xl font-bold" style="color:var(--primary)">0</p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
+              <p class="text-[10px] text-gray-400">完成数</p>
+              <p id="choreDoneCount" class="text-xl font-bold" style="color:var(--success)">0</p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
+              <p class="text-[10px] text-gray-400">参与成员</p>
+              <p id="choreActiveMembers" class="text-xl font-bold" style="color:var(--warning)">0</p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 text-center">
+              <p class="text-[10px] text-gray-400">连续打卡</p>
+              <p id="choreStreak" class="text-xl font-bold" style="color:var(--danger)">0</p>
+            </div>
+          </div>
+          <!-- 右：成员贡献排行（紧凑横排） -->
+          <div class="md:col-span-2">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-xs font-medium text-gray-500">🏆 成员贡献</p>
+            </div>
+            <div id="memberContrib" class="space-y-2 min-w-0"></div>
+          </div>
         </div>
       </div>
 
@@ -788,13 +804,11 @@
       <h3 class="text-lg font-bold mb-3">待办认领</h3>
       <div id="pendingClaims" class="mb-6"></div>
 
-      <!-- 今日完成记录（时间线） -->
+      <!-- 今日完成记录（单行紧凑列表，限高可滚动） -->
       <h3 class="text-lg font-bold mb-3">今日完成记录</h3>
-      <div id="todayRecords" class="mb-6"></div>
-
-      <!-- 成员贡献排行 -->
-      <h3 class="text-lg font-bold mb-3">成员贡献排行</h3>
-      <div id="memberContrib" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
+      <div id="todayRecords" class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+        <div id="todayRecordsList" class="divide-y divide-gray-50 max-h-[280px] overflow-y-auto"></div>
+      </div>
     </div>
 
     <!-- ========== Tab 3: 积分排行 ========== -->
@@ -2244,6 +2258,8 @@
       // v3.3.6 爸爸视角：后端 streak 未填充时兜底——今日有完成记录则至少显示1天，避免"今日做了家务却显示0天"的困惑
       var displayStreak = (data.stats.streak > 0) ? data.stats.streak : ((data.stats.completed > 0) ? 1 : 0);
       animateCount(document.getElementById('choreStreak'), displayStreak, 600);
+      var streakBadge = document.getElementById('choreStreakBadge');
+      if (streakBadge) streakBadge.textContent = '连续 ' + displayStreak + ' 天';
 
       var diffColors = { easy: '#10b981', medium: '#f59e0b', hard: '#ef4444', '简单': '#10b981', '中等': '#f59e0b', '困难': '#ef4444' };
       var diffLabels = { easy: '简单', medium: '中等', hard: '困难', '简单': '简单', '中等': '中等', '困难': '困难' };
@@ -2264,44 +2280,47 @@
       });
       document.getElementById('taskScroll').innerHTML = taskHTML;
 
-      // 今日完成记录（时间线）
-      var recHTML = '<div class="relative pl-6 space-y-3">' +
-        '<div class="absolute left-2 top-2 bottom-2 w-0.5 bg-gray-200"></div>';
+      // 今日完成记录（单行紧凑列表）
+      var recHTML = '';
       var records = (data.today_records || []).slice().reverse();
       records.forEach(function(r) {
         var c = memberColors[r.member] || '#6b7280';
         var s = memberShortName[r.member] || r.member.charAt(0);
-        recHTML += '<div class="relative flex items-start gap-3 stagger-item">' +
-          '<div class="absolute -left-6 top-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:' + c + '">' + s + '</div>' +
-          '<div class="flex-1 bg-white rounded-lg p-3 shadow-sm border border-gray-100">' +
-            '<div class="flex items-center justify-between">' +
-              '<div class="flex items-center gap-2"><span class="text-base">' + (r.icon || '📋') + '</span><span class="text-sm font-medium">' + (r.task || r.item || '') + '</span></div>' +
-              '<span class="text-xs text-gray-400">' + r.time + '</span>' +
-            '</div>' +
-            '<p class="text-xs mt-1" style="color:' + c + '">+' + r.points + ' 积分 · ' + r.member + '</p>' +
-          '</div>' +
+        recHTML += '<div class="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition">' +
+          '<span class="text-base flex-shrink-0">' + (r.icon || '📋') + '</span>' +
+          '<span class="text-sm font-medium flex-1 truncate">' + (r.task || r.item || '') + '</span>' +
+          '<div class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style="background:' + c + '">' + s + '</div>' +
+          '<span class="text-xs text-gray-500 flex-shrink-0 hidden sm:inline">' + r.member + '</span>' +
+          '<span class="text-xs font-medium flex-shrink-0" style="color:' + c + '">+' + r.points + '</span>' +
+          '<span class="text-[10px] text-gray-400 flex-shrink-0">' + r.time + '</span>' +
         '</div>';
       });
-      recHTML += '</div>';
-      document.getElementById('todayRecords').innerHTML = recHTML;
+      var listEl = document.getElementById('todayRecordsList');
+      if (listEl) {
+        listEl.innerHTML = recHTML || '<div class="px-3 py-6 text-center text-sm text-gray-400">今日暂无完成记录</div>';
+      }
 
-      // 成员贡献排行
+      // 成员贡献排行（紧凑横排）
       var contribHTML = '';
-      var maxDone = Math.max.apply(null, data.member_contrib.map(function(m) { return m.done; }));
-      data.member_contrib.forEach(function(m) {
+      var contribList = data.member_contrib || [];
+      var maxDone = contribList.length ? Math.max.apply(null, contribList.map(function(m) { return m.done; })) : 0;
+      contribList.forEach(function(m) {
         var c = memberColors[m.name] || '#6b7280';
         var s = memberShortName[m.name] || m.name.charAt(0);
         var pct = maxDone > 0 ? Math.round(m.done / maxDone * 100) : 0;
-        contribHTML += '<div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">' +
-          '<div class="flex items-center gap-2 mb-3">' +
-            '<div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background:' + c + '">' + s + '</div>' +
-            '<div><p class="text-sm font-semibold">' + m.name + '</p><p class="text-xs text-gray-400">本周 ' + m.done + ' 次</p></div>' +
+        contribHTML += '<div class="flex items-center gap-2 min-w-0">' +
+          '<div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style="background:' + c + '">' + s + '</div>' +
+          '<div class="w-14 text-sm font-medium truncate flex-shrink-0">' + m.name + '</div>' +
+          '<div class="flex-1 min-w-0 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">' +
+            '<div class="h-full rounded-full" style="background:' + c + ';width:' + pct + '%"></div>' +
           '</div>' +
-          '<div class="text-right text-xs text-gray-400 mb-1">' + m.points + ' 积分</div>' +
-          '<div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div class="progress-fill h-full rounded-full" style="background:' + c + ';width:' + pct + '%"></div></div>' +
+          '<div class="text-xs text-gray-500 flex-shrink-0 w-24 text-right">' + m.points + '分 · ' + m.done + '次</div>' +
         '</div>';
       });
-      document.getElementById('memberContrib').innerHTML = contribHTML;
+      var contribEl = document.getElementById('memberContrib');
+      if (contribEl) {
+        contribEl.innerHTML = contribHTML || '<div class="text-center text-sm text-gray-400 py-4">暂无成员贡献数据</div>';
+      }
     }
 
     // ==================== 家务认领对话框 ====================
