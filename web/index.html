@@ -617,47 +617,48 @@
 
   <!-- ==================== 顶部固定导航栏（毛玻璃） ==================== -->
   <nav class="glass-nav fixed top-0 left-0 right-0 z-50">
-    <div class="max-w-7xl mx-auto flex items-center justify-between px-4 md:px-6 h-14">
-      <!-- 左侧 Logo -->
-      <div class="flex items-center gap-2 flex-shrink-0">
-        <span class="text-xl font-bold" style="color:var(--primary)">HomeMate</span>
-        <span class="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">v3.1</span>
+    <div class="max-w-7xl mx-auto flex items-center gap-2 px-3 md:px-6 h-14">
+      <!-- 左侧 Logo（移动端隐藏版本号） -->
+      <div class="flex items-center gap-1.5 flex-shrink-0">
+        <span class="text-lg md:text-xl font-bold" style="color:var(--primary)">HomeMate</span>
+        <span class="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded hidden md:inline">v3.4</span>
       </div>
-      <!-- 中间 Tab 按钮 -->
-      <div class="flex items-center gap-1 md:gap-4 overflow-x-auto hide-scrollbar" role="tablist" aria-label="主导航">
-        <button class="tab-btn active text-sm px-2 md:px-3 py-1" data-tab="home" role="tab" aria-controls="panel-home" aria-selected="true" onclick="switchTab('home')">家庭首页</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="health" role="tab" aria-controls="panel-health" aria-selected="false" onclick="switchTab('health')">健康总览</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="chores" role="tab" aria-controls="panel-chores" aria-selected="false" onclick="switchTab('chores')">家务劳动</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="points" role="tab" aria-controls="panel-points" aria-selected="false" onclick="switchTab('points')">积分排行</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="weekend" role="tab" aria-controls="panel-weekend" aria-selected="false" onclick="switchTab('weekend')">休闲活动</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="records" role="tab" aria-controls="panel-records" aria-selected="false" onclick="switchTab('records')">健康档案</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="news" role="tab" aria-controls="panel-news" aria-selected="false" onclick="switchTab('news')">时事新闻</button>
-        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="calendar" role="tab" aria-controls="panel-calendar" aria-selected="false" onclick="switchTab('calendar')">日历行程</button>
-        <button id="adminTabBtn" class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500 hidden" data-tab="admin" role="tab" aria-controls="panel-admin" aria-selected="false" onclick="switchTab('admin')">⚙️ 管理</button>
+      <!-- 中间 Tab 按钮（flex-1 占据剩余空间，min-w-0 允许收缩，overflow-x-auto 横向滚动） -->
+      <div class="flex-1 min-w-0 flex items-center gap-1 md:gap-3 overflow-x-auto hide-scrollbar" role="tablist" aria-label="主导航">
+        <button class="tab-btn active text-sm px-2 md:px-3 py-1" data-tab="home" role="tab" aria-controls="panel-home" aria-selected="true" onclick="switchTab('home')">首页</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="health" role="tab" aria-controls="panel-health" aria-selected="false" onclick="switchTab('health')">健康</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="chores" role="tab" aria-controls="panel-chores" aria-selected="false" onclick="switchTab('chores')">劳动</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="points" role="tab" aria-controls="panel-points" aria-selected="false" onclick="switchTab('points')">积分</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="weekend" role="tab" aria-controls="panel-weekend" aria-selected="false" onclick="switchTab('weekend')">休闲</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="records" role="tab" aria-controls="panel-records" aria-selected="false" onclick="switchTab('records')">档案</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="news" role="tab" aria-controls="panel-news" aria-selected="false" onclick="switchTab('news')">时事</button>
+        <button class="tab-btn text-sm px-2 md:px-3 py-1 text-gray-500" data-tab="calendar" role="tab" aria-controls="panel-calendar" aria-selected="false" onclick="switchTab('calendar')">行程</button>
       </div>
-      <!-- 右侧：更新时间 + 刷新 -->
-      <div class="flex items-center gap-2 flex-shrink-0 relative">
-        <span id="navUpdateTime" class="text-xs text-gray-400 hidden sm:inline">--</span>
+      <!-- 右侧：时间 + 用户 + 个人中心 + 模式切换（移动端仅图标） -->
+      <div class="flex items-center gap-1 md:gap-2 flex-shrink-0 relative">
+        <span id="navUpdateTime" class="text-xs text-gray-400 hidden lg:inline">--</span>
+        <!-- 个人中心（移动端仅图标） -->
+        <button onclick="openSettings()" class="text-sm px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-1" aria-label="个人中心" title="个人中心">
+          <span class="text-base">👤</span><span class="hidden md:inline">个人中心</span>
+        </button>
+        <!-- 用户头像（移动端仅圆点，桌面端显名字+角色） -->
         <span id="userDisplay" class="hidden flex items-center gap-1 cursor-pointer select-none relative" onclick="toggleUserMenu()" title="用户中心">
-          <span id="userAvatar" class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs" style="background:var(--primary)">U</span>
-          <span id="userName" class="text-xs text-gray-700 dark:text-gray-300 max-w-[60px] truncate">用户</span>
-          <span id="userRole" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">adult</span>
+          <span id="userAvatar" class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0" style="background:var(--primary)">U</span>
+          <span id="userName" class="text-xs text-gray-700 dark:text-gray-300 max-w-[60px] truncate hidden md:inline">用户</span>
+          <span id="userRole" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hidden md:inline">adult</span>
         </span>
-        <div id="userMenu" class="absolute right-2 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border dark:border-gray-700 z-50 hidden" style="min-width:180px">
+        <div id="userMenu" class="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border dark:border-gray-700 z-50 hidden" style="min-width:180px">
           <div class="p-3 border-b dark:border-gray-700">
             <div id="menuUserName" class="text-sm font-medium text-gray-800 dark:text-white"></div>
             <div id="menuUserRole" class="text-xs text-gray-500 dark:text-gray-400"></div>
           </div>
           <div class="py-1">
-            <button onclick="document.getElementById('userMenu').classList.add('hidden'); switchTab('settings')" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"><span>⚙️</span><span>设置</span></button>
+            <button onclick="document.getElementById('userMenu').classList.add('hidden'); openSettings()" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"><span>👤</span><span>个人中心</span></button>
             <button onclick="doResetPassword()" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">修改密码</button>
             <button onclick="doLogout()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 dark:hover:bg-gray-700">退出登录</button>
           </div>
         </div>
-        <button id="kidModeBtn" onclick="toggleKidMode()" class="text-xl p-1 rounded-lg hover:bg-gray-100 transition" title="儿童模式" aria-label="切换儿童模式">🧒</button>
-        <button onclick="refreshAllData()" class="ripple-btn p-1.5 rounded-lg hover:bg-gray-100 transition" title="刷新数据">
-          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        </button>
+        <button id="kidModeBtn" onclick="toggleKidMode()" class="text-xl p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition" title="儿童模式" aria-label="切换儿童模式">🧒</button>
       </div>
     </div>
   </nav>
@@ -976,94 +977,189 @@
 
     <!-- ========== Tab 4: 设置 ========== -->
     <div id="panel-settings" class="tab-panel" role="tabpanel">
-      <div class="max-w-lg mx-auto space-y-6">
-        <!-- 成员管理（原独立 Tab，已并入设置） -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+      <div class="max-w-3xl mx-auto space-y-6">
+        <!-- 个人中心头部 -->
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold">👤 个人中心</h3>
+            <p class="text-xs text-gray-400 mt-0.5">成员管理 · 系统配置 · 偏好设置</p>
+          </div>
+        </div>
+
+        <!-- ========== 分区 1：成员管理（管理主页） ========== -->
+        <section class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-base font-bold">👥 成员管理</h3>
-            <button onclick="openMemberForm()" class="ripple-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-              新增成员
-            </button>
-            <button onclick="exportMembersCSV()" id="memberExportBtn" class="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 hidden">📤 导出CSV</button>
+            <div>
+              <h4 class="text-base font-bold">👥 成员管理 <span class="text-xs font-normal text-gray-400 ml-1">· 管理主页</span></h4>
+              <p class="text-xs text-gray-400 mt-0.5">新增/编辑/删除家庭成员</p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="exportMembersCSV()" id="memberExportBtn" class="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 hidden">📤 导出CSV</button>
+              <button onclick="openMemberForm()" class="ripple-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                新增成员
+              </button>
+            </div>
           </div>
           <div id="membersList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-        </div>
+        </section>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 class="text-base font-bold mb-4">通知设置</h3>
-          <div class="flex items-center justify-between py-2">
-            <label class="text-sm text-gray-700 dark:text-gray-300">健康异常推送</label>
-            <input type="checkbox" id="notifyHealth" onchange="saveNotifySettings()" class="w-4 h-4 rounded">
-          </div>
-          <div class="flex items-center justify-between py-2">
-            <label class="text-sm text-gray-700 dark:text-gray-300">家务提醒推送</label>
-            <input type="checkbox" id="notifyChorse" onchange="saveNotifySettings()" class="w-4 h-4 rounded">
-          </div>
-          <div class="flex items-center justify-between py-2">
-            <label class="text-sm text-gray-700 dark:text-gray-300">积分变动通知</label>
-            <input type="checkbox" id="notifyPoints" onchange="saveNotifySettings()" class="w-4 h-4 rounded">
-          </div>
-          <div class="flex items-center justify-between py-2">
-            <label class="text-sm text-gray-700 dark:text-gray-300">音效</label>
-            <input type="checkbox" id="soundToggle" onchange="toggleSound()" class="w-4 h-4 rounded">
-          </div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 class="text-base font-bold mb-4">显示设置</h3>
-          <label class="flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer">
-            <span class="text-sm">深色模式</span>
-            <input type="checkbox" id="darkModeToggle" class="w-5 h-5 rounded accent-blue-500" onchange="toggleDarkMode()">
-          </label>
-          <label class="flex items-center justify-between py-3 cursor-pointer">
-            <span class="text-sm">紧凑视图</span>
-            <input type="checkbox" id="compactViewToggle" class="w-5 h-5 rounded accent-blue-500" onchange="toggleCompactView()">
-          </label>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 class="text-base font-bold mb-4">数据同步</h3>
-          <div class="flex items-center justify-between py-2">
-            <label class="text-sm text-gray-700 dark:text-gray-300">自动同步</label>
-            <input type="checkbox" id="autoSync" onchange="saveSyncSettings()" class="w-4 h-4 rounded">
-          </div>
-          <div class="flex items-center justify-between py-2">
-            <label class="text-sm text-gray-700 dark:text-gray-300">同步频率</label>
-            <select id="syncFreq" onchange="saveSyncSettings()" class="text-sm px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-              <option value="hourly">每小时</option>
-              <option value="6h">每6小时</option>
-              <option value="daily">每天</option>
-            </select>
-          </div>
-          <div class="pt-3">
-            <button onclick="manualSync()" class="ripple-btn w-full py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">手动同步</button>
-          </div>
-        </div>
+        <!-- ========== 分区 2：系统管理（admin 可见） ========== -->
+        <section id="systemAdminSection" class="space-y-5 hidden">
+          <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider pt-2">⚙️ 系统管理</h4>
 
-        <!-- 家务任务管理 -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 mb-4">
-          <div class="flex items-center justify-between mb-3">
-            <h4 class="text-base font-bold">家务任务管理</h4>
-            <button onclick="toggleAllChorseGroups()" class="text-xs text-blue-500 hover:text-blue-600 font-medium" id="chorseGroupToggleAll">全部展开</button>
+          <!-- 系统状态总览 -->
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-bold">📊 系统状态总览</h4>
+              <span class="text-xs text-blue-500 cursor-pointer" onclick="loadAdminOverview()">🔄 刷新</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">👥 成员</p><p id="ovMembers" class="text-xl font-bold text-blue-600">-</p></div>
+              <div class="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">📰 新闻</p><p id="ovNews" class="text-xl font-bold text-green-600">-</p></div>
+              <div class="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">📅 日历事件</p><p id="ovCalendar" class="text-xl font-bold text-purple-600">-</p></div>
+              <div class="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">🧹 家务任务</p><p id="ovChores" class="text-xl font-bold text-amber-600">-</p></div>
+            </div>
+            <p id="adminOverviewMeta" class="text-xs text-gray-400 mt-3">加载中...</p>
           </div>
-          <p class="text-xs text-gray-400 mb-3">按分类分组，勾选后任务才会出现在"家务劳动"页面中供认领</p>
-          <div id="adminTaskList" class="space-y-2">
-            <p class="text-sm text-gray-400">加载中...</p>
-          </div>
-        </div>
 
-        <!-- 数据源配置 -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-base font-bold">数据源配置</h3>
-            <span class="text-xs text-gray-400">MCP Server</span>
+          <!-- Token + 调度器双列 -->
+          <div class="grid md:grid-cols-2 gap-5">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="text-sm font-bold">🔑 API Token 管理</h4>
+                <button onclick="showCreateTokenModal()" class="text-xs px-2.5 py-1 rounded-lg text-white" style="background:var(--primary)">➕ 新建</button>
+              </div>
+              <p class="text-xs text-gray-400 mb-3">外部系统写入数据的鉴权 Token</p>
+              <div id="tokenList" class="space-y-2 text-xs"><div class="text-center text-gray-400 py-4">加载中...</div></div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="text-sm font-bold">⏱️ 调度器状态</h4>
+                <span class="text-xs text-blue-500 cursor-pointer" onclick="loadSchedulerStatus()">🔄 刷新</span>
+              </div>
+              <p class="text-xs text-gray-400 mb-3">定时任务运行状态与手动触发</p>
+              <div id="schedulerStatus" class="space-y-2 text-xs"><div class="text-center text-gray-400 py-4">加载中...</div></div>
+            </div>
           </div>
-          <div id="dataSourceList" class="space-y-3">
-            <!-- 动态渲染 -->
+
+          <!-- 归档查询 -->
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-bold">🗄️ 归档查询</h4>
+              <span class="text-xs text-blue-500 cursor-pointer" onclick="loadArchiveTables()">🔄 刷新</span>
+            </div>
+            <p class="text-xs text-gray-400 mb-3">历史归档数据浏览（只读）</p>
+            <div id="archiveTableList" class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs"><div class="text-center text-gray-400 py-4">加载中...</div></div>
+            <div id="archiveDetailWrap" class="hidden mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+              <div class="flex items-center justify-between mb-2">
+                <h5 id="archiveDetailTitle" class="text-sm font-bold"></h5>
+                <button class="text-xs text-gray-400 hover:text-gray-600" onclick="closeArchiveDetail()">← 返回列表</button>
+              </div>
+              <div id="archiveDetailMeta" class="text-xs text-gray-400 mb-2"></div>
+              <div id="archiveDetailTable" class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700"></div>
+              <div id="archiveDetailPager" class="flex items-center justify-between mt-3 text-xs text-gray-400"></div>
+            </div>
           </div>
-          <div class="mt-4 pt-3 border-t border-gray-100">
-            <p class="text-xs text-gray-400 mb-2">支持的数据源：Garmin Connect、Apple Health、华为健康、手动录入</p>
+
+          <!-- 微信推送配置 -->
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-bold">💬 微信推送配置</h4>
+              <span class="text-xs text-blue-500 cursor-pointer" onclick="loadWeComConfig()">🔄 刷新</span>
+            </div>
+            <p class="text-xs text-gray-400 mb-3">企业微信机器人 Webhook 推送配置（运行时生效，重启后回退至 config.yaml）</p>
+            <div class="space-y-3 text-xs">
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">Webhook URL</label>
+                <input id="wecomWebhookInput" type="text" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." class="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
+              </div>
+              <div class="flex items-center justify-between">
+                <label class="text-sm">启用推送</label>
+                <input id="wecomEnableToggle" type="checkbox" class="w-4 h-4 rounded accent-blue-500">
+              </div>
+              <div class="flex gap-2 pt-1">
+                <button onclick="saveWeComConfig()" class="flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">💾 保存配置</button>
+                <button onclick="testWeComPush()" class="flex-1 py-2 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">🔔 测试推送</button>
+              </div>
+              <p id="wecomTestResult" class="text-xs text-gray-400"></p>
+            </div>
           </div>
-        </div>
+
+          <!-- 数据源配置 -->
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-bold">📡 数据源配置 <span class="text-xs font-normal text-gray-400 ml-1">MCP Server</span></h4>
+            </div>
+            <p class="text-xs text-gray-400 mb-3">支持 Garmin Connect、Apple Health、华为健康、手动录入</p>
+            <div id="dataSourceList" class="space-y-3"></div>
+          </div>
+
+          <!-- 家务任务管理 -->
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-bold">🧹 家务任务管理</h4>
+              <button onclick="toggleAllChorseGroups()" class="text-xs text-blue-500 hover:text-blue-600 font-medium" id="chorseGroupToggleAll">全部展开</button>
+            </div>
+            <p class="text-xs text-gray-400 mb-3">按分类分组，勾选后任务才会出现在"家务劳动"页面中供认领</p>
+            <div id="adminTaskList" class="space-y-2">
+              <p class="text-sm text-gray-400">加载中...</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========== 分区 3：偏好设置 ========== -->
+        <section class="space-y-5">
+          <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider pt-2">🎨 偏好设置</h4>
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+            <h4 class="text-sm font-bold mb-4">通知设置</h4>
+            <div class="flex items-center justify-between py-2">
+              <label class="text-sm text-gray-700 dark:text-gray-300">健康异常推送</label>
+              <input type="checkbox" id="notifyHealth" onchange="saveNotifySettings()" class="w-4 h-4 rounded accent-blue-500">
+            </div>
+            <div class="flex items-center justify-between py-2">
+              <label class="text-sm text-gray-700 dark:text-gray-300">家务提醒推送</label>
+              <input type="checkbox" id="notifyChorse" onchange="saveNotifySettings()" class="w-4 h-4 rounded accent-blue-500">
+            </div>
+            <div class="flex items-center justify-between py-2">
+              <label class="text-sm text-gray-700 dark:text-gray-300">积分变动通知</label>
+              <input type="checkbox" id="notifyPoints" onchange="saveNotifySettings()" class="w-4 h-4 rounded accent-blue-500">
+            </div>
+            <div class="flex items-center justify-between py-2">
+              <label class="text-sm text-gray-700 dark:text-gray-300">音效</label>
+              <input type="checkbox" id="soundToggle" onchange="toggleSound()" class="w-4 h-4 rounded accent-blue-500">
+            </div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+            <h4 class="text-sm font-bold mb-4">显示设置</h4>
+            <label class="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer">
+              <span class="text-sm">深色模式</span>
+              <input type="checkbox" id="darkModeToggle" class="w-5 h-5 rounded accent-blue-500" onchange="toggleDarkMode()">
+            </label>
+            <label class="flex items-center justify-between py-3 cursor-pointer">
+              <span class="text-sm">紧凑视图</span>
+              <input type="checkbox" id="compactViewToggle" class="w-5 h-5 rounded accent-blue-500" onchange="toggleCompactView()">
+            </label>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+            <h4 class="text-sm font-bold mb-4">数据同步</h4>
+            <div class="flex items-center justify-between py-2">
+              <label class="text-sm text-gray-700 dark:text-gray-300">自动同步</label>
+              <input type="checkbox" id="autoSync" onchange="saveSyncSettings()" class="w-4 h-4 rounded accent-blue-500">
+            </div>
+            <div class="flex items-center justify-between py-2">
+              <label class="text-sm text-gray-700 dark:text-gray-300">同步频率</label>
+              <select id="syncFreq" onchange="saveSyncSettings()" class="text-sm px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="hourly">每小时</option>
+                <option value="6h">每6小时</option>
+                <option value="daily">每天</option>
+              </select>
+            </div>
+            <div class="pt-3">
+              <button onclick="manualSync()" class="ripple-btn w-full py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">手动同步</button>
+            </div>
+          </div>
+        </section>
 
         <!-- 数据源配置 Modal（替代 prompt） -->
         <div id="dataSourceModal" class="modal-overlay">
@@ -1153,9 +1249,7 @@
       <div id="analysisReportsList" class="space-y-3"></div>
     </div>
 
-    <!-- ========== 成员管理（已并入设置 Tab，此处仅保留编辑模态框） ========== -->
-    <div id="panel-members" class="tab-panel hidden">
-      <!-- 成员编辑/新增对话框 -->
+    <!-- ========== 成员编辑/新增对话框（v3.4.0 修复：从 panel-members 移出，避免父级 hidden 导致弹框不可见） ========== -->
       <div id="memberFormModal" class="modal-overlay">
         <div class="modal-box" style="max-width:480px">
           <h4 id="memberFormTitle" class="text-lg font-bold mb-4">新增成员</h4>
@@ -1223,7 +1317,6 @@
           </div>
         </div>
       </div>
-    </div>
 
     <!-- ========== Tab: 时事新闻 ========== -->
     <div id="panel-news" class="tab-panel" role="tabpanel">
@@ -1241,7 +1334,7 @@
         </div>
       </div>
       <div id="newsCategoryFilter" class="flex items-center gap-2 mb-4 flex-wrap text-xs"></div>
-      <div id="newsList" class="space-y-3"></div>
+      <div id="newsList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
       <div id="newsPager" class="flex items-center justify-between mt-4 text-xs text-gray-400"></div>
       <input type="file" id="newsCSVInput" accept=".csv" class="hidden" onchange="doImportNewsCSV(this)">
     </div>
@@ -1262,105 +1355,6 @@
       </div>
       <div id="calendarList" class="space-y-2"></div>
       <input type="file" id="calendarCSVInput" accept=".csv" class="hidden" onchange="doImportCalendarCSV(this)">
-    </div>
-
-    <!-- ========== Tab: 管理中心（v3.3.8 仅管理员可见） ========== -->
-    <div id="panel-admin" class="tab-panel" role="tabpanel">
-      <div class="mb-4">
-        <h3 class="text-lg font-bold">⚙️ 管理中心</h3>
-        <p class="text-xs text-gray-400">系统状态、Token、调度器与各模块管理入口聚合</p>
-      </div>
-
-      <!-- P2 系统状态总览卡 -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 mb-5 border border-gray-100 dark:border-gray-700">
-        <h4 class="text-sm font-bold mb-3 flex items-center gap-1">📊 系统状态总览 <span id="adminStatusRefreshBtn" class="text-xs text-blue-500 cursor-pointer ml-2" onclick="loadAdminOverview()">🔄 刷新</span></h4>
-        <div id="adminOverviewGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">👥 成员</p><p id="ovMembers" class="text-xl font-bold text-blue-600">-</p></div>
-          <div class="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">📰 新闻</p><p id="ovNews" class="text-xl font-bold text-green-600">-</p></div>
-          <div class="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">📅 日历事件</p><p id="ovCalendar" class="text-xl font-bold text-purple-600">-</p></div>
-          <div class="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3 text-center"><p class="text-xs text-gray-400 mb-1">🧹 家务任务</p><p id="ovChores" class="text-xl font-bold text-amber-600">-</p></div>
-        </div>
-        <p id="adminOverviewMeta" class="text-xs text-gray-400 mt-3">加载中...</p>
-      </div>
-
-      <!-- 双列：Token + 调度器 -->
-      <div class="grid md:grid-cols-2 gap-5 mb-5">
-        <!-- P3 Token 管理 -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
-          <div class="flex items-center justify-between mb-3">
-            <h4 class="text-sm font-bold">🔑 API Token 管理</h4>
-            <button onclick="showCreateTokenModal()" class="text-xs px-2.5 py-1 rounded-lg text-white" style="background:var(--primary)">➕ 新建</button>
-          </div>
-          <p class="text-xs text-gray-400 mb-3">外部系统写入数据（新闻/日历/纪念日/周末方案）的鉴权 Token</p>
-          <div id="tokenList" class="space-y-2 text-xs"><div class="text-center text-gray-400 py-4">加载中...</div></div>
-        </div>
-
-        <!-- P4 调度器状态 -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
-          <div class="flex items-center justify-between mb-3">
-            <h4 class="text-sm font-bold">⏱️ 调度器状态</h4>
-            <span id="schedulerRefreshBtn" class="text-xs text-blue-500 cursor-pointer" onclick="loadSchedulerStatus()">🔄 刷新</span>
-          </div>
-          <p class="text-xs text-gray-400 mb-3">定时任务运行状态与手动触发</p>
-          <div id="schedulerStatus" class="space-y-2 text-xs"><div class="text-center text-gray-400 py-4">加载中...</div></div>
-        </div>
-      </div>
-
-      <!-- A1 归档查询（v3.3.9） -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 mb-5 border border-gray-100 dark:border-gray-700">
-        <div class="flex items-center justify-between mb-3">
-          <h4 class="text-sm font-bold">🗄️ 归档查询</h4>
-          <span class="text-xs text-blue-500 cursor-pointer" onclick="loadArchiveTables()">🔄 刷新</span>
-        </div>
-        <p class="text-xs text-gray-400 mb-3">历史归档数据浏览（只读）。超过容量上限的旧数据自动归档，可在此查看。</p>
-        <div id="archiveTableList" class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs"><div class="text-center text-gray-400 py-4">加载中...</div></div>
-        <div id="archiveDetailWrap" class="hidden mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
-          <div class="flex items-center justify-between mb-2">
-            <h5 id="archiveDetailTitle" class="text-sm font-bold"></h5>
-            <button class="text-xs text-gray-400 hover:text-gray-600" onclick="closeArchiveDetail()">← 返回列表</button>
-          </div>
-          <div id="archiveDetailMeta" class="text-xs text-gray-400 mb-2"></div>
-          <div id="archiveDetailTable" class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700"></div>
-          <div id="archiveDetailPager" class="flex items-center justify-between mt-3 text-xs text-gray-400"></div>
-        </div>
-      </div>
-
-      <!-- A2 微信推送配置（v3.3.9） -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 mb-5 border border-gray-100 dark:border-gray-700">
-        <div class="flex items-center justify-between mb-3">
-          <h4 class="text-sm font-bold">💬 微信推送配置</h4>
-          <span class="text-xs text-blue-500 cursor-pointer" onclick="loadWeComConfig()">🔄 刷新</span>
-        </div>
-        <p class="text-xs text-gray-400 mb-3">企业微信机器人 Webhook 推送配置（仅当前运行时生效，重启后回退至 config.yaml）</p>
-        <div class="space-y-3 text-xs">
-          <div>
-            <label class="block text-xs text-gray-400 mb-1">Webhook URL</label>
-            <input id="wecomWebhookInput" type="text" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." class="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300">
-          </div>
-          <div class="flex items-center justify-between">
-            <label class="text-sm">启用推送</label>
-            <input id="wecomEnableToggle" type="checkbox" class="w-4 h-4 rounded accent-blue-500">
-          </div>
-          <div class="flex gap-2 pt-1">
-            <button onclick="saveWeComConfig()" class="flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">💾 保存配置</button>
-            <button onclick="testWeComPush()" class="flex-1 py-2 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">🔔 测试推送</button>
-          </div>
-          <p id="wecomTestResult" class="text-xs text-gray-400"></p>
-        </div>
-      </div>
-
-      <!-- 模块管理快捷入口 -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-5 border border-gray-100 dark:border-gray-700">
-        <h4 class="text-sm font-bold mb-3">🧩 模块管理快捷入口</h4>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-          <button onclick="switchTab('records');setTimeout(function(){openSettings();},200)" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">👥 成员管理<br><span class="text-gray-400">新增/编辑/删除成员</span></button>
-          <button onclick="switchTab('news')" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">📰 新闻管理<br><span class="text-gray-400">CSV导入/Demo/清空</span></button>
-          <button onclick="switchTab('calendar')" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">📅 日历管理<br><span class="text-gray-400">CSV导入/Demo/清空</span></button>
-          <button onclick="switchTab('records')" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">📋 健康档案<br><span class="text-gray-400">上传/AI分析</span></button>
-          <button onclick="switchTab('chores')" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">🧹 家务任务<br><span class="text-gray-400">新增/认领/验收</span></button>
-          <button onclick="switchTab('points')" class="px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left">🏆 积分管理<br><span class="text-gray-400">排行/兑换/周目标</span></button>
-        </div>
-      </div>
     </div>
 
     <!-- ========== Token 创建对话框 ========== -->
@@ -1395,6 +1389,41 @@
           <button onclick="closeConfirmDialog()" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
           <button id="confirmOkBtn" class="flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:#ef4444">确认</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ========== 新闻详情弹框（v3.4.0） ========== -->
+    <div id="newsDetailModal" class="modal-overlay">
+      <div class="modal-box" style="max-width:560px">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex-1 min-w-0 pr-2">
+            <div class="flex items-center gap-2 mb-2 flex-wrap" id="newsDetailBadges"></div>
+            <h4 id="newsDetailTitle" class="text-lg font-bold leading-snug"></h4>
+          </div>
+          <button onclick="closeNewsDetail()" class="text-gray-400 hover:text-gray-600 text-xl leading-none flex-shrink-0">×</button>
+        </div>
+        <img id="newsDetailImg" class="w-full max-h-64 object-cover rounded-lg mb-3 hidden bg-gray-100 dark:bg-gray-700">
+        <p id="newsDetailSummary" class="text-sm text-gray-600 dark:text-gray-300 mb-3 leading-relaxed"></p>
+        <div id="newsDetailContent" class="text-sm text-gray-700 dark:text-gray-200 mb-3 leading-relaxed whitespace-pre-line"></div>
+        <div class="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
+          <span id="newsDetailMeta"></span>
+          <a id="newsDetailLink" href="#" target="_blank" rel="noopener" class="text-blue-500 hover:text-blue-600 hidden">查看原文 →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 日历详情弹框（v3.4.0） ========== -->
+    <div id="calendarDetailModal" class="modal-overlay">
+      <div class="modal-box" style="max-width:480px">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex-1 min-w-0 pr-2">
+            <div class="flex items-center gap-2 mb-2 flex-wrap" id="calendarDetailBadges"></div>
+            <h4 id="calendarDetailTitle" class="text-lg font-bold leading-snug"></h4>
+          </div>
+          <button onclick="closeCalendarDetail()" class="text-gray-400 hover:text-gray-600 text-xl leading-none flex-shrink-0">×</button>
+        </div>
+        <div id="calendarDetailMeta" class="text-xs text-gray-400 mb-3"></div>
+        <div id="calendarDetailDesc" class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line mb-3"></div>
       </div>
     </div>
 
@@ -1647,6 +1676,7 @@
     var customMetrics = {};
 
     // ==================== Tab 切换逻辑 ====================
+    function openSettings() { switchTab('settings'); }
     function switchTab(tabName) {
       document.querySelectorAll('.tab-btn').forEach(function(btn) {
         btn.classList.remove('active');
@@ -1678,13 +1708,23 @@
         loadRecords();
         loadAnalysisReports();
       }
-      // 按需加载设置页管理数据（含成员管理）
+      // 按需加载设置页管理数据（含成员管理 + 系统管理）
       if (tabName === 'settings') {
+        // v3.4.0 同步系统管理 section 显隐（admin 可见）
+        updateNewsAdminBar();
         loadMembers();
         loadAdminTasks();
         loadDataSourceConfigs();
         loadNotifySettings();
         loadSyncSettings();
+        // v3.4.0 系统管理（原 admin Tab 迁入，仅 admin 加载）
+        if (currentUser && currentUser.role === 'admin') {
+          loadAdminOverview();
+          loadTokenList();
+          loadSchedulerStatus();
+          loadArchiveTables();
+          loadWeComConfig();
+        }
       }
       // 按需加载新闻管理
       if (tabName === 'news') {
@@ -1699,14 +1739,6 @@
       // v3.3.6 爸爸视角：按需加载积分数据（含待验收积分口径三卡）
       if (tabName === 'points') {
         loadPointsData();
-      }
-      // v3.3.8 管理中心按需加载
-      if (tabName === 'admin') {
-        loadAdminOverview();
-        loadTokenList();
-        loadSchedulerStatus();
-        loadArchiveTables();
-        loadWeComConfig();
       }
     }
 
@@ -1992,16 +2024,16 @@
             '<div class="metric-expand-area' + (isExpanded ? ' open' : '') + '" id="expand-' + escapeHtml(member.name) + '">' +
               '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">' + expandedHTML + '</div>' +
               '<div class="mt-4">' +
-                '<button class="ripple-btn text-xs px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition" onclick="showCustomForm(\'' + escapeHtml(member.name) + '\', this)">+ 添加自定义指标</button>' +
-                '<div id="customForm-' + escapeHtml(member.name) + '" class="hidden mt-3" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">' +
-                  '<select id="customType-' + escapeHtml(member.name) + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5">' +
+                '<button class="ripple-btn text-xs px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition" onclick="showCustomForm(' + idx + ', this)">+ 添加自定义指标</button>' +
+                '<div id="customForm-' + idx + '" data-member-name="' + escapeHtml(member.name) + '" class="hidden mt-3" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">' +
+                  '<select id="customType-' + idx + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5">' +
                     '<option value="">选择指标...</option><option value="血糖">血糖</option><option value="体温">体温</option><option value="腰围">腰围</option><option value="臀围">臀围</option><option value="视力">视力</option><option value="BMI">BMI</option><option value="__custom">自定义</option>' +
                   '</select>' +
-                  '<input id="customName-' + escapeHtml(member.name) + '" style="display:none" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-24" placeholder="指标名称">' +
-                  '<input id="customVal-' + member.name + '" type="number" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-20" placeholder="数值">' +
-                  '<input id="customUnit-' + member.name + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-16" placeholder="单位">' +
-                  '<button onclick="addCustomMetric(\'' + member.name + '\')" class="ripple-btn text-xs px-3 py-1.5 rounded-lg text-white" style="background:var(--primary)">添加</button>' +
-                  '<button onclick="hideCustomForm(\'' + member.name + '\')" class="text-xs px-2 py-1.5 text-gray-400 hover:text-gray-600">取消</button>' +
+                  '<input id="customName-' + idx + '" style="display:none" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-24" placeholder="指标名称">' +
+                  '<input id="customVal-' + idx + '" type="number" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-20" placeholder="数值">' +
+                  '<input id="customUnit-' + idx + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-16" placeholder="单位">' +
+                  '<button onclick="addCustomMetric(' + idx + ')" class="ripple-btn text-xs px-3 py-1.5 rounded-lg text-white" style="background:var(--primary)">添加</button>' +
+                  '<button onclick="hideCustomForm(' + idx + ')" class="text-xs px-2 py-1.5 text-gray-400 hover:text-gray-600">取消</button>' +
                 '</div>' +
               '</div>' +
             '</div>' +
@@ -2022,49 +2054,52 @@
       if (currentHealthData) renderMembers(currentHealthData);
     }
 
-    // ==================== 自定义指标表单 ====================
-    function showCustomForm(name) {
-      var form = document.getElementById('customForm-' + name);
-      var typeSelect = document.getElementById('customType-' + name);
-      var nameInput = document.getElementById('customName-' + name);
+    // ==================== 自定义指标表单（v3.4.0：ID 用 idx 替代 member.name，消除中文拼接问题） ====================
+    function showCustomForm(id) {
+      var form = document.getElementById('customForm-' + id);
+      var typeSelect = document.getElementById('customType-' + id);
+      var nameInput = document.getElementById('customName-' + id);
       if (form) {
         form.classList.remove('hidden');
         form.style.display = 'flex';
       }
-      typeSelect.onchange = function() {
-        if (typeSelect.value === '__custom') {
-          nameInput.style.display = 'block';
-          nameInput.focus();
-        } else {
-          nameInput.style.display = 'none';
-        }
-      };
+      if (typeSelect) {
+        typeSelect.onchange = function() {
+          if (typeSelect.value === '__custom') {
+            if (nameInput) { nameInput.style.display = 'block'; nameInput.focus(); }
+          } else {
+            if (nameInput) nameInput.style.display = 'none';
+          }
+        };
+      }
     }
 
-    function hideCustomForm(name) {
-      var form = document.getElementById('customForm-' + name);
+    function hideCustomForm(id) {
+      var form = document.getElementById('customForm-' + id);
       if (form) { form.classList.add('hidden'); form.style.display = 'none'; }
     }
 
-    function addCustomMetric(name) {
-      var typeSelect = document.getElementById('customType-' + name);
-      var nameInput = document.getElementById('customName-' + name);
-      var valInput = document.getElementById('customVal-' + name);
-      var unitInput = document.getElementById('customUnit-' + name);
+    function addCustomMetric(id) {
+      var typeSelect = document.getElementById('customType-' + id);
+      var nameInput = document.getElementById('customName-' + id);
+      var valInput = document.getElementById('customVal-' + id);
+      var unitInput = document.getElementById('customUnit-' + id);
+      var form = document.getElementById('customForm-' + id);
+      var memberName = form ? form.dataset.memberName : '';
       var label = typeSelect.value === '__custom' ? nameInput.value.trim() : typeSelect.value;
       var val = parseFloat(valInput.value);
       var unit = unitInput.value.trim() || '';
 
-      if (!label || isNaN(val)) { alert('请填写完整的指标信息'); return; }
+      if (!label || isNaN(val)) { showToast('请填写完整的指标信息', 'error'); return; }
 
       authFetch('/api/health/metrics', {
         method: 'POST',
-        body: JSON.stringify({ member_name: name, label: label, value: val, unit: unit, icon: '📊', status: 'normal', trend: 'stable' })
+        body: JSON.stringify({ member_name: memberName, label: label, value: val, unit: unit, icon: '📊', status: 'normal', trend: 'stable' })
       }).then(function(r) { return r.json(); }).then(function(result) {
         if (result.code === 0) {
-          if (!customMetrics[name]) customMetrics[name] = [];
-          customMetrics[name].push(result.data);
-          hideCustomForm(name);
+          if (!customMetrics[memberName]) customMetrics[memberName] = [];
+          customMetrics[memberName].push(result.data);
+          hideCustomForm(id);
           loadHealthMetrics();
           showToast('指标已添加', 'success');
         } else {
@@ -3508,8 +3543,10 @@
     }
 
     function editMember(id) {
-      var m = currentMembers.find(function(x) { return x.id === id; });
-      if (!m) return;
+      var m = (currentMembers || []).find(function(x) { return x.id === id; });
+      // v3.4.0 兜底：home 页成员风采点击时 currentMembers 可能未加载，从 window._allMembers 查
+      if (!m && window._allMembers) m = window._allMembers.find(function(x) { return x.id === id; });
+      if (!m) { showToast('未找到该成员', 'error'); return; }
       document.getElementById('memberFormTitle').textContent = '编辑成员';
       document.getElementById('memberFormId').value = m.id;
       document.getElementById('memberFormName').value = m.name;
@@ -4003,9 +4040,9 @@
       var isAdmin = (currentUser && currentUser.role === 'admin');
       if (isAdmin) bar.classList.remove('hidden');
       else bar.classList.add('hidden');
-      // v3.3.8 管理Tab按钮可见性同步
-      var adminTabBtn = document.getElementById('adminTabBtn');
-      if (adminTabBtn) adminTabBtn.classList.toggle('hidden', !isAdmin);
+      // v3.3.8 管理Tab按钮可见性同步（v3.4.0 改为同步系统管理 section）
+      var adminSection = document.getElementById('systemAdminSection');
+      if (adminSection) adminSection.classList.toggle('hidden', !isAdmin);
       // v3.3.9 成员导出按钮可见性同步
       var memberExportBtn = document.getElementById('memberExportBtn');
       if (memberExportBtn) memberExportBtn.classList.toggle('hidden', !isAdmin);
@@ -4282,8 +4319,10 @@
     function renderNewsList(list) {
       var box = document.getElementById('newsList');
       if (!box) return;
+      // v3.4.0 缓存 list 供详情弹框使用
+      window._newsCache = list || [];
       if (!list || list.length === 0) {
-        box.innerHTML = '<div class="text-center py-12 text-sm text-gray-400">暂无新闻，可点击「初始化Demo」生成示例数据</div>';
+        box.innerHTML = '<div class="col-span-full text-center py-12 text-sm text-gray-400">暂无新闻，可点击「初始化Demo」生成示例数据</div>';
         return;
       }
       var isAdmin = currentUser && currentUser.role === 'admin';
@@ -4293,8 +4332,8 @@
         var catColor = { tech: 'blue', health: 'green', edu: 'purple', life: 'orange', finance: 'indigo', sports: 'red' }[n.category] || 'gray';
         var hotBadge = n.is_hot ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-500 text-white">🔥 热</span>' : '';
         var img = n.image_url ? '<img src="' + escapeHtml(n.image_url) + '" class="w-16 h-16 rounded object-cover flex-shrink-0 bg-gray-100 dark:bg-gray-700" onerror="this.onerror=null;this.src=\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22><rect width=%2264%22 height=%2264%22 fill=%22%23e5e7eb%22/></svg>\'">' : '';
-        var delBtn = isAdmin ? '<button onclick="deleteNews(' + n.id + ')" title="删除" aria-label="删除该新闻" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
-        html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex gap-3">' +
+        var delBtn = isAdmin ? '<button onclick="event.stopPropagation();deleteNews(' + n.id + ')" title="删除" aria-label="删除该新闻" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
+        html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex gap-3 cursor-pointer hover:shadow-md transition" onclick="showNewsDetail(' + n.id + ')">' +
           img +
           '<div class="flex-1 min-w-0">' +
             '<div class="flex items-center gap-2 mb-1">' +
@@ -4334,6 +4373,42 @@
         showToast('已删除', 'success');
         loadNewsList();
       });
+    }
+
+    // v3.4.0 新闻详情弹框
+    function showNewsDetail(id) {
+      var cache = window._newsCache || [];
+      var n = cache.find(function(x) { return x.id === id; });
+      if (!n) { showToast('新闻详情不可用', 'error'); return; }
+      var catLabel = newsCategoryLabels[n.category] || n.category;
+      var catColor = { tech: 'blue', health: 'green', edu: 'purple', life: 'orange', finance: 'indigo', sports: 'red' }[n.category] || 'gray';
+      var badges = '<span class="text-xs px-1.5 py-0.5 rounded bg-' + catColor + '-50 text-' + catColor + '-600">' + catLabel + '</span>';
+      if (n.is_hot) badges += '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-500 text-white">🔥 热</span>';
+      document.getElementById('newsDetailBadges').innerHTML = badges;
+      document.getElementById('newsDetailTitle').textContent = n.title || '';
+      document.getElementById('newsDetailSummary').textContent = n.summary || '';
+      document.getElementById('newsDetailContent').textContent = n.content || '';
+      document.getElementById('newsDetailMeta').textContent = '来源：' + (n.source || '-') + ' · ' + fmtNewsDate(n.published_at);
+      var img = document.getElementById('newsDetailImg');
+      if (n.image_url) {
+        img.src = n.image_url;
+        img.classList.remove('hidden');
+        img.onerror = function() { img.classList.add('hidden'); };
+      } else {
+        img.classList.add('hidden');
+      }
+      var link = document.getElementById('newsDetailLink');
+      if (n.source_url) {
+        link.href = n.source_url;
+        link.classList.remove('hidden');
+      } else {
+        link.classList.add('hidden');
+      }
+      document.getElementById('newsDetailModal').classList.add('show');
+    }
+
+    function closeNewsDetail() {
+      document.getElementById('newsDetailModal').classList.remove('show');
     }
 
     function clearAllNews() {
@@ -4401,6 +4476,8 @@
     function renderCalendarList(events) {
       var box = document.getElementById('calendarList');
       if (!box) return;
+      // v3.4.0 缓存 events 供详情弹框使用
+      window._calendarCache = events || [];
       if (!events || events.length === 0) {
         box.innerHTML = '<div class="text-center py-12 text-sm text-gray-400">暂无日程，可点击「初始化Demo」生成示例数据</div>';
         return;
@@ -4431,7 +4508,7 @@
         var dayEvents = groups[key].slice().sort(function(a,b){ return (b.is_important?1:0) - (a.is_important?1:0); });
         html += '<div class="mb-3">' +
           '<div class="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 sticky top-0 bg-gray-50 dark:bg-gray-900 py-1">📅 ' + escapeHtml(relDateLabel(key)) + ' <span class="text-gray-400 font-normal">(' + dayEvents.length + ')</span></div>' +
-          '<div class="space-y-2">';
+          '<div class="grid grid-cols-1 md:grid-cols-2 gap-2">';
         dayEvents.forEach(function(e) {
           var cat = calendarEventCategory(e.title);
           var isKid = document.body.classList.contains('kid-friendly');
@@ -4440,8 +4517,8 @@
           var catBadge = '<span class="text-[10px] px-1.5 py-0.5 rounded-full ' + cat.cls + '">' + cat.label + '</span>';
           var imp = e.is_important ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">重要</span>' : '';
           var color = e.color ? '<span class="w-2.5 h-2.5 rounded-full inline-block ring-2 ring-offset-1 dark:ring-offset-gray-800" style="background:' + escapeHtml(e.color) + '"></span>' : '';
-          var delBtn = isAdmin ? '<button onclick="deleteCalendarEvent(' + e.id + ')" title="删除" aria-label="删除该日程" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
-          html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3">' +
+          var delBtn = isAdmin ? '<button onclick="event.stopPropagation();deleteCalendarEvent(' + e.id + ')" title="删除" aria-label="删除该日程" class="w-6 h-6 rounded text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">🗑️</button>' : '';
+          html += '<div class="tilt-card bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3 cursor-pointer hover:shadow-md transition" onclick="showCalendarDetail(' + e.id + ')">' +
             color +
             '<span class="text-xs text-gray-400 w-12 flex-shrink-0">' + escapeHtml(e.time || (e.start_time ? e.start_time.slice(11, 16) : '--')) + '</span>' +
             '<div class="flex-1 min-w-0">' +
@@ -4466,6 +4543,32 @@
         showToast('已删除', 'success');
         loadCalendarList();
       });
+    }
+
+    // v3.4.0 日历详情弹框
+    function showCalendarDetail(id) {
+      var cache = window._calendarCache || [];
+      var e = cache.find(function(x) { return x.id === id; });
+      if (!e) { showToast('日程详情不可用', 'error'); return; }
+      var cat = calendarEventCategory(e.title);
+      var badges = '<span class="text-[10px] px-1.5 py-0.5 rounded-full ' + cat.cls + '">' + cat.label + '</span>';
+      if (e.is_important) badges += '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300">重要</span>';
+      if (e.color) badges += '<span class="w-2.5 h-2.5 rounded-full inline-block" style="background:' + escapeHtml(e.color) + '"></span>';
+      document.getElementById('calendarDetailBadges').innerHTML = badges;
+      document.getElementById('calendarDetailTitle').textContent = e.title || '';
+      var timeStr = e.time || (e.start_time ? e.start_time.slice(11, 16) : '--');
+      var endStr = e.end_time ? ' ~ ' + (e.end_time.length >= 16 ? e.end_time.slice(11, 16) : e.end_time) : '';
+      var metaParts = [];
+      metaParts.push('📅 ' + escapeHtml(e.date || '未排期'));
+      metaParts.push('⏰ ' + escapeHtml(timeStr + endStr));
+      if (e.location) metaParts.push('📍 ' + escapeHtml(e.location));
+      document.getElementById('calendarDetailMeta').innerHTML = metaParts.join('　');
+      document.getElementById('calendarDetailDesc').textContent = e.description || '（无描述）';
+      document.getElementById('calendarDetailModal').classList.add('show');
+    }
+
+    function closeCalendarDetail() {
+      document.getElementById('calendarDetailModal').classList.remove('show');
     }
 
     function clearAllCalendar() {
@@ -4526,7 +4629,7 @@
     // ==================== 成员风采（自画像） ====================
     function loadMemberShowcase() {
       var box = document.getElementById('memberShowcase');
-      if (box) box.innerHTML = '<div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700"><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><div class="text-center"><div class="skeleton w-16 h-16 rounded-full mx-auto"></div><div class="skeleton h-3 w-12 mx-auto mt-2"></div></div><div class="text-center"><div class="skeleton w-16 h-16 rounded-full mx-auto"></div><div class="skeleton h-3 w-12 mx-auto mt-2"></div></div></div></div>';
+      if (box) box.innerHTML = '<div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700"><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><div class="text-center"><div class="skeleton w-20 h-20 rounded-full mx-auto"></div><div class="skeleton h-3 w-14 mx-auto mt-2"></div></div><div class="text-center"><div class="skeleton w-20 h-20 rounded-full mx-auto"></div><div class="skeleton h-3 w-14 mx-auto mt-2"></div></div></div></div>';
       fetchWithFallback('/api/members', null).then(function(members) {
         var box = document.getElementById('memberShowcase');
         if (!box) return;
@@ -4535,31 +4638,34 @@
             '<div class="text-3xl mb-2">👨‍👩‍👧‍👦</div>' +
             '<p class="text-sm font-medium text-gray-600 dark:text-gray-300">还没有家庭成员</p>' +
             '<p class="text-xs text-gray-400 mt-1">添加成员后，这里会展示全家风采</p>' +
-            '<button onclick="switchTab(\'settings\')" class="mt-3 text-xs text-blue-500 hover:text-blue-600 font-medium">去添加成员 →</button>' +
+            '<button onclick="openSettings()" class="mt-3 text-xs text-blue-500 hover:text-blue-600 font-medium">去添加成员 →</button>' +
           '</div>';
           return;
         }
         // 缓存成员供投票头像映射使用
         window._allMembers = members;
         var html = '<div class="bg-white dark:bg-gray-800 bs-section rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden stagger-item">' +
-          '<div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">' +
-            '<span class="text-lg">👨‍👩‍👧‍👦</span>' +
-            '<h4 class="text-base font-bold">成员风采</h4>' +
+          '<div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">' +
+            '<div class="flex items-center gap-2"><span class="text-lg">👨‍👩‍👧‍👦</span><h4 class="text-base font-bold">成员风采</h4></div>' +
+            '<span class="text-xs text-gray-400">点击卡片可编辑资料</span>' +
           '</div>' +
           '<div class="p-5"><div class="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">';
         members.forEach(function(m) {
           var rc = (typeof roleColors !== 'undefined' && roleColors[m.role]) || '#6b7280';
           var rl = (typeof roleLabels !== 'undefined' && roleLabels[m.role]) || m.role;
+          var emoji = (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤');
+          var canEdit = (currentUser && (currentUser.role === 'admin' || currentUser.name === m.name));
           var avatar = m.avatar_url ?
-            '<img src="' + escapeHtml(m.avatar_url) + '" class="w-16 h-16 rounded-full object-cover mx-auto border-2 border-gray-100 dark:border-gray-700" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl&quot; style=&quot;background:' + rc + '&quot;>' + (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤') + '</div>\'">' :
-            '<div class="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl" style="background:' + rc + '">' + (typeof getRoleEmoji !== 'undefined' ? getRoleEmoji(m.role) : '👤') + '</div>';
+            '<img src="' + escapeHtml(m.avatar_url) + '" class="w-20 h-20 rounded-full object-cover mx-auto border-2 border-gray-100 dark:border-gray-700" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;w-20 h-20 rounded-full mx-auto flex items-center justify-center text-3xl&quot; style=&quot;background:' + rc + '&quot;>' + emoji + '</div>\'">' :
+            '<div class="w-20 h-20 rounded-full mx-auto flex items-center justify-center text-3xl" style="background:' + rc + '">' + emoji + '</div>';
           var bio = m.bio ? '<p class="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">' + escapeHtml(m.bio) + '</p>' : '';
           var ageTag = m.age ? '<span class="text-xs text-gray-400 dark:text-gray-500">· ' + escapeHtml(String(m.age)) + '岁</span>' : '';
-          var canEdit = (currentUser && (currentUser.role === 'admin' || currentUser.name === m.name));
-          var editBtn = canEdit ? '<button onclick="switchTab(\'settings\')" aria-label="编辑成员资料" class="mt-1 text-[10px] text-blue-500 hover:text-blue-600">编辑</button>' : '';
-          html += '<div class="text-center">' + avatar +
+          var cardClass = canEdit ? 'tilt-card cursor-pointer hover:shadow-md transition' : 'cursor-default';
+          var clickHandler = canEdit ? ' onclick="editMember(' + (m.id || 0) + ')"' : '';
+          var editBadge = canEdit ? '<span class="absolute top-1 right-1 bg-black/40 text-white text-[10px] px-1.5 py-0.5 rounded">✏️</span>' : '';
+          html += '<div class="relative text-center p-3 rounded-xl ' + cardClass + '"' + clickHandler + '>' + editBadge + avatar +
             '<p class="text-sm font-medium mt-2 flex items-center justify-center gap-1">' + escapeHtml(m.name) + ageTag + '</p>' +
-            '<span class="text-xs text-gray-400 dark:text-gray-500">' + escapeHtml(rl) + '</span>' + bio + editBtn + '</div>';
+            '<span class="inline-block text-xs px-2 py-0.5 rounded-full" style="background:' + rc + '18;color:' + rc + '">' + escapeHtml(rl) + '</span>' + bio + '</div>';
         });
         html += '</div></div></div>';
         box.innerHTML = html;
@@ -4986,6 +5092,8 @@
       }
       document.getElementById('menuUserName').textContent = (currentUser.name || currentUser.username || '用户');
       document.getElementById('menuUserRole').textContent = getRoleLabel(currentUser.role) + ' · ' + (currentUser.username || '');
+      // v3.4.0 currentUser 就绪后同步系统管理 section 显隐（解决刷新后 settings tab 下 section 未显示）
+      updateNewsAdminBar();
     }
 
     function getRoleLabel(role) {
