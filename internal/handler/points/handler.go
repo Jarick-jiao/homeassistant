@@ -1,6 +1,8 @@
 package points
 
 import (
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"github.com/homemate/server/internal/pkg/response"
 	"github.com/homemate/server/internal/store"
@@ -8,6 +10,7 @@ import (
 
 // PointsRecordView 积分记录
 type PointsRecordView struct {
+	ID     int64  `json:"id"`
 	Time   string `json:"time"`
 	Member string `json:"member"`
 	Type   string `json:"type"`
@@ -104,22 +107,116 @@ func GetPointsDashboardHandler(c *gin.Context) {
 	// 获取最近记录
 	recentRecords, err := db.GetRecentPointsRecords(c.Request.Context(), 50)
 	if err != nil {
-		recentRecords = []struct{ Time string `json:"time"`; Member string `json:"member"`; Type string `json:"type"`; Title string `json:"title"`; Points int `json:"points"` }{}
+		recentRecords = []struct {
+			ID     int64  `json:"id"`
+			Time   string `json:"time"`
+			Member string `json:"member"`
+			Type   string `json:"type"`
+			Title  string `json:"title"`
+			Points int    `json:"points"`
+		}{}
 	}
 	recent := make([]PointsRecordView, 0, len(recentRecords))
 	for _, r := range recentRecords {
 		recent = append(recent, PointsRecordView{
-			Time: r.Time, Member: r.Member, Type: r.Type, Title: r.Title, Points: r.Points,
+			ID: r.ID, Time: r.Time, Member: r.Member, Type: r.Type, Title: r.Title, Points: r.Points,
 		})
+	}
+
+	// 读取周目标设置（默认 500）
+	weeklyGoalStr := db.GetSetting(c.Request.Context(), "weekly_goal")
+	weeklyGoal := 500
+	if v, err := strconv.Atoi(weeklyGoalStr); err == nil && v > 0 {
+		weeklyGoal = v
+	}
+	// 动态计算本周进度
+	weeklySum, _ := db.GetWeeklyPointsSum(c.Request.Context())
+	var weeklyProgress float64
+	if weeklyGoal > 0 {
+		weeklyProgress = float64(weeklySum) / float64(weeklyGoal)
+		if weeklyProgress > 1.0 {
+			weeklyProgress = 1.0
+		}
 	}
 
 	response.Success(c, PointsDashboardResponse{
 		FamilyTotal:    familyTotal,
-		WeeklyGoal:     500,
-		WeeklyProgress: 0,
+		WeeklyGoal:     weeklyGoal,
+		WeeklyProgress: weeklyProgress,
 		Members:        members,
 		Recent:         recent,
 	})
+}
+
+// GetWeeklyGoalHandler 获取周目标
+func GetWeeklyGoalHandler(c *gin.Context) {
+	db := getDB(c)
+	if db == nil {
+		response.Success(c, gin.H{"weekly_goal": 500})
+		return
+	}
+	goalStr := db.GetSetting(c.Request.Context(), "weekly_goal")
+	goal := 500
+	if v, err := strconv.Atoi(goalStr); err == nil && v > 0 {
+		goal = v
+	}
+	weeklySum, _ := db.GetWeeklyPointsSum(c.Request.Context())
+	var progress float64
+	if goal > 0 {
+		progress = float64(weeklySum) / float64(goal)
+		if progress > 1.0 {
+			progress = 1.0
+		}
+	}
+	response.Success(c, gin.H{
+		"weekly_goal":     goal,
+		"weekly_sum":     weeklySum,
+		"weekly_progress": progress,
+	})
+}
+
+// UpdateWeeklyGoalHandler 更新周目标（管理员）
+func UpdateWeeklyGoalHandler(c *gin.Context) {
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	var req struct {
+		WeeklyGoal int `json:"weekly_goal"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "参数错误")
+		return
+	}
+	if req.WeeklyGoal <= 0 || req.WeeklyGoal > 100000 {
+		response.BadRequest(c, "周目标应在 1~100000 之间")
+		return
+	}
+	if err := db.SetSetting(c.Request.Context(), "weekly_goal", strconv.Itoa(req.WeeklyGoal)); err != nil {
+		response.InternalServerError(c, "保存失败")
+		return
+	}
+	response.Success(c, gin.H{"weekly_goal": req.WeeklyGoal})
+}
+
+// DeletePointsRecordHandler 删除积分记录（管理员）
+func DeletePointsRecordHandler(c *gin.Context) {
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "无效的记录 ID")
+		return
+	}
+	if err := db.DeletePointsRecord(c.Request.Context(), id); err != nil {
+		response.InternalServerError(c, "删除失败")
+		return
+	}
+	response.Success(c, nil)
 }
 
 // GetMembersSnapshot 导出成员积分快照（供大屏调用）

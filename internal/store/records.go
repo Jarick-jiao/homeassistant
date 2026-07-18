@@ -13,9 +13,9 @@ import (
 // CreateHealthRecordFile 上传健康档案文件记录
 func (db *DB) CreateHealthRecordFile(ctx context.Context, f *model.HealthRecordFile) (int64, error) {
 	res, err := db.conn.ExecContext(ctx,
-		`INSERT INTO health_record_files (member_id, title, category, record_date, file_name, file_size, file_type, file_path, summary, analysis, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '', ?)`,
-		f.MemberID, f.Title, f.Category, f.RecordDate, f.FileName, f.FileSize, f.FileType, f.FilePath, f.Summary, f.Analysis, time.Now())
+		`INSERT INTO health_record_files (member_id, title, category, record_date, description, hospital, clinic, file_name, file_size, file_type, file_path, summary, analysis, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?)`,
+		f.MemberID, f.Title, f.Category, f.RecordDate, f.Description, f.Hospital, f.Clinic, f.FileName, f.FileSize, f.FileType, f.FilePath, time.Now())
 	if err != nil {
 		return 0, err
 	}
@@ -27,7 +27,7 @@ func (db *DB) GetHealthRecordFiles(ctx context.Context, memberID int64, category
 	if limit <= 0 {
 		limit = 50
 	}
-	query := "SELECT id, member_id, title, category, record_date, file_name, file_size, file_type, file_path, thumb_path, summary, analysis, analyzed_at, created_at FROM health_record_files"
+	query := "SELECT id, member_id, title, category, record_date, description, hospital, clinic, file_name, file_size, file_type, file_path, thumb_path, summary, analysis, analyzed_at, created_at FROM health_record_files"
 	var args []interface{}
 	where := ""
 
@@ -55,7 +55,7 @@ func (db *DB) GetHealthRecordFiles(ctx context.Context, memberID int64, category
 	var files []model.HealthRecordFile
 	for rows.Next() {
 		var f model.HealthRecordFile
-		if err := rows.Scan(&f.ID, &f.MemberID, &f.Title, &f.Category, &f.RecordDate, &f.FileName, &f.FileSize, &f.FileType, &f.FilePath, &f.ThumbPath, &f.Summary, &f.Analysis, &f.AnalyzedAt, &f.CreatedAt); err != nil {
+		if err := rows.Scan(&f.ID, &f.MemberID, &f.Title, &f.Category, &f.RecordDate, &f.Description, &f.Hospital, &f.Clinic, &f.FileName, &f.FileSize, &f.FileType, &f.FilePath, &f.ThumbPath, &f.Summary, &f.Analysis, &f.AnalyzedAt, &f.CreatedAt); err != nil {
 			return nil, err
 		}
 		files = append(files, f)
@@ -66,9 +66,9 @@ func (db *DB) GetHealthRecordFiles(ctx context.Context, memberID int64, category
 // GetHealthRecordFileByID 根据 ID 获取文件
 func (db *DB) GetHealthRecordFileByID(ctx context.Context, id int64) (*model.HealthRecordFile, error) {
 	row := db.conn.QueryRowContext(ctx,
-		"SELECT id, member_id, title, category, record_date, file_name, file_size, file_type, file_path, thumb_path, summary, analysis, analyzed_at, created_at FROM health_record_files WHERE id=?", id)
+		"SELECT id, member_id, title, category, record_date, description, hospital, clinic, file_name, file_size, file_type, file_path, thumb_path, summary, analysis, analyzed_at, created_at FROM health_record_files WHERE id=?", id)
 	var f model.HealthRecordFile
-	err := row.Scan(&f.ID, &f.MemberID, &f.Title, &f.Category, &f.RecordDate, &f.FileName, &f.FileSize, &f.FileType, &f.FilePath, &f.ThumbPath, &f.Summary, &f.Analysis, &f.AnalyzedAt, &f.CreatedAt)
+	err := row.Scan(&f.ID, &f.MemberID, &f.Title, &f.Category, &f.RecordDate, &f.Description, &f.Hospital, &f.Clinic, &f.FileName, &f.FileSize, &f.FileType, &f.FilePath, &f.ThumbPath, &f.Summary, &f.Analysis, &f.AnalyzedAt, &f.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +203,9 @@ func RecordExtraMigrations() []struct {
 		{"health_record_files", "summary", "ALTER TABLE health_record_files ADD COLUMN summary TEXT DEFAULT ''"},
 		{"health_record_files", "analysis", "ALTER TABLE health_record_files ADD COLUMN analysis TEXT DEFAULT ''"},
 		{"health_record_files", "analyzed_at", "ALTER TABLE health_record_files ADD COLUMN analyzed_at DATETIME"},
+		{"health_record_files", "description", "ALTER TABLE health_record_files ADD COLUMN description TEXT DEFAULT ''"},
+		{"health_record_files", "hospital", "ALTER TABLE health_record_files ADD COLUMN hospital TEXT DEFAULT ''"},
+		{"health_record_files", "clinic", "ALTER TABLE health_record_files ADD COLUMN clinic TEXT DEFAULT ''"},
 	}
 }
 
@@ -215,6 +218,9 @@ CREATE TABLE IF NOT EXISTS health_record_files (
     title TEXT NOT NULL DEFAULT '',
     category TEXT NOT NULL DEFAULT '其他',
     record_date TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    hospital TEXT DEFAULT '',
+    clinic TEXT DEFAULT '',
     file_name TEXT NOT NULL,
     file_size INTEGER DEFAULT 0,
     file_type TEXT DEFAULT '',

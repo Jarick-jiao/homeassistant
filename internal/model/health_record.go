@@ -9,6 +9,9 @@ type HealthRecordFile struct {
 	Title       string    `json:"title"`
 	Category    string    `json:"category"`    // 病例/检查报告/处方/化验单/影像/其他
 	RecordDate  string    `json:"record_date"`  // 病历/检查日期
+	Description string    `json:"description"` // 基本描述
+	Hospital    string    `json:"hospital"`     // 就诊医院
+	Clinic      string    `json:"clinic"`       // 就诊诊所/社康
 	FileName    string    `json:"file_name"`
 	FileSize    int64     `json:"file_size"`
 	FileType    string    `json:"file_type"`    // pdf/jpg/png
@@ -28,6 +31,9 @@ type HealthRecordFileView struct {
 	Title       string `json:"title"`
 	Category    string `json:"category"`
 	RecordDate  string `json:"record_date"`
+	Description string `json:"description"`
+	Hospital    string `json:"hospital"`
+	Clinic      string `json:"clinic"`
 	FileName    string `json:"file_name"`
 	FileSize    int64  `json:"file_size"`
 	FileType    string `json:"file_type"`

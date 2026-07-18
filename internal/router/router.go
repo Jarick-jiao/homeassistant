@@ -115,6 +115,9 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 
 	// --- 积分 ---
 	authed.GET("/points/dashboard", points.GetPointsDashboardHandler)
+	authed.GET("/points/weekly-goal", points.GetWeeklyGoalHandler)
+	authed.PUT("/points/weekly-goal", middleware.RequireAdmin(), points.UpdateWeeklyGoalHandler)
+	authed.DELETE("/points/records/:id", middleware.RequireAdmin(), points.DeletePointsRecordHandler)
 
 	// --- 休闲活动（原周末出行） ---
 	authed.GET("/weekend/dashboard", weekend.GetWeekendDashboardHandler)

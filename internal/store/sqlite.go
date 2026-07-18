@@ -339,6 +339,12 @@ CREATE TABLE IF NOT EXISTS health_metrics (
     recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS family_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT '',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 `
 	if _, err := db.conn.Exec(schema); err != nil {
 		return fmt.Errorf("执行建表语句失败: %w", err)
@@ -369,6 +375,9 @@ func (db *DB) migrate() error {
 		{"calendar_events", "last_reminded_at", "ALTER TABLE calendar_events ADD COLUMN last_reminded_at DATETIME"},
 		{"calendar_events", "created_by", "ALTER TABLE calendar_events ADD COLUMN created_by INTEGER"},
 		{"calendar_events", "color", "ALTER TABLE calendar_events ADD COLUMN color TEXT DEFAULT ''"},
+		{"health_record_files", "description", "ALTER TABLE health_record_files ADD COLUMN description TEXT DEFAULT ''"},
+		{"health_record_files", "hospital", "ALTER TABLE health_record_files ADD COLUMN hospital TEXT DEFAULT ''"},
+		{"health_record_files", "clinic", "ALTER TABLE health_record_files ADD COLUMN clinic TEXT DEFAULT ''"},
 	}
 	for _, m := range migrations {
 		var count int
@@ -843,6 +852,7 @@ func (db *DB) GetPointsRanking(ctx context.Context, limit int) ([]struct {
 
 // GetRecentPointsRecords 获取最近积分记录
 func (db *DB) GetRecentPointsRecords(ctx context.Context, limit int) ([]struct {
+	ID     int64  `json:"id"`
 	Time   string `json:"time"`
 	Member string `json:"member"`
 	Type   string `json:"type"`
@@ -853,12 +863,13 @@ func (db *DB) GetRecentPointsRecords(ctx context.Context, limit int) ([]struct {
 		limit = 50
 	}
 	rows, err := db.conn.QueryContext(ctx,
-		"SELECT strftime('%H:%M', created_at), member_name, type_label, title, points FROM points_records ORDER BY created_at DESC LIMIT ?", limit)
+		"SELECT id, strftime('%H:%M', created_at), member_name, type_label, title, points FROM points_records ORDER BY created_at DESC LIMIT ?", limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var result []struct {
+		ID     int64  `json:"id"`
 		Time   string `json:"time"`
 		Member string `json:"member"`
 		Type   string `json:"type"`
@@ -867,18 +878,56 @@ func (db *DB) GetRecentPointsRecords(ctx context.Context, limit int) ([]struct {
 	}
 	for rows.Next() {
 		var r struct {
+			ID     int64  `json:"id"`
 			Time   string `json:"time"`
 			Member string `json:"member"`
 			Type   string `json:"type"`
 			Title  string `json:"title"`
 			Points int    `json:"points"`
 		}
-		if err := rows.Scan(&r.Time, &r.Member, &r.Type, &r.Title, &r.Points); err != nil {
+		if err := rows.Scan(&r.ID, &r.Time, &r.Member, &r.Type, &r.Title, &r.Points); err != nil {
 			return nil, err
 		}
 		result = append(result, r)
 	}
 	return result, rows.Err()
+}
+
+// DeletePointsRecord 删除积分记录
+func (db *DB) DeletePointsRecord(ctx context.Context, id int64) error {
+	_, err := db.conn.ExecContext(ctx, "DELETE FROM points_records WHERE id=?", id)
+	return err
+}
+
+// GetSetting 读取家庭设置（key-value），不存在返回空字符串
+func (db *DB) GetSetting(ctx context.Context, key string) string {
+	var val string
+	err := db.conn.QueryRowContext(ctx, "SELECT value FROM family_settings WHERE key=?", key).Scan(&val)
+	if err != nil {
+		return ""
+	}
+	return val
+}
+
+// SetSetting 写入家庭设置（upsert）
+func (db *DB) SetSetting(ctx context.Context, key, value string) error {
+	_, err := db.conn.ExecContext(ctx,
+		`INSERT INTO family_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+		 ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`,
+		key, value)
+	return err
+}
+
+// GetWeeklyPointsSum 获取本周（周一至今）积分总和
+func (db *DB) GetWeeklyPointsSum(ctx context.Context) (int, error) {
+	// date('now','weekday 0','-6 days') 返回本周一（SQLite weekday 0=Sunday，-6 days 回退到周一）
+	var sum int
+	err := db.conn.QueryRowContext(ctx,
+		"SELECT COALESCE(SUM(points),0) FROM points_records WHERE created_at >= date('now','weekday 0','-6 days')").Scan(&sum)
+	if err != nil {
+		return 0, err
+	}
+	return sum, nil
 }
 
 // ============ Chorse (新增) ============

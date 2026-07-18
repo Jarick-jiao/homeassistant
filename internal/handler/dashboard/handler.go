@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -122,31 +123,37 @@ func GetDashboardHandler(c *gin.Context) {
 func GetBigScreenHandler(c *gin.Context) {
 	now := time.Now().Format("2006-01-02 15:04:05")
 
+	// 提取 db 引用（函数级作用域，供各板块使用）
+	var db *store.DB
+	if dbVal, exists := c.Get("db"); exists && dbVal != nil {
+		if d, ok := dbVal.(*store.DB); ok {
+			db = d
+		}
+	}
+
 	// === 1. 健康板块 ===
 	healthMembers := []gin.H{}
-	if dbVal, exists := c.Get("db"); exists && dbVal != nil {
-		if db, ok := dbVal.(*store.DB); ok {
-			members, err := db.GetMembers(c.Request.Context())
-			if err == nil {
-				metricsMap := map[string][]gin.H{}
-				allMetrics, _ := db.GetAllHealthMetrics(c.Request.Context())
-				for _, m := range allMetrics {
-					metricsMap[m.MemberName] = append(metricsMap[m.MemberName], gin.H{
-						"icon": m.Icon, "label": m.Label, "value": m.Value,
-						"unit": m.Unit, "status": m.Status, "trend": m.Trend,
-					})
+	if db != nil {
+		members, err := db.GetMembers(c.Request.Context())
+		if err == nil {
+			metricsMap := map[string][]gin.H{}
+			allMetrics, _ := db.GetAllHealthMetrics(c.Request.Context())
+			for _, m := range allMetrics {
+				metricsMap[m.MemberName] = append(metricsMap[m.MemberName], gin.H{
+					"icon": m.Icon, "label": m.Label, "value": m.Value,
+					"unit": m.Unit, "status": m.Status, "trend": m.Trend,
+				})
+			}
+			for _, mem := range members {
+				metrics := metricsMap[mem.Name]
+				if metrics == nil {
+					metrics = []gin.H{}
 				}
-				for _, mem := range members {
-					metrics := metricsMap[mem.Name]
-					if metrics == nil {
-						metrics = []gin.H{}
-					}
-					healthMembers = append(healthMembers, gin.H{
-						"name": mem.Name, "role": mem.Role,
-						"status": "normal", "status_text": mem.Role + " · 正常",
-						"metrics": metrics,
-					})
-				}
+				healthMembers = append(healthMembers, gin.H{
+					"name": mem.Name, "role": mem.Role,
+					"status": "normal", "status_text": mem.Role + " · 正常",
+					"metrics": metrics,
+				})
 			}
 		}
 	}
@@ -205,6 +212,23 @@ func GetBigScreenHandler(c *gin.Context) {
 
 	// === 4. 活动推荐板块 ===
 
+	// 读取周目标设置（默认 500）+ 动态计算本周进度
+	weeklyGoal := 500
+	var weeklyProgress float64
+	if db != nil {
+		weeklyGoalStr := db.GetSetting(c.Request.Context(), "weekly_goal")
+		if v, err := strconv.Atoi(weeklyGoalStr); err == nil && v > 0 {
+			weeklyGoal = v
+		}
+		weeklySum, _ := db.GetWeeklyPointsSum(c.Request.Context())
+		if weeklyGoal > 0 {
+			weeklyProgress = float64(weeklySum) / float64(weeklyGoal)
+			if weeklyProgress > 1.0 {
+				weeklyProgress = 1.0
+			}
+		}
+	}
+
 	data := gin.H{
 		"timestamp": now,
 		"sections": []gin.H{
@@ -236,8 +260,8 @@ func GetBigScreenHandler(c *gin.Context) {
 				"title":           "积分动态",
 				"icon":            "🏆",
 				"family_total":    familyTotal,
-				"weekly_goal":     500,
-				"weekly_progress": 0,
+				"weekly_goal":     weeklyGoal,
+				"weekly_progress": weeklyProgress,
 				"ranking":         bigscreenRanking,
 			},
 		},

@@ -104,6 +104,9 @@ func (h *Handler) Upload(c *gin.Context) {
 		category = "其他"
 	}
 	recordDate := c.PostForm("record_date")
+	description := c.PostForm("description")
+	hospital := c.PostForm("hospital")
+	clinic := c.PostForm("clinic")
 
 	// 确保上传目录存在
 	if err := os.MkdirAll(h.uploadDir, 0755); err != nil {
@@ -145,15 +148,18 @@ func (h *Handler) Upload(c *gin.Context) {
 
 	// 保存数据库记录
 	record := &model.HealthRecordFile{
-		MemberID:  memberID,
-		Title:     title,
-		Category:  category,
-		RecordDate: recordDate,
-		FileName:  header.Filename,
-		FileSize:  written,
-		FileType:  strings.TrimPrefix(ext, "."),
-		FilePath:  relPath,
-		CreatedAt: time.Now(),
+		MemberID:    memberID,
+		Title:       title,
+		Category:    category,
+		RecordDate:  recordDate,
+		Description: description,
+		Hospital:    hospital,
+		Clinic:      clinic,
+		FileName:    header.Filename,
+		FileSize:    written,
+		FileType:    strings.TrimPrefix(ext, "."),
+		FilePath:    relPath,
+		CreatedAt:   time.Now(),
 	}
 
 	id, err := h.db.CreateHealthRecordFile(c.Request.Context(), record)
@@ -173,6 +179,9 @@ func (h *Handler) Upload(c *gin.Context) {
 		"file_size":   written,
 		"file_type":   strings.TrimPrefix(ext, "."),
 		"record_date": recordDate,
+		"description": description,
+		"hospital":    hospital,
+		"clinic":      clinic,
 	})
 }
 
@@ -201,19 +210,22 @@ func (h *Handler) List(c *gin.Context) {
 	views := make([]model.HealthRecordFileView, 0, len(files))
 	for _, f := range files {
 		views = append(views, model.HealthRecordFileView{
-			ID:         f.ID,
-			MemberID:   f.MemberID,
-			MemberName: memberNames[f.MemberID],
-			Title:      f.Title,
-			Category:   f.Category,
-			RecordDate: f.RecordDate,
-			FileName:   f.FileName,
-			FileSize:   f.FileSize,
-			FileType:   f.FileType,
-			FileURL:    fmt.Sprintf("/api/records/%d/download", f.ID),
-			Summary:    f.Summary,
-			Analysis:   f.Analysis,
-			IsAnalyzed: f.AnalyzedAt != nil,
+			ID:          f.ID,
+			MemberID:    f.MemberID,
+			MemberName:  memberNames[f.MemberID],
+			Title:       f.Title,
+			Category:    f.Category,
+			RecordDate:  f.RecordDate,
+			Description: f.Description,
+			Hospital:    f.Hospital,
+			Clinic:      f.Clinic,
+			FileName:    f.FileName,
+			FileSize:    f.FileSize,
+			FileType:    f.FileType,
+			FileURL:     fmt.Sprintf("/api/records/%d/download", f.ID),
+			Summary:     f.Summary,
+			Analysis:    f.Analysis,
+			IsAnalyzed:  f.AnalyzedAt != nil,
 		})
 	}
 
@@ -244,19 +256,22 @@ func (h *Handler) GetDetail(c *gin.Context) {
 	}
 
 	response.Success(c, model.HealthRecordFileView{
-		ID:         f.ID,
-		MemberID:   f.MemberID,
-		MemberName: memberName,
-		Title:      f.Title,
-		Category:   f.Category,
-		RecordDate: f.RecordDate,
-		FileName:   f.FileName,
-		FileSize:   f.FileSize,
-		FileType:   f.FileType,
-		FileURL:    fmt.Sprintf("/api/records/%d/download", f.ID),
-		Summary:    f.Summary,
-		Analysis:   f.Analysis,
-		IsAnalyzed: f.AnalyzedAt != nil,
+		ID:          f.ID,
+		MemberID:    f.MemberID,
+		MemberName:  memberName,
+		Title:       f.Title,
+		Category:    f.Category,
+		RecordDate:  f.RecordDate,
+		Description: f.Description,
+		Hospital:    f.Hospital,
+		Clinic:      f.Clinic,
+		FileName:    f.FileName,
+		FileSize:    f.FileSize,
+		FileType:    f.FileType,
+		FileURL:     fmt.Sprintf("/api/records/%d/download", f.ID),
+		Summary:     f.Summary,
+		Analysis:    f.Analysis,
+		IsAnalyzed:  f.AnalyzedAt != nil,
 	})
 }
 
