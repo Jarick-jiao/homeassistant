@@ -2057,7 +2057,8 @@
           onerror = 'this.onerror=null;this.src=\'' + next + '\';';
         } else {
           // 最后一个扩展也失败，替换为 fallback
-          onerror = 'this.onerror=null;this.outerHTML=\'' + fallbackHtml.replace(/'/g, '&#39;') + '\';';
+          // v3.8.1: 双引号也要转义（fallback HTML 含 class="..." 等），否则破坏外层 onerror="..." 属性
+          onerror = 'this.onerror=null;this.outerHTML=\'' + fallbackHtml.replace(/'/g, '&#39;').replace(/"/g, '&quot;') + '\';';
         }
       }
       // 第一个尝试 jpg
@@ -2232,7 +2233,7 @@
                 var fbDiv = '<div class=\"w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold text-white flex-shrink-0\" style=\"background:' + color + '\">' + roleEmoji + '</div>';
                 var memberInfo = (window._allMembers || []).find(function(mm){ return mm.name === member.name; });
                 if (memberInfo && memberInfo.avatar_url) {
-                  return '<img src="' + escapeHtml(memberInfo.avatar_url) + '" class="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" onerror="this.onerror=null;this.outerHTML=\'' + fbDiv.replace(/'/g, '&#39;') + '\';">';
+                  return '<img src="' + escapeHtml(memberInfo.avatar_url) + '" class="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" onerror="this.onerror=null;this.outerHTML=\'' + fbDiv.replace(/'/g, '&#39;').replace(/"/g, '&quot;') + '\';">';
                 }
                 var la = buildLocalAvatar(member.name, fbDiv);
                 return '<img src="' + escapeHtml(la.src) + '" class="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" onerror="' + la.onerror.replace(/"/g, '&quot;') + '">';
@@ -2583,7 +2584,7 @@
             avatarSrc = la.src;
             onerr = ' onerror="' + la.onerror.replace(/"/g, '&quot;') + '"';
           } else {
-            onerr = ' onerror="this.onerror=null;this.outerHTML=\'' + fbDiv.replace(/'/g, '&#39;') + '\';"';
+            onerr = ' onerror="this.onerror=null;this.outerHTML=\'' + fbDiv.replace(/'/g, '&#39;').replace(/"/g, '&quot;') + '\';"';
           }
           html += '<img src="' + escapeHtml(avatarSrc) + '" alt="' + escapeHtml(name) + '" title="' + escapeHtml(name) + '" class="w-6 h-6 rounded-full object-cover ring-2 ring-white dark:ring-gray-800 bg-gray-100"' + onerr + '>';
         } else {
@@ -5222,7 +5223,8 @@
           var fbAvatar = '<div class=\"w-20 h-20 rounded-full flex items-center justify-center text-3xl text-white border-4 border-white shadow-md\" style=\"background:' + rc + '\">' + emoji + '</div>';
           var avatar = '';
           if (m.avatar_url) {
-            avatar = '<img src="' + escapeHtml(m.avatar_url) + '" class="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-gray-700 shadow-md" onerror="this.onerror=null;this.outerHTML=\'' + fbAvatar.replace(/'/g, '&#39;') + '\';">';
+            // v3.8.1: 修复 fallback HTML 中双引号未转义导致 onerror 属性被截断、emoji 和残留字符泄漏到页面
+            avatar = '<img src="' + escapeHtml(m.avatar_url) + '" class="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-gray-700 shadow-md" onerror="this.onerror=null;this.outerHTML=\'' + fbAvatar.replace(/'/g, '&#39;').replace(/"/g, '&quot;') + '\';">';
           } else {
             var la = buildLocalAvatar(m.name, fbAvatar);
             avatar = '<img src="' + escapeHtml(la.src) + '" class="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-gray-700 shadow-md" onerror="' + la.onerror.replace(/"/g, '&quot;') + '">';
