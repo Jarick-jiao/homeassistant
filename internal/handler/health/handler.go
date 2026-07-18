@@ -51,7 +51,7 @@ func GetHealthSummaryHandler(c *gin.Context) {
 		if cacheErr != nil && len(customMetrics) == 0 {
 			summaries = append(summaries, MemberSummary{
 				MemberID: m.ID, Name: m.Name, Role: m.Role,
-				Status: "no_data", StatusText: "暂无数据，请配置数据源或添加自定义指标", Metrics: []gin.H{},
+				Status: "no_data", StatusText: "暂无数据，请配置数据源", Metrics: []gin.H{},
 			})
 			continue
 		}

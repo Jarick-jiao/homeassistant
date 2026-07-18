@@ -2183,7 +2183,7 @@
         var previewHTML = '';
         if (preview.length === 0) {
           previewHTML = '<div class="col-span-4 text-center py-2">' +
-            '<p class="text-xs text-gray-400">暂无数据，点击下方添加自定义指标或配置数据源</p>' +
+            '<p class="text-xs text-gray-400">暂无数据，请配置数据源</p>' +
           '</div>';
         } else {
           previewHTML = preview.map(function(m) {
@@ -2209,7 +2209,7 @@
 
         var metricCount = allMetrics.length;
         var hiddenCount = Math.max(0, member.metrics.length - 4);
-        var expandLabel = isExpanded ? '收起' : (metricCount > 4 ? '查看全部 ' + metricCount + ' 项' : (metricCount > 0 ? '查看详情' : '添加指标'));
+        var expandLabel = isExpanded ? '收起' : (metricCount > 4 ? '查看全部 ' + metricCount + ' 项' : '查看详情');
 
         var card = '<div class="tilt-card health-member-card rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.3 + idx * 0.08) + 's">' +
           '<div class="p-4 md:p-5">' +
@@ -2241,19 +2241,6 @@
             '<div class="metric-expand-area' + (isExpanded ? ' open' : '') + '" id="expand-' + escapeHtml(member.name) + '">' +
               '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">' + expandedHTML + '</div>' +
             '</div>' +
-            '<div class="mt-4">' +
-              '<button class="ripple-btn text-xs px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition" onclick="showCustomForm(' + idx + ', this)">+ 添加自定义指标</button>' +
-              '<div id="customForm-' + idx + '" data-member-name="' + escapeHtml(member.name) + '" class="hidden mt-3" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">' +
-                '<select id="customType-' + idx + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5">' +
-                  '<option value="">选择指标...</option><option value="血糖">血糖</option><option value="体温">体温</option><option value="腰围">腰围</option><option value="臀围">臀围</option><option value="视力">视力</option><option value="BMI">BMI</option><option value="__custom">自定义</option>' +
-                '</select>' +
-                '<input id="customName-' + idx + '" style="display:none" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-24" placeholder="指标名称">' +
-                '<input id="customVal-' + idx + '" type="number" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-20" placeholder="数值">' +
-                '<input id="customUnit-' + idx + '" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 w-16" placeholder="单位">' +
-                '<button onclick="addCustomMetric(' + idx + ')" class="ripple-btn text-xs px-3 py-1.5 rounded-lg text-white" style="background:var(--primary)">添加</button>' +
-                '<button onclick="hideCustomForm(' + idx + ')" class="text-xs px-2 py-1.5 text-gray-400 hover:text-gray-600">取消</button>' +
-              '</div>' +
-            '</div>' +
           '</div>' +
         '</div>';
 
@@ -2271,59 +2258,8 @@
       if (currentHealthData) renderMembers(currentHealthData);
     }
 
-    // ==================== 自定义指标表单（v3.4.0：ID 用 idx 替代 member.name，消除中文拼接问题） ====================
-    function showCustomForm(id) {
-      var form = document.getElementById('customForm-' + id);
-      var typeSelect = document.getElementById('customType-' + id);
-      var nameInput = document.getElementById('customName-' + id);
-      if (form) {
-        form.classList.remove('hidden');
-        form.style.display = 'flex';
-      }
-      if (typeSelect) {
-        typeSelect.onchange = function() {
-          if (typeSelect.value === '__custom') {
-            if (nameInput) { nameInput.style.display = 'block'; nameInput.focus(); }
-          } else {
-            if (nameInput) nameInput.style.display = 'none';
-          }
-        };
-      }
-    }
+    // v3.8.0: 自定义指标表单已移除（首页不再提供添加入口），如需添加请在数据源配置中操作
 
-    function hideCustomForm(id) {
-      var form = document.getElementById('customForm-' + id);
-      if (form) { form.classList.add('hidden'); form.style.display = 'none'; }
-    }
-
-    function addCustomMetric(id) {
-      var typeSelect = document.getElementById('customType-' + id);
-      var nameInput = document.getElementById('customName-' + id);
-      var valInput = document.getElementById('customVal-' + id);
-      var unitInput = document.getElementById('customUnit-' + id);
-      var form = document.getElementById('customForm-' + id);
-      var memberName = form ? form.dataset.memberName : '';
-      var label = typeSelect.value === '__custom' ? nameInput.value.trim() : typeSelect.value;
-      var val = parseFloat(valInput.value);
-      var unit = unitInput.value.trim() || '';
-
-      if (!label || isNaN(val)) { showToast('请填写完整的指标信息', 'error'); return; }
-
-      authFetch('/api/health/metrics', {
-        method: 'POST',
-        body: JSON.stringify({ member_name: memberName, label: label, value: val, unit: unit, icon: '📊', status: 'normal', trend: 'stable' })
-      }).then(function(r) { return r.json(); }).then(function(result) {
-        if (result.code === 0) {
-          if (!customMetrics[memberName]) customMetrics[memberName] = [];
-          customMetrics[memberName].push(result.data);
-          hideCustomForm(id);
-          loadHealthMetrics();
-          showToast('指标已添加', 'success');
-        } else {
-          showToast(result.message || '添加失败', 'error');
-        }
-      }).catch(function() { showToast('网络错误', 'error'); });
-    }
 
     function loadHealthMetrics() {
       authFetch('/api/health/metrics').then(function(r) { return r.json(); }).then(function(result) {
