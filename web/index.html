@@ -2343,17 +2343,33 @@
 
     // ==================== 渲染健康概览统计 ====================
     function renderHealthStats(data) {
-      var totalSteps = 0, stepsN = 0, totalSleep = 0, sleepN = 0;
+      // v3.9.4: 修复统计面板数据不准确
+      // 问题1: v3.9.0 handler 改 type 为 sleep_hours，前端仍匹配 sleep，导致平均睡眠永远 0
+      // 问题2: 分母用 stepsN/sleepN（仅有数据的成员数），无数据成员被排除，"平均"变成"有数据成员的平均"
+      // 问题3: 后端 alerts 永远空数组，异常提醒永远 0
+      // 修复: type 兼容新旧 + 分母用全部成员数 + 异常前端自己统计
+      var totalSteps = 0, totalSleep = 0;
+      var alertCount = 0;
+      var memberCount = data.members.length;
       data.members.forEach(function(m) {
-        m.metrics.forEach(function(x) {
-          if (x.type === 'steps') { totalSteps += x.value; stepsN++; }
-          if (x.type === 'sleep') { totalSleep += x.value; sleepN++; }
+        var hasSteps = false, hasSleep = false;
+        (m.metrics || []).forEach(function(x) {
+          // v3.9.4: 兼容新旧 type 命名
+          if (x.type === 'steps') { totalSteps += (x.value || 0); hasSteps = true; }
+          if (x.type === 'sleep' || x.type === 'sleep_hours') { totalSleep += (x.value || 0); hasSleep = true; }
+          // v3.9.4: 异常指标统计（warning/danger 状态）
+          if (x.status === 'warning' || x.status === 'danger' || x.status === 'alert') alertCount++;
         });
+        // 无步数/睡眠数据的成员按 0 计入分母，保证是"全家平均"而非"有数据成员平均"
       });
-      animateCount(document.getElementById('statMembers'), data.members.length, 600);
-      animateCount(document.getElementById('statSteps'), stepsN ? Math.round(totalSteps / stepsN) : 0, 800);
-      animateCount(document.getElementById('statSleep'), sleepN ? parseFloat((totalSleep / sleepN).toFixed(1)) : 0, 800, 'h');
-      animateCount(document.getElementById('statAlerts'), (data.alerts || []).length, 500);
+      animateCount(document.getElementById('statMembers'), memberCount, 600);
+      // 平均步数 = 全家总步数 / 全家成员数（无数据的算 0）
+      animateCount(document.getElementById('statSteps'), memberCount ? Math.round(totalSteps / memberCount) : 0, 800);
+      // 平均睡眠 = 全家总睡眠 / 全家成员数
+      animateCount(document.getElementById('statSleep'), memberCount ? parseFloat((totalSleep / memberCount).toFixed(1)) : 0, 800, 'h');
+      // v3.9.4: 异常提醒前端自己统计（后端 alerts 永远空），取较大值
+      var backendAlerts = (data.alerts || []).length;
+      animateCount(document.getElementById('statAlerts'), Math.max(alertCount, backendAlerts), 500);
       document.getElementById('navUpdateTime').textContent = data.last_updated || '--';
     }
 
