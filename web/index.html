@@ -2526,7 +2526,7 @@
         var hiddenCount = Math.max(0, member.metrics.length - 4);
         var expandLabel = isExpanded ? '收起' : (metricCount > 4 ? '查看全部 ' + metricCount + ' 项' : '查看详情');
 
-        var card = '<div class="tilt-card health-member-card rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" style="animation-delay:' + (0.3 + idx * 0.08) + 's">' +
+        var card = '<div class="tilt-card health-member-card rounded-xl shadow-sm border border-gray-100 overflow-hidden stagger-item" data-member="' + escapeHtml(member.name) + '" style="animation-delay:' + (0.3 + idx * 0.08) + 's">' +
           '<div class="p-3 md:p-4">' +
             '<div class="flex items-center gap-4">' +
               // v3.8.0: 成员头像支持本地 avatars 目录（按用户名关联）
@@ -2572,10 +2572,26 @@
 
     // ==================== 展开/收起成员卡片 ====================
     function toggleMember(name) {
-      expandedMembers[name] = !expandedMembers[name];
-      var el = document.getElementById('expand-' + name);
-      if (el) el.classList.toggle('open');
-      if (currentHealthData) renderMembers(currentHealthData);
+      // v3.9.5: 修复手机端点击"查看全部"后看不到展开内容
+      // 根因：renderMembers 重建整个 DOM，手机端滚动位置丢失，展开区在视口外
+      // 修复：try-catch 防御 + 展开后滚动到该成员卡片
+      try {
+        expandedMembers[name] = !expandedMembers[name];
+        var el = document.getElementById('expand-' + name);
+        if (el) el.classList.toggle('open');
+        if (currentHealthData) renderMembers(currentHealthData);
+        // v3.9.5: 展开后滚动到该成员卡片（手机端体验关键）
+        if (expandedMembers[name]) {
+          setTimeout(function() {
+            var card = document.querySelector('.health-member-card[data-member="' + CSS.escape(name) + '"]');
+            if (card) {
+              card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          }, 100);
+        }
+      } catch(e) {
+        console.error('[toggleMember] 切换展开失败:', name, e);
+      }
     }
 
     // v3.8.4: 健康指标录入（预设下拉选择 + 自定义模式）
