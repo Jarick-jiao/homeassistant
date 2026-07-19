@@ -2317,37 +2317,69 @@
 
         // 展开视图：内置指标 + 自定义指标（带 id 可删除）
         var allMetrics = builtInMetrics.concat(customs);
-        // v3.9.0: 按 category 分组渲染，每组带小标题
-        var categoryOrder = ['活动','心率','睡眠','血氧','压力','身体电量','卡路里','呼吸','HRV','自定义'];
-        var categoryIcon = {'活动':'🏃','心率':'❤️','睡眠':'😴','血氧':'🫁','压力':'😰','身体电量':'🔋','卡路里':'🔥','呼吸':'🌬️','HRV':'💜','自定义':'📝'};
+        // v3.9.1: 按 category 分组，单项分类平铺不显示标题，多项分类才分组
+        // v3.9.2: 兜底"其他"分类（旧后端无 category 字段时，指标也能正常渲染）
+        var categoryOrder = ['活动','心率','睡眠','血氧','压力','身体电量','卡路里','呼吸','HRV','自定义','其他'];
+        var categoryIcon = {'活动':'🏃','心率':'❤️','睡眠':'😴','血氧':'🫁','压力':'😰','身体电量':'🔋','卡路里':'🔥','呼吸':'🌬️','HRV':'💜','自定义':'📝','其他':'📊'};
         var groupedMetrics = {};
         allMetrics.forEach(function(m) {
           var cat = m.category || '其他';
           if (!groupedMetrics[cat]) groupedMetrics[cat] = [];
           groupedMetrics[cat].push(m);
         });
-        var expandedHTML = categoryOrder.filter(function(cat){ return groupedMetrics[cat] && groupedMetrics[cat].length > 0; }).map(function(cat) {
-          var groupMetrics = groupedMetrics[cat];
-          var groupHTML = groupMetrics.map(function(m) {
-            var bc = metricBorderColor(m.status);
-            var statusBadge = m.status && m.status !== 'normal' ? '<span class="ml-1 text-xs px-1.5 py-0.5 rounded" style="background:' + bc + '22;color:' + bc + '">' + (m.status==='warning'?'偏高':m.status==='danger'?'异常':'') + '</span>' : '';
-            // v3.8.5: 自定义指标（有 id）显示删除按钮，hover 显示
-            var delBtn = m.id ? '<button class="metric-del-btn" onclick="event.stopPropagation();deleteMetric(' + m.id + ',\'' + escapeHtml(member.name) + '\',\'' + escapeHtml(m.label) + '\')" title="删除指标" aria-label="删除指标"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>' : '';
-            // v3.9.0: 显示 Garmin key（小字灰色，便于排查字段映射）
-            var keyHint = m.key ? '<div class="text-[10px] text-gray-300 mt-0.5 font-mono truncate">' + escapeHtml(m.key) + '</div>' : '';
-            return '<div class="metric-card rounded-lg p-3 border-l-4 cursor-pointer" style="border-left-color:' + bc + '" onclick="showMetricDetail(\'' + escapeHtml(member.name) + '\',' + JSON.stringify(m).replace(/"/g,'&quot;') + ')">' +
-              delBtn +
-              '<div class="flex items-center gap-2 mb-1"><span class="text-lg">' + (m.icon || '📊') + '</span><span class="text-xs text-gray-400 flex-1">' + escapeHtml(m.label) + '</span>' + statusBadge + '</div>' +
-              '<div class="flex items-baseline"><span class="text-lg font-semibold">' + fmtVal(m) + '</span><span class="text-xs text-gray-400 ml-1">' + m.unit + '</span>' + trendHTML(m.trend) + '</div>' +
-              keyHint +
-              (m.ref ? '<div class="text-xs text-gray-400 mt-1">参考: ' + escapeHtml(m.ref) + '</div>' : '') +
-            '</div>';
-          }).join('');
-          return '<div class="metric-group mb-3">' +
-            '<div class="flex items-center gap-1.5 mb-2 px-1"><span class="text-xs">' + (categoryIcon[cat]||'📊') + '</span><span class="text-xs font-semibold text-gray-500">' + cat + '</span><span class="text-xs text-gray-300">·</span><span class="text-xs text-gray-400">' + groupMetrics.length + ' 项</span></div>' +
-            '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">' + groupHTML + '</div>' +
+
+        // 渲染单个指标卡片的函数（复用，确保自定义指标与 Garmin 同步数据样式一致）
+        function renderMetricCard(m) {
+          var bc = metricBorderColor(m.status);
+          var statusBadge = m.status && m.status !== 'normal' ? '<span class="ml-1 text-xs px-1.5 py-0.5 rounded" style="background:' + bc + '22;color:' + bc + '">' + (m.status==='warning'?'偏高':m.status==='danger'?'异常':'') + '</span>' : '';
+          // v3.8.5: 自定义指标（有 id）显示删除按钮，hover 显示
+          var delBtn = m.id ? '<button class="metric-del-btn" onclick="event.stopPropagation();deleteMetric(' + m.id + ',\'' + escapeHtml(member.name) + '\',\'' + escapeHtml(m.label) + '\')" title="删除指标" aria-label="删除指标"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>' : '';
+          // v3.9.1: Garmin key 移到 title tooltip，不再常驻显示（避免截断丑陋）
+          var keyTip = m.key ? ' data-key="' + escapeHtml(m.key) + '" title="' + escapeHtml(m.label) + (m.key ? ' · ' + escapeHtml(m.key) : '') + '"' : ' title="' + escapeHtml(m.label) + '"';
+          return '<div class="metric-card rounded-lg p-3 border-l-4 cursor-pointer" style="border-left-color:' + bc + '"' + keyTip + ' onclick="showMetricDetail(\'' + escapeHtml(member.name) + '\',' + JSON.stringify(m).replace(/"/g,'&quot;') + ')">' +
+            delBtn +
+            '<div class="flex items-center gap-2 mb-1"><span class="text-lg">' + (m.icon || '📊') + '</span><span class="text-xs text-gray-400 flex-1 truncate">' + escapeHtml(m.label) + '</span>' + statusBadge + '</div>' +
+            '<div class="flex items-baseline"><span class="text-lg font-semibold">' + fmtVal(m) + '</span><span class="text-xs text-gray-400 ml-1">' + m.unit + '</span>' + trendHTML(m.trend) + '</div>' +
+            (m.ref ? '<div class="text-xs text-gray-400 mt-1">参考: ' + escapeHtml(m.ref) + '</div>' : '') +
           '</div>';
-        }).join('');
+        }
+
+        // v3.9.2: 分组策略 - 单项分类平铺到"概览"区，多项分类独立分组
+        var expandedHTML = '';
+        var flatMetrics = [];   // 单项分类的指标，平铺
+        var multiGroups = [];   // 多项分类（≥2项）
+
+        categoryOrder.forEach(function(cat) {
+          if (groupedMetrics[cat] && groupedMetrics[cat].length > 0) {
+            if (groupedMetrics[cat].length === 1) {
+              flatMetrics.push(groupedMetrics[cat][0]);
+            } else {
+              multiGroups.push({cat: cat, metrics: groupedMetrics[cat]});
+            }
+          }
+        });
+
+        // 平铺区：单项分类统一渲染（如果有指标）
+        if (flatMetrics.length > 0) {
+          expandedHTML += '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-3">' +
+            flatMetrics.map(renderMetricCard).join('') +
+          '</div>';
+        }
+
+        // 多项分类：每组带小标题
+        multiGroups.forEach(function(g) {
+          expandedHTML += '<div class="metric-group mb-3">' +
+            '<div class="flex items-center gap-1.5 mb-2 px-1">' +
+              '<span class="text-xs">' + (categoryIcon[g.cat]||'📊') + '</span>' +
+              '<span class="text-xs font-semibold text-gray-500">' + g.cat + '</span>' +
+              '<span class="text-xs text-gray-300">·</span>' +
+              '<span class="text-xs text-gray-400">' + g.metrics.length + ' 项</span>' +
+            '</div>' +
+            '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">' +
+              g.metrics.map(renderMetricCard).join('') +
+            '</div>' +
+          '</div>';
+        });
 
         var metricCount = allMetrics.length;
         var hiddenCount = Math.max(0, member.metrics.length - 4);
@@ -4467,21 +4499,32 @@
     }
 
     function openRecordUploadModal() {
-      // 填充成员选项
-      var select = document.getElementById('recordMember');
-      select.innerHTML = '<option value="">请选择成员...</option>';
-      currentMembers.forEach(function(m) {
-        select.innerHTML += '<option value="' + m.id + '">' + m.name + '</option>';
-      });
-      document.getElementById('recordCategory').value = 'checkup';
-      document.getElementById('recordDate').value = new Date().toISOString().split('T')[0];
-      document.getElementById('recordFile').value = '';
-      document.getElementById('recordNote').value = '';
-      document.getElementById('recordDescription').value = '';
-      document.getElementById('recordHospital').value = '';
-      document.getElementById('recordClinic').value = '';
-      // v3.7.0: 动态加载医院下拉选项
-      loadHospitalOptions();
+      // v3.9.2: 修复手机端"上传档案"无响应
+      // 根因：recordClinic 元素在 v3.7.0 已移除，但此处仍访问其 value，
+      // null.value 抛 TypeError 中断后续 showModal，弹窗不显示
+      // 修复：删除死代码 + try-catch 防御，确保 showModal 必执行
+      try {
+        var select = document.getElementById('recordMember');
+        if (select) {
+          select.innerHTML = '<option value="">请选择成员...</option>';
+          currentMembers.forEach(function(m) {
+            select.innerHTML += '<option value="' + m.id + '">' + escapeHtml(m.name) + '</option>';
+          });
+        }
+        var el;
+        if ((el = document.getElementById('recordCategory'))) el.value = 'checkup';
+        if ((el = document.getElementById('recordDate'))) el.value = new Date().toISOString().split('T')[0];
+        if ((el = document.getElementById('recordFile'))) el.value = '';
+        if ((el = document.getElementById('recordNote'))) el.value = '';
+        if ((el = document.getElementById('recordDescription'))) el.value = '';
+        if ((el = document.getElementById('recordHospital'))) el.value = '';
+        // v3.7.0: recordClinic 已移除，不再访问
+        // v3.7.0: 动态加载医院下拉选项
+        loadHospitalOptions();
+      } catch(e) {
+        console.error('[openRecordUploadModal] 表单初始化失败:', e);
+      }
+      // 无论表单填充是否成功，都显示弹窗（避免手机端无响应）
       showModal('recordUploadModal');
     }
 
