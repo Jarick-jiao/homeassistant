@@ -97,7 +97,9 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.GET("/records", recordsHandler.List)
 	authed.GET("/records/:id", recordsHandler.GetDetail)
 	authed.GET("/records/:id/download", recordsHandler.Download)
-	authed.DELETE("/records/:id", middleware.RequireAdmin(), recordsHandler.Delete)
+	// v3.9.6: 档案删除改为所有登录用户可操作（家庭成员管理自己的档案）
+	// 原先 RequireAdmin() 限制导致非 admin 成员无法删除自己上传的档案
+	authed.DELETE("/records/:id", recordsHandler.Delete)
 	authed.POST("/records/:id/analyze", recordsHandler.Analyze)
 	authed.POST("/records/analyze/batch", recordsHandler.AnalyzeBatch)
 	authed.GET("/records/reports", recordsHandler.ListReports)

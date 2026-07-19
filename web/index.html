@@ -4716,12 +4716,34 @@
       });
     }
     // 填充上传表单的医院下拉
+    // v3.9.6: 修复医院下拉加载不稳定
+    // 根因：loadHospitalOptions 只用 cachedHospitals 内存缓存，
+    // 如果首次打开档案 tab 还没调用 loadHospitals()，或缓存被清空，下拉就是空的
+    // 修复：缓存为空时先拉取 API 再填充，并加 loading 状态
     function loadHospitalOptions() {
       var sel = document.getElementById('recordHospital');
       if (!sel) return;
       var current = sel.value;
+      // v3.9.6: 缓存有数据，直接填充
+      if (cachedHospitals && cachedHospitals.length > 0) {
+        fillHospitalSelect(sel, cachedHospitals, current);
+        return;
+      }
+      // v3.9.6: 缓存为空，拉取 API 后填充（修复首次加载不稳定）
+      sel.innerHTML = '<option value="">加载医院中...</option>';
+      authFetch('/api/settings/hospitals').then(function(res) { return res.json(); }).then(function(result) {
+        var list = (result && result.data && result.data.hospitals) || [];
+        cachedHospitals = list; // 缓存供下次用
+        fillHospitalSelect(sel, list, current);
+      }).catch(function(e) {
+        sel.innerHTML = '<option value="">加载失败，请重试</option>';
+        console.error('[loadHospitalOptions] 加载医院失败:', e);
+      });
+    }
+    // v3.9.6: 抽取填充逻辑，避免重复
+    function fillHospitalSelect(sel, list, current) {
       sel.innerHTML = '<option value="">请选择医院...</option>';
-      cachedHospitals.forEach(function(h) {
+      list.forEach(function(h) {
         sel.innerHTML += '<option value="' + escapeHtml(h) + '">' + escapeHtml(h) + '</option>';
       });
       if (current) sel.value = current;
