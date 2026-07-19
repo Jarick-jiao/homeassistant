@@ -2317,16 +2317,35 @@
 
         // 展开视图：内置指标 + 自定义指标（带 id 可删除）
         var allMetrics = builtInMetrics.concat(customs);
-        var expandedHTML = allMetrics.map(function(m) {
-          var bc = metricBorderColor(m.status);
-          var statusBadge = m.status && m.status !== 'normal' ? '<span class="ml-1 text-xs px-1.5 py-0.5 rounded" style="background:' + bc + '22;color:' + bc + '">' + (m.status==='warning'?'偏高':m.status==='danger'?'异常':'') + '</span>' : '';
-          // v3.8.5: 自定义指标（有 id）显示删除按钮，hover 显示
-          var delBtn = m.id ? '<button class="metric-del-btn" onclick="event.stopPropagation();deleteMetric(' + m.id + ',\'' + escapeHtml(member.name) + '\',\'' + escapeHtml(m.label) + '\')" title="删除指标" aria-label="删除指标"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>' : '';
-          return '<div class="metric-card rounded-lg p-3 border-l-4 cursor-pointer" style="border-left-color:' + bc + '" onclick="showMetricDetail(\'' + escapeHtml(member.name) + '\',' + JSON.stringify(m).replace(/"/g,'&quot;') + ')">' +
-            delBtn +
-            '<div class="flex items-center gap-2 mb-1"><span class="text-lg">' + (m.icon || '📊') + '</span><span class="text-xs text-gray-400 flex-1">' + escapeHtml(m.label) + '</span>' + statusBadge + '</div>' +
-            '<div class="flex items-baseline"><span class="text-lg font-semibold">' + fmtVal(m) + '</span><span class="text-xs text-gray-400 ml-1">' + m.unit + '</span>' + trendHTML(m.trend) + '</div>' +
-            (m.ref ? '<div class="text-xs text-gray-400 mt-1">参考: ' + escapeHtml(m.ref) + '</div>' : '') +
+        // v3.9.0: 按 category 分组渲染，每组带小标题
+        var categoryOrder = ['活动','心率','睡眠','血氧','压力','身体电量','卡路里','呼吸','HRV','自定义'];
+        var categoryIcon = {'活动':'🏃','心率':'❤️','睡眠':'😴','血氧':'🫁','压力':'😰','身体电量':'🔋','卡路里':'🔥','呼吸':'🌬️','HRV':'💜','自定义':'📝'};
+        var groupedMetrics = {};
+        allMetrics.forEach(function(m) {
+          var cat = m.category || '其他';
+          if (!groupedMetrics[cat]) groupedMetrics[cat] = [];
+          groupedMetrics[cat].push(m);
+        });
+        var expandedHTML = categoryOrder.filter(function(cat){ return groupedMetrics[cat] && groupedMetrics[cat].length > 0; }).map(function(cat) {
+          var groupMetrics = groupedMetrics[cat];
+          var groupHTML = groupMetrics.map(function(m) {
+            var bc = metricBorderColor(m.status);
+            var statusBadge = m.status && m.status !== 'normal' ? '<span class="ml-1 text-xs px-1.5 py-0.5 rounded" style="background:' + bc + '22;color:' + bc + '">' + (m.status==='warning'?'偏高':m.status==='danger'?'异常':'') + '</span>' : '';
+            // v3.8.5: 自定义指标（有 id）显示删除按钮，hover 显示
+            var delBtn = m.id ? '<button class="metric-del-btn" onclick="event.stopPropagation();deleteMetric(' + m.id + ',\'' + escapeHtml(member.name) + '\',\'' + escapeHtml(m.label) + '\')" title="删除指标" aria-label="删除指标"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>' : '';
+            // v3.9.0: 显示 Garmin key（小字灰色，便于排查字段映射）
+            var keyHint = m.key ? '<div class="text-[10px] text-gray-300 mt-0.5 font-mono truncate">' + escapeHtml(m.key) + '</div>' : '';
+            return '<div class="metric-card rounded-lg p-3 border-l-4 cursor-pointer" style="border-left-color:' + bc + '" onclick="showMetricDetail(\'' + escapeHtml(member.name) + '\',' + JSON.stringify(m).replace(/"/g,'&quot;') + ')">' +
+              delBtn +
+              '<div class="flex items-center gap-2 mb-1"><span class="text-lg">' + (m.icon || '📊') + '</span><span class="text-xs text-gray-400 flex-1">' + escapeHtml(m.label) + '</span>' + statusBadge + '</div>' +
+              '<div class="flex items-baseline"><span class="text-lg font-semibold">' + fmtVal(m) + '</span><span class="text-xs text-gray-400 ml-1">' + m.unit + '</span>' + trendHTML(m.trend) + '</div>' +
+              keyHint +
+              (m.ref ? '<div class="text-xs text-gray-400 mt-1">参考: ' + escapeHtml(m.ref) + '</div>' : '') +
+            '</div>';
+          }).join('');
+          return '<div class="metric-group mb-3">' +
+            '<div class="flex items-center gap-1.5 mb-2 px-1"><span class="text-xs">' + (categoryIcon[cat]||'📊') + '</span><span class="text-xs font-semibold text-gray-500">' + cat + '</span><span class="text-xs text-gray-300">·</span><span class="text-xs text-gray-400">' + groupMetrics.length + ' 项</span></div>' +
+            '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">' + groupHTML + '</div>' +
           '</div>';
         }).join('');
 

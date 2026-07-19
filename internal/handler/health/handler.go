@@ -20,6 +20,9 @@ func getDB(c *gin.Context) *store.DB {
 }
 
 // GetHealthSummaryHandler 获取所有家庭成员健康摘要
+// v3.9.0: 按统一指标清单输出 20 个 Garmin 关注指标
+// 每个指标包含: type(DB字段) + label(中文名) + key(Garmin API路径) + value + unit + icon + category
+// 字段映射详见: docs/garmin-field-mapping.md
 func GetHealthSummaryHandler(c *gin.Context) {
 	db := getDB(c)
 	if db == nil {
@@ -60,13 +63,58 @@ func GetHealthSummaryHandler(c *gin.Context) {
 		statusText := "数据正常"
 		metrics := []gin.H{}
 		if cacheErr == nil {
-			metrics = append(metrics,
-				gin.H{"type": "steps", "label": "步数", "value": cache.Steps, "unit": "步", "icon": "👟"},
-				gin.H{"type": "heart_rate", "label": "心率", "value": cache.HeartRate, "unit": "bpm", "icon": "❤️"},
-				gin.H{"type": "sleep", "label": "睡眠", "value": cache.SleepHours, "unit": "小时", "icon": "😴"},
-				gin.H{"type": "spo2", "label": "血氧", "value": cache.SpO2, "unit": "%", "icon": "🩸"},
-				gin.H{"type": "stress", "label": "压力", "value": cache.Stress, "unit": "", "icon": "😰"},
-			)
+			// v3.9.0: 统一指标清单（名称 + Garmin key + DB字段 + 单位 + 图标 + 分类）
+			// 顺序: 活动 → 心率 → 睡眠 → 血氧 → 压力 → 身体电量 → 卡路里 → 呼吸 → HRV
+			type metricDef struct {
+				Type, Label, Key, Unit, Icon, Category string
+				Value                                  interface{}
+			}
+			defs := []metricDef{
+				// 活动
+				{"steps", "步数", "totalSteps", "步", "👟", "活动", cache.Steps},
+				{"total_distance_m", "总距离", "totalDistanceMeters", "米", "📏", "活动", cache.TotalDistanceM},
+				{"daily_step_goal", "步数目标", "dailyStepGoal", "步", "🎯", "活动", cache.DailyStepGoal},
+				// 心率
+				{"heart_rate", "心率", "maxHeartRate", "bpm", "❤️", "心率", cache.HeartRate},
+				{"min_heart_rate", "最低心率", "minHeartRate", "bpm", "💚", "心率", cache.MinHeartRate},
+				{"resting_hr_7d_avg", "静息心率", "lastSevenDaysAvgRestingHeartRate", "bpm", "💓", "心率", cache.RestingHR7dAvg},
+				// 睡眠
+				{"sleep_hours", "睡眠时长", "sleepTimeSeconds÷3600", "小时", "😴", "睡眠", cache.SleepHours},
+				{"sleep_score", "睡眠评分", "sleepScores.overall.value", "分", "💯", "睡眠", cache.SleepScore},
+				{"deep_sleep_hours", "深睡时长", "deepSleepSeconds÷3600", "小时", "🌙", "睡眠", cache.DeepSleepHours},
+				{"rem_sleep_hours", "REM睡眠", "remSleepSeconds÷3600", "小时", "🛌", "睡眠", cache.RemSleepHours},
+				// 血氧
+				{"spo2", "血氧", "latestSpo2", "%", "🫁", "血氧", cache.SpO2},
+				// 压力
+				{"stress", "平均压力", "averageStressLevel", "", "😰", "压力", cache.Stress},
+				{"max_stress", "最大压力", "maxStressLevel", "", "😰", "压力", cache.MaxStress},
+				{"stress_qualifier", "压力定性", "stressQualifier", "", "📊", "压力", cache.StressQualifier},
+				// 身体电量
+				{"body_battery", "身体电量", "bodyBatteryMostRecentValue", "", "🔋", "身体电量", cache.BodyBattery},
+				{"body_battery_highest", "最高电量", "bodyBatteryHighestValue", "", "🔋", "身体电量", cache.BodyBatteryHighest},
+				{"body_battery_lowest", "最低电量", "bodyBatteryLowestValue", "", "🔋", "身体电量", cache.BodyBatteryLowest},
+				// 卡路里
+				{"calories", "卡路里", "totalKilocalories", "kcal", "🔥", "卡路里", cache.Calories},
+				// 呼吸
+				{"avg_respiration", "平均呼吸", "avgWakingRespirationValue", "次/分", "🌬️", "呼吸", cache.AvgRespiration},
+				// HRV
+				{"avg_overnight_hrv", "夜间HRV", "avgOvernightHrv", "ms", "💜", "HRV", cache.AvgOvernightHRV},
+			}
+			for _, d := range defs {
+				// 过滤零值/空值（未同步的字段不展示，避免一堆 0）
+				if isMetricEmpty(d.Value) {
+					continue
+				}
+				metrics = append(metrics, gin.H{
+					"type":     d.Type,
+					"label":    d.Label,
+					"key":      d.Key,
+					"value":    d.Value,
+					"unit":     d.Unit,
+					"icon":     d.Icon,
+					"category": d.Category,
+				})
+			}
 		} else {
 			status = "partial"
 			statusText = "仅自定义指标"
@@ -77,6 +125,7 @@ func GetHealthSummaryHandler(c *gin.Context) {
 				"type": "custom_" + cm.Label, "label": cm.Label,
 				"value": cm.Value, "unit": cm.Unit, "icon": cm.Icon,
 				"status": cm.Status, "trend": cm.Trend,
+				"category": "自定义",
 			})
 		}
 		summaries = append(summaries, MemberSummary{
@@ -90,6 +139,22 @@ func GetHealthSummaryHandler(c *gin.Context) {
 		"last_updated": time.Now().Format("2006-01-02 15:04:05"),
 		"alerts":       []string{},
 	})
+}
+
+// isMetricEmpty 判断指标值是否为空（零值/空字符串）
+func isMetricEmpty(v interface{}) bool {
+	switch val := v.(type) {
+	case int:
+		return val == 0
+	case int64:
+		return val == 0
+	case float64:
+		return val == 0
+	case string:
+		return val == ""
+	default:
+		return v == nil
+	}
 }
 
 // GetRealHealthDataHandler 获取真实健康数据

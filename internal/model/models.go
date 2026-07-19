@@ -256,24 +256,48 @@ func (c *DataSourceConfig) ToView() *DataSourceConfigView {
 }
 
 // HealthDataCache 健康数据缓存
+// v3.9.0: 依据 Garmin 健康数据字段对照报告统一扩展，字段名与 Garmin API key 一一对齐
+// 字段映射详见：docs/garmin-field-mapping.md
 type HealthDataCache struct {
-	ID               int64   `json:"id"`
-	MemberID         int64   `json:"member_id"`
-	Date             string  `json:"date"`
-	Steps            int     `json:"steps"`
-	HeartRate        int     `json:"heart_rate"`
-	SleepHours       float64 `json:"sleep_hours"`
-	SleepScore       int     `json:"sleep_score"`
-	BloodPressureSys int     `json:"blood_pressure_sys"`
-	BloodPressureDia int     `json:"blood_pressure_dia"`
-	Weight           float64 `json:"weight"`
-	Height           float64 `json:"height"`
-	Stress           int     `json:"stress"`
-	SpO2             int     `json:"spo2"`
-	BodyBattery      int     `json:"body_battery"`
-	Calories         int     `json:"calories"`
-	Source           string  `json:"source"`
-	SyncedAt         string  `json:"synced_at"`
+	ID                int64   `json:"id"`
+	MemberID          int64   `json:"member_id"`
+	Date              string  `json:"date"`
+	// --- 基础指标（已有，A 类） ---
+	Steps             int     `json:"steps"`               // Garmin: totalSteps
+	HeartRate         int     `json:"heart_rate"`           // Garmin: maxHeartRate（当日最高心率作为展示心率）
+	SleepHours        float64 `json:"sleep_hours"`          // Garmin: sleepTimeSeconds ÷ 3600
+	SleepScore        int     `json:"sleep_score"`          // Garmin: dailySleepDTO.sleepScores.overall.value（⚠️ 修正：原 sleepScore 字段错误）
+	BloodPressureSys  int     `json:"blood_pressure_sys"`   // Garmin: measurementSummaries[0].systolic
+	BloodPressureDia  int     `json:"blood_pressure_dia"`   // Garmin: measurementSummaries[0].diastolic
+	Weight            float64 `json:"weight"`               // Garmin: totalAverage.weight
+	Height            float64 `json:"height"`               // Garmin: 用户档案（非每日 API）
+	Stress            int     `json:"stress"`               // Garmin: averageStressLevel
+	SpO2              int     `json:"spo2"`                  // Garmin: latestSpo2
+	BodyBattery       int     `json:"body_battery"`          // Garmin: bodyBatteryMostRecentValue
+	Calories          int     `json:"calories"`              // Garmin: totalKilocalories
+	// --- B1 睡眠详情（新增） ---
+	DeepSleepHours    float64 `json:"deep_sleep_hours"`     // Garmin: dailySleepDTO.deepSleepSeconds ÷ 3600
+	RemSleepHours     float64 `json:"rem_sleep_hours"`       // Garmin: dailySleepDTO.remSleepSeconds ÷ 3600
+	// --- B2 心率详情（新增） ---
+	MinHeartRate      int     `json:"min_heart_rate"`        // Garmin: minHeartRate
+	MaxHeartRate      int     `json:"max_heart_rate"`        // Garmin: maxHeartRate
+	RestingHR7dAvg    int     `json:"resting_hr_7d_avg"`     // Garmin: lastSevenDaysAvgRestingHeartRate
+	// --- B3 压力详情（新增） ---
+	MaxStress         int     `json:"max_stress"`            // Garmin: maxStressLevel
+	StressQualifier   string  `json:"stress_qualifier"`     // Garmin: stressQualifier
+	// --- B5 身体电量详情（新增） ---
+	BodyBatteryHighest int    `json:"body_battery_highest"`  // Garmin: bodyBatteryHighestValue
+	BodyBatteryLowest  int    `json:"body_battery_lowest"`   // Garmin: bodyBatteryLowestValue
+	// --- B7 活动详情（新增） ---
+	TotalDistanceM    int     `json:"total_distance_m"`      // Garmin: totalDistanceMeters
+	DailyStepGoal     int     `json:"daily_step_goal"`       // Garmin: dailyStepGoal
+	// --- B8 呼吸（新增） ---
+	AvgRespiration    float64 `json:"avg_respiration"`      // Garmin: avgWakingRespirationValue
+	// --- B9 HRV（新增） ---
+	AvgOvernightHRV   float64 `json:"avg_overnight_hrv"`    // Garmin: avgOvernightHrv
+	// --- 元信息 ---
+	Source            string  `json:"source"`
+	SyncedAt          string  `json:"synced_at"`
 }
 
 // ============ 新增数据库模型 ============

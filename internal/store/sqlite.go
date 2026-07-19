@@ -234,6 +234,7 @@ CREATE TABLE IF NOT EXISTS health_data_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     member_id INTEGER NOT NULL,
     date TEXT NOT NULL,
+    -- 基础指标（A 类）
     steps INTEGER DEFAULT 0,
     heart_rate INTEGER DEFAULT 0,
     sleep_hours REAL DEFAULT 0,
@@ -246,6 +247,27 @@ CREATE TABLE IF NOT EXISTS health_data_cache (
     spo2 INTEGER DEFAULT 0,
     body_battery INTEGER DEFAULT 0,
     calories INTEGER DEFAULT 0,
+    -- v3.9.0 扩展字段（B 类，依据 Garmin 健康数据字段对照报告）
+    -- B1 睡眠详情
+    deep_sleep_hours REAL DEFAULT 0,
+    rem_sleep_hours REAL DEFAULT 0,
+    -- B2 心率详情
+    min_heart_rate INTEGER DEFAULT 0,
+    max_heart_rate INTEGER DEFAULT 0,
+    resting_hr_7d_avg INTEGER DEFAULT 0,
+    -- B3 压力详情
+    max_stress INTEGER DEFAULT 0,
+    stress_qualifier TEXT DEFAULT '',
+    -- B5 身体电量详情
+    body_battery_highest INTEGER DEFAULT 0,
+    body_battery_lowest INTEGER DEFAULT 0,
+    -- B7 活动详情
+    total_distance_m INTEGER DEFAULT 0,
+    daily_step_goal INTEGER DEFAULT 0,
+    -- B8 呼吸
+    avg_respiration REAL DEFAULT 0,
+    -- B9 HRV
+    avg_overnight_hrv REAL DEFAULT 0,
     source TEXT,
     synced_at TEXT,
     UNIQUE(member_id, date),
@@ -475,6 +497,27 @@ func (db *DB) migrate() error {
 		{"calendar_events", "color", "ALTER TABLE calendar_events ADD COLUMN color TEXT DEFAULT ''"},
 		// v3.6.0: 家庭成员新增 is_admin 标记（叠加在家庭角色上，不替换 role）
 		{"family_members", "is_admin", "ALTER TABLE family_members ADD COLUMN is_admin INTEGER DEFAULT 0"},
+		// v3.9.0: health_data_cache 扩展 Garmin 关注指标字段（依据字段对照报告）
+		// B1 睡眠详情
+		{"health_data_cache", "deep_sleep_hours", "ALTER TABLE health_data_cache ADD COLUMN deep_sleep_hours REAL DEFAULT 0"},
+		{"health_data_cache", "rem_sleep_hours", "ALTER TABLE health_data_cache ADD COLUMN rem_sleep_hours REAL DEFAULT 0"},
+		// B2 心率详情
+		{"health_data_cache", "min_heart_rate", "ALTER TABLE health_data_cache ADD COLUMN min_heart_rate INTEGER DEFAULT 0"},
+		{"health_data_cache", "max_heart_rate", "ALTER TABLE health_data_cache ADD COLUMN max_heart_rate INTEGER DEFAULT 0"},
+		{"health_data_cache", "resting_hr_7d_avg", "ALTER TABLE health_data_cache ADD COLUMN resting_hr_7d_avg INTEGER DEFAULT 0"},
+		// B3 压力详情
+		{"health_data_cache", "max_stress", "ALTER TABLE health_data_cache ADD COLUMN max_stress INTEGER DEFAULT 0"},
+		{"health_data_cache", "stress_qualifier", "ALTER TABLE health_data_cache ADD COLUMN stress_qualifier TEXT DEFAULT ''"},
+		// B5 身体电量详情
+		{"health_data_cache", "body_battery_highest", "ALTER TABLE health_data_cache ADD COLUMN body_battery_highest INTEGER DEFAULT 0"},
+		{"health_data_cache", "body_battery_lowest", "ALTER TABLE health_data_cache ADD COLUMN body_battery_lowest INTEGER DEFAULT 0"},
+		// B7 活动详情
+		{"health_data_cache", "total_distance_m", "ALTER TABLE health_data_cache ADD COLUMN total_distance_m INTEGER DEFAULT 0"},
+		{"health_data_cache", "daily_step_goal", "ALTER TABLE health_data_cache ADD COLUMN daily_step_goal INTEGER DEFAULT 0"},
+		// B8 呼吸
+		{"health_data_cache", "avg_respiration", "ALTER TABLE health_data_cache ADD COLUMN avg_respiration REAL DEFAULT 0"},
+		// B9 HRV
+		{"health_data_cache", "avg_overnight_hrv", "ALTER TABLE health_data_cache ADD COLUMN avg_overnight_hrv REAL DEFAULT 0"},
 		// 注：health_record_files 的迁移由 runRecordMigrations() 负责
 		// 必须在 createRecordTables() 建表之后执行，否则全新库会报 no such table
 	}
@@ -1384,28 +1427,49 @@ func (db *DB) GetWeekendVoteResults(ctx context.Context) ([]struct {
 // ============ Health Data Cache ============
 
 // UpsertHealthDataCache 写入或更新健康数据缓存
+// v3.9.0: 扩展支持 13 个 Garmin 关注指标字段
 func (db *DB) UpsertHealthDataCache(ctx context.Context, cache *model.HealthDataCache) error {
 	_, err := db.conn.ExecContext(ctx,
-		`INSERT INTO health_data_cache (member_id, date, steps, heart_rate, sleep_hours, sleep_score, blood_pressure_sys, blood_pressure_dia, weight, height, stress, spo2, body_battery, calories, source, synced_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO health_data_cache (member_id, date, steps, heart_rate, sleep_hours, sleep_score, blood_pressure_sys, blood_pressure_dia, weight, height, stress, spo2, body_battery, calories,
+		 deep_sleep_hours, rem_sleep_hours, min_heart_rate, max_heart_rate, resting_hr_7d_avg, max_stress, stress_qualifier, body_battery_highest, body_battery_lowest, total_distance_m, daily_step_goal, avg_respiration, avg_overnight_hrv,
+		 source, synced_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(member_id, date) DO UPDATE SET
 		 steps=excluded.steps, heart_rate=excluded.heart_rate, sleep_hours=excluded.sleep_hours, sleep_score=excluded.sleep_score,
 		 blood_pressure_sys=excluded.blood_pressure_sys, blood_pressure_dia=excluded.blood_pressure_dia, weight=excluded.weight, height=excluded.height,
-		 stress=excluded.stress, spo2=excluded.spo2, body_battery=excluded.body_battery, calories=excluded.calories, source=excluded.source, synced_at=excluded.synced_at`,
+		 stress=excluded.stress, spo2=excluded.spo2, body_battery=excluded.body_battery, calories=excluded.calories,
+		 deep_sleep_hours=excluded.deep_sleep_hours, rem_sleep_hours=excluded.rem_sleep_hours,
+		 min_heart_rate=excluded.min_heart_rate, max_heart_rate=excluded.max_heart_rate, resting_hr_7d_avg=excluded.resting_hr_7d_avg,
+		 max_stress=excluded.max_stress, stress_qualifier=excluded.stress_qualifier,
+		 body_battery_highest=excluded.body_battery_highest, body_battery_lowest=excluded.body_battery_lowest,
+		 total_distance_m=excluded.total_distance_m, daily_step_goal=excluded.daily_step_goal,
+		 avg_respiration=excluded.avg_respiration, avg_overnight_hrv=excluded.avg_overnight_hrv,
+		 source=excluded.source, synced_at=excluded.synced_at`,
 		cache.MemberID, cache.Date, cache.Steps, cache.HeartRate, cache.SleepHours, cache.SleepScore,
 		cache.BloodPressureSys, cache.BloodPressureDia, cache.Weight, cache.Height, cache.Stress, cache.SpO2,
-		cache.BodyBattery, cache.Calories, cache.Source, cache.SyncedAt)
+		cache.BodyBattery, cache.Calories,
+		cache.DeepSleepHours, cache.RemSleepHours, cache.MinHeartRate, cache.MaxHeartRate, cache.RestingHR7dAvg,
+		cache.MaxStress, cache.StressQualifier, cache.BodyBatteryHighest, cache.BodyBatteryLowest,
+		cache.TotalDistanceM, cache.DailyStepGoal, cache.AvgRespiration, cache.AvgOvernightHRV,
+		cache.Source, cache.SyncedAt)
 	return err
 }
 
 // GetHealthDataCache 获取健康数据缓存
+// v3.9.0: 扩展读取 13 个 Garmin 关注指标字段
 func (db *DB) GetHealthDataCache(ctx context.Context, memberID int64, date string) (*model.HealthDataCache, error) {
 	row := db.conn.QueryRowContext(ctx,
-		"SELECT id, member_id, date, steps, heart_rate, sleep_hours, sleep_score, blood_pressure_sys, blood_pressure_dia, weight, height, stress, spo2, body_battery, calories, source, synced_at FROM health_data_cache WHERE member_id=? AND date=?",
+		`SELECT id, member_id, date, steps, heart_rate, sleep_hours, sleep_score, blood_pressure_sys, blood_pressure_dia, weight, height, stress, spo2, body_battery, calories,
+		 deep_sleep_hours, rem_sleep_hours, min_heart_rate, max_heart_rate, resting_hr_7d_avg, max_stress, stress_qualifier, body_battery_highest, body_battery_lowest, total_distance_m, daily_step_goal, avg_respiration, avg_overnight_hrv,
+		 source, synced_at FROM health_data_cache WHERE member_id=? AND date=?`,
 		memberID, date)
 	var c model.HealthDataCache
 	err := row.Scan(&c.ID, &c.MemberID, &c.Date, &c.Steps, &c.HeartRate, &c.SleepHours, &c.SleepScore,
-		&c.BloodPressureSys, &c.BloodPressureDia, &c.Weight, &c.Height, &c.Stress, &c.SpO2, &c.BodyBattery, &c.Calories, &c.Source, &c.SyncedAt)
+		&c.BloodPressureSys, &c.BloodPressureDia, &c.Weight, &c.Height, &c.Stress, &c.SpO2, &c.BodyBattery, &c.Calories,
+		&c.DeepSleepHours, &c.RemSleepHours, &c.MinHeartRate, &c.MaxHeartRate, &c.RestingHR7dAvg,
+		&c.MaxStress, &c.StressQualifier, &c.BodyBatteryHighest, &c.BodyBatteryLowest,
+		&c.TotalDistanceM, &c.DailyStepGoal, &c.AvgRespiration, &c.AvgOvernightHRV,
+		&c.Source, &c.SyncedAt)
 	if err != nil {
 		return nil, err
 	}
