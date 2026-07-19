@@ -422,6 +422,68 @@
     .metric-card:hover .metric-del-btn { opacity: 1; }
     .metric-del-btn:hover { background: rgba(239, 68, 68, 0.9); color: #fff; }
     body.dark-mode .metric-del-btn { background: rgba(239, 68, 68, 0.2); }
+    /* v3.9.3: 重新设计指标卡片视觉层次 */
+    /* 主指标卡：圆角 + 渐变左条 + 悬浮阴影 */
+    .metric-card-v2 {
+      position: relative;
+      background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,250,252,0.85) 100%);
+      border: 1px solid rgba(226,232,240,0.6);
+      border-radius: 14px;
+      padding: 12px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .metric-card-v2::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--metric-accent, #10b981);
+      border-radius: 3px 0 0 3px;
+    }
+    .metric-card-v2:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+      border-color: var(--metric-accent, #10b981);
+    }
+    body.dark-mode .metric-card-v2 {
+      background: linear-gradient(135deg, rgba(51,65,85,0.5) 0%, rgba(30,41,59,0.5) 100%);
+      border-color: rgba(148,163,184,0.15);
+    }
+    body.dark-mode .metric-card-v2:hover {
+      box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+    }
+    /* 图标圆形背景 */
+    .metric-icon-bg {
+      width: 32px; height: 32px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      background: var(--metric-accent-soft, rgba(16,185,129,0.12));
+      flex-shrink: 0;
+    }
+    /* 分类胶囊标签 */
+    .metric-cat-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--cat-bg, rgba(16,185,129,0.1));
+      color: var(--cat-color, #059669);
+    }
+    body.dark-mode .metric-cat-tag {
+      background: var(--cat-bg-dark, rgba(16,185,129,0.18));
+      color: var(--cat-color-dark, #34d399);
+    }
+    /* 数值强调 */
+    .metric-value-lg {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
     /* 紧凑视图指标 mini 卡片（修复：添加完整透明背景样式） */
     .metric-mini {
       background: transparent !important;
@@ -2175,54 +2237,92 @@
       closeMetricDetail();
       if (!metric) return;
 
+      // v3.9.3: 复用卡片的分类配色，弹窗与卡片风格统一
+      var cat = metric.category || '其他';
+      var catColorsDetail = {
+        '活动':   {accent:'#3b82f6', soft:'rgba(59,130,246,0.12)'},
+        '心率':   {accent:'#ef4444', soft:'rgba(239,68,68,0.12)'},
+        '睡眠':   {accent:'#8b5cf6', soft:'rgba(139,92,246,0.12)'},
+        '血氧':   {accent:'#06b6d4', soft:'rgba(6,182,212,0.12)'},
+        '压力':   {accent:'#f59e0b', soft:'rgba(245,158,11,0.12)'},
+        '身体电量': {accent:'#10b981', soft:'rgba(16,185,129,0.12)'},
+        '卡路里':  {accent:'#f97316', soft:'rgba(249,115,22,0.12)'},
+        '呼吸':   {accent:'#14b8a6', soft:'rgba(20,184,166,0.12)'},
+        'HRV':   {accent:'#a855f7', soft:'rgba(168,85,247,0.12)'},
+        '自定义':  {accent:'#64748b', soft:'rgba(100,116,139,0.12)'},
+        '其他':   {accent:'#64748b', soft:'rgba(100,116,139,0.12)'}
+      };
+      var cc = catColorsDetail[cat] || catColorsDetail['其他'];
       var bc = metricBorderColor(metric.status);
       var statusText = metric.status === 'warning' ? '偏高' : (metric.status === 'alert' || metric.status === 'danger') ? '异常' : '正常';
       var trendText = metric.trend === 'up' ? '上升' : metric.trend === 'down' ? '下降' : '平稳';
       var valDisplay = fmtVal(metric);
+      var catIconMap = {'活动':'🏃','心率':'❤️','睡眠':'😴','血氧':'🫁','压力':'😰','身体电量':'🔋','卡路里':'🔥','呼吸':'🌬️','HRV':'💜','自定义':'📝','其他':'📊'};
 
-      var html = '<div class="metric-detail-popover" id="metricDetailPopover">' +
-        '<div class="flex items-start justify-between mb-3">' +
-          '<div class="flex items-center gap-2 min-w-0">' +
-            '<span class="text-2xl flex-shrink-0">' + (metric.icon || '📊') + '</span>' +
-            '<div class="min-w-0">' +
-              '<div class="text-sm font-semibold truncate">' + escapeHtml(metric.label) + '</div>' +
-              '<div class="text-xs opacity-70 truncate">' + escapeHtml(memberName) + '</div>' +
+      // v3.9.3: 重新设计弹窗 - 顶部彩色 header + 分类胶囊 + 大数值居中
+      var html = '<div class="metric-detail-popover" id="metricDetailPopover" style="overflow:hidden;padding:0;">' +
+        // 顶部彩色 header（与卡片配色一致）
+        '<div style="padding:16px 20px 14px;background:linear-gradient(135deg,' + cc.soft + ' 0%,transparent 100%);border-bottom:1px solid rgba(226,232,240,0.5)">' +
+          '<div class="flex items-start justify-between mb-2">' +
+            '<div class="flex items-center gap-2.5 min-w-0">' +
+              '<div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;background:' + cc.soft + ';flex-shrink:0">' + (metric.icon || '📊') + '</div>' +
+              '<div class="min-w-0">' +
+                '<div class="text-base font-bold truncate">' + escapeHtml(metric.label) + '</div>' +
+                '<div class="text-xs opacity-60 truncate">' + escapeHtml(memberName) + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<button onclick="closeMetricDetail()" class="opacity-50 hover:opacity-100 text-2xl leading-none flex-shrink-0 ml-2" style="background:none;border:none;cursor:pointer">&times;</button>' +
+          '</div>' +
+          // 分类胶囊
+          '<div class="flex items-center gap-1.5">' +
+            '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;background:' + cc.soft + ';color:' + cc.accent + '">' +
+              (catIconMap[cat]||'📊') + ' ' + escapeHtml(cat) +
+            '</span>' +
+            (metric.key ? '<span style="font-size:10px;font-family:monospace;opacity:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px" title="' + escapeHtml(metric.key) + '">' + escapeHtml(metric.key) + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        // 数值区（居中大字）
+        '<div style="padding:18px 20px 14px;text-align:center">' +
+          '<div class="flex items-baseline justify-center gap-1">' +
+            '<span style="font-size:36px;font-weight:800;letter-spacing:-0.03em;line-height:1;color:' + cc.accent + '">' + escapeHtml(valDisplay) + '</span>' +
+            '<span style="font-size:14px;opacity:60%">' + escapeHtml(metric.unit || '') + '</span>' +
+          '</div>' +
+        '</div>' +
+        // 状态/趋势双格
+        '<div style="padding:0 20px 16px">' +
+          '<div class="grid grid-cols-2 gap-2">' +
+            '<div style="border-radius:10px;padding:10px 12px;background:' + (metric.status && metric.status !== 'normal' ? bc + '15' : 'rgba(148,163,184,0.12)') + '">' +
+              '<div style="font-size:10px;opacity:60%;margin-bottom:2px">状态</div>' +
+              '<div style="font-size:13px;font-weight:600;color:' + (metric.status && metric.status !== 'normal' ? bc : '#475569') + '">' + statusText + '</div>' +
+            '</div>' +
+            '<div style="border-radius:10px;padding:10px 12px;background:rgba(148,163,184,0.12)">' +
+              '<div style="font-size:10px;opacity:60%;margin-bottom:2px">趋势</div>' +
+              '<div style="font-size:13px;font-weight:600;color:#475569">' + trendText + ' ' + trendHTML(metric.trend) + '</div>' +
             '</div>' +
           '</div>' +
-          '<button onclick="closeMetricDetail()" class="opacity-60 hover:opacity-100 text-2xl leading-none flex-shrink-0 ml-2">&times;</button>' +
-        '</div>' +
-        '<div class="flex items-baseline gap-1 mb-3">' +
-          '<span class="text-3xl font-bold" style="color:' + bc + '">' + escapeHtml(valDisplay) + '</span>' +
-          '<span class="text-sm opacity-70">' + escapeHtml(metric.unit || '') + '</span>' +
-        '</div>' +
-        '<div class="grid grid-cols-2 gap-2 text-xs">' +
-          '<div class="rounded-lg p-2" style="background:' + bc + '22">' +
-            '<div class="opacity-70 mb-0.5">状态</div>' +
-            '<div class="font-semibold" style="color:' + bc + '">' + statusText + '</div>' +
-          '</div>' +
-          '<div class="rounded-lg p-2" style="background:rgba(148,163,184,0.18)">' +
-            '<div class="opacity-70 mb-0.5">趋势</div>' +
-            '<div class="font-semibold">' + trendText + trendHTML(metric.trend) + '</div>' +
-          '</div>' +
         '</div>';
-      if (metric.ref) {
-        html += '<div class="mt-3 text-xs"><span class="opacity-70">参考范围：</span>' + escapeHtml(metric.ref) + '</div>';
-      }
-      if (metric.type) {
-        html += '<div class="mt-1 text-xs opacity-60">类型：' + escapeHtml(metric.type) + '</div>';
-      }
-      if (metric.recorded_at || metric.created_at) {
-        html += '<div class="mt-1 text-xs opacity-60">记录时间：' + escapeHtml(metric.recorded_at || metric.created_at) + '</div>';
-      }
-      if (metric.source) {
-        html += '<div class="mt-1 text-xs opacity-60">数据来源：' + escapeHtml(metric.source) + '</div>';
+
+      // 底部元信息（参考范围 + 记录时间 + 来源）
+      var metaRows = [];
+      if (metric.ref) metaRows.push(['参考范围', escapeHtml(metric.ref)]);
+      if (metric.recorded_at || metric.created_at) metaRows.push(['记录时间', escapeHtml(metric.recorded_at || metric.created_at)]);
+      if (metric.source) metaRows.push(['数据来源', escapeHtml(metric.source)]);
+      if (metaRows.length > 0) {
+        html += '<div style="padding:10px 20px 14px;border-top:1px solid rgba(226,232,240,0.5)">' +
+          metaRows.map(function(r) {
+            return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">' +
+              '<span style="opacity:50%">' + r[0] + '</span>' +
+              '<span style="font-weight:500;text-align:right;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + r[1] + '</span>' +
+            '</div>';
+          }).join('') +
+        '</div>';
       }
       html += '</div>';
 
       // 背景遮罩 + 弹窗
       var overlay = document.createElement('div');
       overlay.id = 'metricDetailOverlay';
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:55;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);backdrop-filter:blur(2px)';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:55;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);backdrop-filter:blur(2px);padding:16px';
       var div = document.createElement('div');
       div.innerHTML = html;
       var popover = div.firstElementChild;
@@ -2328,55 +2428,80 @@
           groupedMetrics[cat].push(m);
         });
 
-        // 渲染单个指标卡片的函数（复用，确保自定义指标与 Garmin 同步数据样式一致）
-        function renderMetricCard(m) {
+        // 渲染单个指标卡片（v3.9.3 重新设计：图标圆背景 + 大数值 + 渐变左条）
+        // 自定义指标与 Garmin 同步数据样式完全一致
+        var catColors = {
+          '活动':   {accent:'#3b82f6', soft:'rgba(59,130,246,0.12)',  bg:'rgba(59,130,246,0.1)',   color:'#2563eb', bgD:'rgba(59,130,246,0.18)',  colorD:'#60a5fa'},
+          '心率':   {accent:'#ef4444', soft:'rgba(239,68,68,0.12)',    bg:'rgba(239,68,68,0.1)',    color:'#dc2626', bgD:'rgba(239,68,68,0.18)',    colorD:'#f87171'},
+          '睡眠':   {accent:'#8b5cf6', soft:'rgba(139,92,246,0.12)',   bg:'rgba(139,92,246,0.1)',   color:'#7c3aed', bgD:'rgba(139,92,246,0.18)',   colorD:'#a78bfa'},
+          '血氧':   {accent:'#06b6d4', soft:'rgba(6,182,212,0.12)',    bg:'rgba(6,182,212,0.1)',    color:'#0891b2', bgD:'rgba(6,182,212,0.18)',    colorD:'#22d3ee'},
+          '压力':   {accent:'#f59e0b', soft:'rgba(245,158,11,0.12)',   bg:'rgba(245,158,11,0.1)',   color:'#d97706', bgD:'rgba(245,158,11,0.18)',   colorD:'#fbbf24'},
+          '身体电量': {accent:'#10b981', soft:'rgba(16,185,129,0.12)',  bg:'rgba(16,185,129,0.1)',   color:'#059669', bgD:'rgba(16,185,129,0.18)',   colorD:'#34d399'},
+          '卡路里':  {accent:'#f97316', soft:'rgba(249,115,22,0.12)',  bg:'rgba(249,115,22,0.1)',   color:'#ea580c', bgD:'rgba(249,115,22,0.18)',   colorD:'#fb923c'},
+          '呼吸':   {accent:'#14b8a6', soft:'rgba(20,184,166,0.12)',   bg:'rgba(20,184,166,0.1)',   color:'#0d9488', bgD:'rgba(20,184,166,0.18)',   colorD:'#2dd4bf'},
+          'HRV':   {accent:'#a855f7', soft:'rgba(168,85,247,0.12)',    bg:'rgba(168,85,247,0.1)',   color:'#9333ea', bgD:'rgba(168,85,247,0.18)',   colorD:'#c084fc'},
+          '自定义':  {accent:'#64748b', soft:'rgba(100,116,139,0.12)', bg:'rgba(100,116,139,0.1)',  color:'#475569', bgD:'rgba(100,116,139,0.18)',  colorD:'#94a3b8'},
+          '其他':   {accent:'#64748b', soft:'rgba(100,116,139,0.12)',  bg:'rgba(100,116,139,0.1)',  color:'#475569', bgD:'rgba(100,116,139,0.18)',  colorD:'#94a3b8'}
+        };
+        function renderMetricCard(m, cat) {
+          var cc = catColors[cat] || catColors['其他'];
           var bc = metricBorderColor(m.status);
-          var statusBadge = m.status && m.status !== 'normal' ? '<span class="ml-1 text-xs px-1.5 py-0.5 rounded" style="background:' + bc + '22;color:' + bc + '">' + (m.status==='warning'?'偏高':m.status==='danger'?'异常':'') + '</span>' : '';
-          // v3.8.5: 自定义指标（有 id）显示删除按钮，hover 显示
+          var statusBadge = m.status && m.status !== 'normal' ? '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium" style="background:' + bc + '22;color:' + bc + '">' + (m.status==='warning'?'偏高':m.status==='danger'?'异常':'') + '</span>' : '';
           var delBtn = m.id ? '<button class="metric-del-btn" onclick="event.stopPropagation();deleteMetric(' + m.id + ',\'' + escapeHtml(member.name) + '\',\'' + escapeHtml(m.label) + '\')" title="删除指标" aria-label="删除指标"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>' : '';
-          // v3.9.1: Garmin key 移到 title tooltip，不再常驻显示（避免截断丑陋）
-          var keyTip = m.key ? ' data-key="' + escapeHtml(m.key) + '" title="' + escapeHtml(m.label) + (m.key ? ' · ' + escapeHtml(m.key) : '') + '"' : ' title="' + escapeHtml(m.label) + '"';
-          return '<div class="metric-card rounded-lg p-3 border-l-4 cursor-pointer" style="border-left-color:' + bc + '"' + keyTip + ' onclick="showMetricDetail(\'' + escapeHtml(member.name) + '\',' + JSON.stringify(m).replace(/"/g,'&quot;') + ')">' +
+          var keyTip = ' title="' + escapeHtml(m.label) + (m.key ? ' · ' + escapeHtml(m.key) : '') + '"';
+          return '<div class="metric-card-v2" style="--metric-accent:' + cc.accent + ';--metric-accent-soft:' + cc.soft + '"' + keyTip + ' onclick="showMetricDetail(\'' + escapeHtml(member.name) + '\',' + JSON.stringify(m).replace(/"/g,'&quot;') + ')">' +
             delBtn +
-            '<div class="flex items-center gap-2 mb-1"><span class="text-lg">' + (m.icon || '📊') + '</span><span class="text-xs text-gray-400 flex-1 truncate">' + escapeHtml(m.label) + '</span>' + statusBadge + '</div>' +
-            '<div class="flex items-baseline"><span class="text-lg font-semibold">' + fmtVal(m) + '</span><span class="text-xs text-gray-400 ml-1">' + m.unit + '</span>' + trendHTML(m.trend) + '</div>' +
-            (m.ref ? '<div class="text-xs text-gray-400 mt-1">参考: ' + escapeHtml(m.ref) + '</div>' : '') +
+            '<div class="flex items-center gap-2 mb-1.5">' +
+              '<div class="metric-icon-bg" style="--metric-accent-soft:' + cc.soft + '">' + (m.icon || '📊') + '</div>' +
+              '<div class="flex-1 min-w-0">' +
+                '<div class="text-xs text-gray-500 truncate">' + escapeHtml(m.label) + '</div>' +
+                '<div class="flex items-center">' + statusBadge + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="flex items-baseline gap-1">' +
+              '<span class="metric-value-lg" style="color:' + cc.accent + '">' + fmtVal(m) + '</span>' +
+              '<span class="text-xs text-gray-400">' + escapeHtml(m.unit || '') + '</span>' +
+              trendHTML(m.trend) +
+            '</div>' +
+            (m.ref ? '<div class="text-[10px] text-gray-400 mt-1">参考: ' + escapeHtml(m.ref) + '</div>' : '') +
           '</div>';
         }
 
-        // v3.9.2: 分组策略 - 单项分类平铺到"概览"区，多项分类独立分组
+        // v3.9.3: 分组策略 - 单项分类平铺，多项分类独立分组带胶囊标签
         var expandedHTML = '';
-        var flatMetrics = [];   // 单项分类的指标，平铺
-        var multiGroups = [];   // 多项分类（≥2项）
+        var flatMetrics = [];
+        var multiGroups = [];
 
         categoryOrder.forEach(function(cat) {
           if (groupedMetrics[cat] && groupedMetrics[cat].length > 0) {
             if (groupedMetrics[cat].length === 1) {
-              flatMetrics.push(groupedMetrics[cat][0]);
+              flatMetrics.push({m: groupedMetrics[cat][0], cat: cat});
             } else {
               multiGroups.push({cat: cat, metrics: groupedMetrics[cat]});
             }
           }
         });
 
-        // 平铺区：单项分类统一渲染（如果有指标）
+        // 平铺区：单项分类统一渲染
         if (flatMetrics.length > 0) {
-          expandedHTML += '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-3">' +
-            flatMetrics.map(renderMetricCard).join('') +
+          expandedHTML += '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 mb-3">' +
+            flatMetrics.map(function(item) { return renderMetricCard(item.m, item.cat); }).join('') +
           '</div>';
         }
 
-        // 多项分类：每组带小标题
+        // 多项分类：每组带胶囊式分类标签
         multiGroups.forEach(function(g) {
+          var cc = catColors[g.cat] || catColors['其他'];
           expandedHTML += '<div class="metric-group mb-3">' +
-            '<div class="flex items-center gap-1.5 mb-2 px-1">' +
-              '<span class="text-xs">' + (categoryIcon[g.cat]||'📊') + '</span>' +
-              '<span class="text-xs font-semibold text-gray-500">' + g.cat + '</span>' +
-              '<span class="text-xs text-gray-300">·</span>' +
-              '<span class="text-xs text-gray-400">' + g.metrics.length + ' 项</span>' +
+            '<div class="flex items-center gap-2 mb-2 px-0.5">' +
+              '<span class="metric-cat-tag" style="--cat-bg:' + cc.bg + ';--cat-color:' + cc.color + ';--cat-bg-dark:' + cc.bgD + ';--cat-color-dark:' + cc.colorD + '">' +
+                (categoryIcon[g.cat]||'📊') + ' ' + g.cat +
+              '</span>' +
+              '<span class="text-[10px] text-gray-400">' + g.metrics.length + ' 项</span>' +
+              '<div class="flex-1 h-px" style="background:linear-gradient(90deg,' + cc.bg + ',transparent)"></div>' +
             '</div>' +
-            '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">' +
-              g.metrics.map(renderMetricCard).join('') +
+            '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">' +
+              g.metrics.map(function(m) { return renderMetricCard(m, g.cat); }).join('') +
             '</div>' +
           '</div>';
         });
@@ -2411,9 +2536,10 @@
                 expandLabel +
               '</button>' +
             '</div>' +
-            '<div class="grid grid-cols-4 gap-2 mt-4">' + previewHTML + '</div>' +
+            // v3.9.3: 展开时隐藏预览区（避免上下重复显示同样指标）
+            '<div class="grid grid-cols-4 gap-2 mt-4' + (isExpanded ? ' hidden' : '') + '">' + previewHTML + '</div>' +
             '<div class="metric-expand-area' + (isExpanded ? ' open' : '') + '" id="expand-' + escapeHtml(member.name) + '">' +
-              '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">' + expandedHTML + '</div>' +
+              '<div class="mt-4 pt-4 border-t border-gray-100">' + expandedHTML + '</div>' +
               // v3.8.4: 健康指标录入入口（预设下拉 + 自定义模式）
               '<div class="mt-3 pt-3 border-t border-dashed border-gray-100">' +
                 '<button class="ripple-btn text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 transition text-gray-600" onclick="openCustomMetricForm(\'' + escapeHtml(member.name) + '\')">+ 添加健康指标</button>' +
