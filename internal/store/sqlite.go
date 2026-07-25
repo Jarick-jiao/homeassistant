@@ -1186,6 +1186,20 @@ func (db *DB) ToggleChorseTask(ctx context.Context, id int64, enabled bool) erro
 	return err
 }
 
+// UpdateChorseTask 更新家务任务（v3.9.10: 前端新增/编辑持久化）
+func (db *DB) UpdateChorseTask(ctx context.Context, task *model.ChorseTaskDB) error {
+	_, err := db.conn.ExecContext(ctx,
+		"UPDATE chorse_tasks SET name=?, icon=?, category=?, difficulty=?, points=?, duration=?, description=? WHERE id=?",
+		task.Name, task.Icon, task.Category, task.Difficulty, task.Points, task.Duration, task.Description, task.ID)
+	return err
+}
+
+// DeleteChorseTask 软删除家务任务（is_active=0，保留历史认领引用完整性）
+func (db *DB) DeleteChorseTask(ctx context.Context, id int64) error {
+	_, err := db.conn.ExecContext(ctx, "UPDATE chorse_tasks SET is_active=0 WHERE id=?", id)
+	return err
+}
+
 // CreateChorseClaim 创建认领记录
 func (db *DB) CreateChorseClaim(ctx context.Context, claim *model.ChorseClaimDB) (int64, error) {
 	res, err := db.conn.ExecContext(ctx,

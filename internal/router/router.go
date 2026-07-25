@@ -124,6 +124,10 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.POST("/chorse/claims", chorse.ClaimChorseHandler)
 	authed.PUT("/chorse/claims/:id/complete", chorse.CompleteChorseHandler)
 	authed.PUT("/chorse/claims/:id/confirm", chorse.ConfirmChorseHandler)
+	// v3.9.10: 家务任务 CRUD 持久化（admin）
+	authed.POST("/chorse/tasks", middleware.RequireAdmin(), chorse.CreateChorseTaskHandler)
+	authed.PUT("/chorse/tasks", middleware.RequireAdmin(), chorse.UpdateChorseTaskHandler)
+	authed.DELETE("/chorse/tasks", middleware.RequireAdmin(), chorse.DeleteChorseTaskHandler)
 
 	// --- 积分 ---
 	authed.GET("/points/dashboard", points.GetPointsDashboardHandler)

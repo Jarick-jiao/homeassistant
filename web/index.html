@@ -2696,6 +2696,13 @@
     }
 
     // ==================== 渲染家务 Tab ====================
+    // v3.9.10: 抽取 loadChores 供新增/编辑/删除后刷新（原内联在 loadAllData）
+    function loadChores() {
+      return authFetch('/api/chorse/dashboard').then(function(r){return r.json();}).then(function(result){
+        if(result.code===0) { currentChoresData=result.data; renderChores(result.data); }
+        else { currentChoresData=fallbackChores; renderChores(fallbackChores); }
+      }).catch(function(){ currentChoresData=fallbackChores; renderChores(fallbackChores); });
+    }
     function renderChores(data) {
       choresTasks = data.tasks || [];
       animateCount(document.getElementById('choreTotalPts'), data.stats.total_points, 600);
@@ -2773,7 +2780,17 @@
     function openClaimModal(taskName, taskId) {
       document.getElementById('claimTaskName').textContent = taskName;
       document.getElementById('claimTaskName').dataset.taskId = taskId || '';
-      document.getElementById('claimMember').value = '';
+      // v3.9.10: 普通成员默认锁定为自己（认领/投票应以当前账号为准），
+      // 仅管理员可选任意成员（代他人认领）。
+      var sel = document.getElementById('claimMember');
+      var isAdmin = isCurrentUserAdmin();
+      if (!isAdmin && currentUser && currentUser.name) {
+        sel.value = currentUser.name;
+        sel.disabled = true;
+      } else {
+        sel.value = '';
+        sel.disabled = false;
+      }
       showModal('claimModal');
     }
     function closeClaimModal() {
@@ -3131,7 +3148,16 @@
         if (p) name = p.title;
       }
       document.getElementById('voteProposalName').textContent = name;
-      document.getElementById('voteMember').value = '';
+      // v3.9.10: 普通成员默认锁定为自己，仅管理员可选任意成员（代他人投票）。
+      var sel = document.getElementById('voteMember');
+      var isAdmin = isCurrentUserAdmin();
+      if (!isAdmin && currentUser && currentUser.id) {
+        sel.value = String(currentUser.id);
+        sel.disabled = true;
+      } else {
+        sel.value = '';
+        sel.disabled = false;
+      }
       showModal('voteModal');
     }
 
@@ -3368,7 +3394,7 @@
           document.getElementById('taskFormId').value = task.id;
           document.getElementById('taskFormName').value = task.name;
           document.getElementById('taskFormIcon').value = task.icon || '';
-          document.getElementById('taskFormCategory').value = task.category || 'cleaning';
+          document.getElementById('taskFormCategory').value = ({'清洁':'cleaning','厨房':'cooking','洗衣':'laundry','整理':'organizing','其他':'other'})[task.category] || 'other';
           document.getElementById('taskFormDifficulty').value = ({'简单':'easy','中等':'medium','困难':'hard'})[task.difficulty] || task.difficulty || 'easy';
           document.getElementById('taskFormPoints').value = task.points || '';
           document.getElementById('taskFormDuration').value = task.duration || '';
@@ -3396,49 +3422,60 @@
       var duration = document.getElementById('taskFormDuration').value.trim();
       var desc = document.getElementById('taskFormDesc').value.trim();
 
-      if (!name) { alert('请输入任务名称'); return; }
+      if (!name) { showToast('请输入任务名称', 'error'); return; }
       if (!icon) { icon = '📋'; }
       if (!duration) { duration = '10分钟'; }
+      if (!category) { category = '其他'; }
 
-      if (id) {
-        // 编辑模式
-        var idx = choresTasks.findIndex(function(t) { return t.id == id; });
-        if (idx >= 0) {
-          choresTasks[idx] = { id: parseInt(id), name: name, icon: icon, category: category, difficulty: difficulty, points: points, duration: duration, description: desc };
+      // v3.9.10: 持久化到后端（原仅改内存，刷新即丢）
+      // difficulty 提交表单原值（easy/medium/hard），后端 normalizeDifficulty 统一为中文，
+      // 与 seed 数据及 points_records.type_label 统计口径一致。
+      var payload = {
+        name: name, icon: icon, category: category, difficulty: difficulty,
+        points: points, duration: duration, description: desc
+      };
+      var isEdit = !!id;
+      if (isEdit) payload.id = parseInt(id);
+
+      var url = '/api/chorse/tasks';
+      var method = isEdit ? 'PUT' : 'POST';
+      authFetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (res.code === 0) {
+          closeTaskForm();
+          showToast(isEdit ? '家务已更新' : '家务已添加', 'success');
+          loadChores(); // 刷新任务列表（含 stats）
+        } else {
+          showToast('保存失败：' + (res.message || '未知错误'), 'error');
         }
-      } else {
-        // 新增模式
-        var newId = choresTasks.length > 0 ? Math.max.apply(null, choresTasks.map(function(t) { return t.id; })) + 1 : 1;
-        choresTasks.push({ id: newId, name: name, icon: icon, category: category, difficulty: difficulty, points: points, duration: duration, description: desc });
-      }
-
-      closeTaskForm();
-      // 重新渲染任务列表
-      var data = { tasks: choresTasks, today_records: currentChoresData.today_records || [], member_contrib: currentChoresData.member_contrib || [], stats: currentChoresData.stats || { total_points: 0, completed: 0, active_members: 0, streak: 0 } };
-      renderChores(data);
-
-      var toast = document.createElement('div');
-      toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-green-500 text-white px-6 py-2 rounded-full shadow-lg text-sm font-medium success-flash';
-      toast.style.transform = 'translateX(-50%)';
-      toast.textContent = id ? '家务已更新' : '家务已添加';
-      document.body.appendChild(toast);
-      setTimeout(function() { toast.remove(); }, 2000);
+      }).catch(function(err){
+        showToast('网络错误，保存失败', 'error');
+      });
     }
 
     function deleteTask() {
       var id = document.getElementById('taskFormId').value;
       if (!id) return;
       confirmDialog('确定要删除这个家务任务吗？', function() {
-        choresTasks = choresTasks.filter(function(t) { return t.id != id; });
-        closeTaskForm();
-        var data = { tasks: choresTasks, today_records: currentChoresData.today_records || [], member_contrib: currentChoresData.member_contrib || [], stats: currentChoresData.stats || { total_points: 0, completed: 0, active_members: 0, streak: 0 } };
-        renderChores(data);
-        var toast = document.createElement('div');
-        toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-red-500 text-white px-6 py-2 rounded-full shadow-lg text-sm font-medium success-flash';
-        toast.style.transform = 'translateX(-50%)';
-        toast.textContent = '家务已删除';
-        document.body.appendChild(toast);
-        setTimeout(function() { toast.remove(); }, 2000);
+        // v3.9.10: 持久化删除（软删除，原仅改内存）
+        authFetch('/api/chorse/tasks', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: parseInt(id) })
+        }).then(function(r){ return r.json(); }).then(function(res){
+          if (res.code === 0) {
+            closeTaskForm();
+            showToast('家务已删除', 'success');
+            loadChores(); // 刷新任务列表
+          } else {
+            showToast('删除失败：' + (res.message || '未知错误'), 'error');
+          }
+        }).catch(function(err){
+          showToast('网络错误，删除失败', 'error');
+        });
       });
     }
 
@@ -3892,10 +3929,7 @@
     // ==================== 加载所有数据 ====================
     function loadAllData() {
       loadHealthData();
-      authFetch('/api/chorse/dashboard').then(function(r){return r.json();}).then(function(result){
-        if(result.code===0) { currentChoresData=result.data; renderChores(result.data); }
-        else { currentChoresData=fallbackChores; renderChores(fallbackChores); }
-      }).catch(function(){ currentChoresData=fallbackChores; renderChores(fallbackChores); });
+      loadChores();
       loadPendingClaims();
       authFetch('/api/points/dashboard').then(function(r){return r.json();}).then(function(result){
         if(result.code===0) { currentPointsData=result.data; renderPoints(result.data); }

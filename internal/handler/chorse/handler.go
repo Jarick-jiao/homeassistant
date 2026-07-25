@@ -368,3 +368,142 @@ func ToggleChorseTaskHandler(c *gin.Context) {
 	}
 	response.Success(c, gin.H{"enabled": req.Enabled})
 }
+
+// normalizeDifficulty 将前端难度（easy/medium/hard 或中文）统一为中文，
+// 与 seed 数据及 points_records.type_label 统计口径保持一致。
+// 否则新增任务 difficulty='easy'，认领确认时 type_label='easy'，
+// GetPointsByMember 的 CASE WHEN type_label='简单' 匹配不到 → 三维积分统计错误。
+func normalizeDifficulty(d string) string {
+	switch d {
+	case "easy", "简单":
+		return "简单"
+	case "medium", "中等":
+		return "中等"
+	case "hard", "困难":
+		return "困难"
+	default:
+		if d == "" {
+			return "简单"
+		}
+		return d
+	}
+}
+
+// normalizeCategory 将前端分类（英文）统一为中文，与 seed 数据一致，
+// 否则新增任务 category='cleaning'，与 seed 的"清洁"不一致，分类分组与编辑回填错乱。
+func normalizeCategory(c string) string {
+	switch c {
+	case "cleaning", "清洁":
+		return "清洁"
+	case "cooking", "厨房":
+		return "厨房"
+	case "laundry", "洗衣":
+		return "洗衣"
+	case "organizing", "整理":
+		return "整理"
+	case "other", "其他":
+		return "其他"
+	default:
+		if c == "" {
+			return "其他"
+		}
+		return c // 园艺/宠物等已存在中文分类原样保留
+	}
+}
+
+// CreateChorseTaskHandler 新增家务任务（v3.9.10: 前端持久化）
+func CreateChorseTaskHandler(c *gin.Context) {
+	var req struct {
+		Name        string `json:"name" binding:"required"`
+		Icon        string `json:"icon"`
+		Category    string `json:"category"`
+		Difficulty  string `json:"difficulty"`
+		Points      int    `json:"points"`
+		Duration    string `json:"duration"`
+		Description string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "参数错误: "+err.Error())
+		return
+	}
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	task := &model.ChorseTaskDB{
+		Name:        req.Name,
+		Icon:        req.Icon,
+		Category:    normalizeCategory(req.Category),
+		Difficulty:  normalizeDifficulty(req.Difficulty),
+		Points:      req.Points,
+		Duration:    req.Duration,
+		Description: req.Description,
+		Enabled:     true, // 新增任务默认启用
+	}
+	id, err := db.CreateChorseTask(c.Request.Context(), task)
+	if err != nil {
+		response.InternalServerError(c, "创建失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"id": id})
+}
+
+// UpdateChorseTaskHandler 更新家务任务（v3.9.10）
+func UpdateChorseTaskHandler(c *gin.Context) {
+	var req struct {
+		ID          int64  `json:"id" binding:"required"`
+		Name        string `json:"name" binding:"required"`
+		Icon        string `json:"icon"`
+		Category    string `json:"category"`
+		Difficulty  string `json:"difficulty"`
+		Points      int    `json:"points"`
+		Duration    string `json:"duration"`
+		Description string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "参数错误: "+err.Error())
+		return
+	}
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	task := &model.ChorseTaskDB{
+		ID:          req.ID,
+		Name:        req.Name,
+		Icon:        req.Icon,
+		Category:    normalizeCategory(req.Category),
+		Difficulty:  normalizeDifficulty(req.Difficulty),
+		Points:      req.Points,
+		Duration:    req.Duration,
+		Description: req.Description,
+	}
+	if err := db.UpdateChorseTask(c.Request.Context(), task); err != nil {
+		response.InternalServerError(c, "更新失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"id": req.ID})
+}
+
+// DeleteChorseTaskHandler 删除家务任务（软删除，v3.9.10）
+func DeleteChorseTaskHandler(c *gin.Context) {
+	var req struct {
+		ID int64 `json:"id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "参数错误: "+err.Error())
+		return
+	}
+	db := getDB(c)
+	if db == nil {
+		response.InternalServerError(c, "数据库不可用")
+		return
+	}
+	if err := db.DeleteChorseTask(c.Request.Context(), req.ID); err != nil {
+		response.InternalServerError(c, "删除失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"id": req.ID})
+}
