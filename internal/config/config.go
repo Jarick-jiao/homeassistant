@@ -37,18 +37,18 @@ type ServerConfig struct {
 
 // DatabaseConfig 数据库配置
 type DatabaseConfig struct {
-	Path     string `yaml:"path"`
-	WALMode  bool   `yaml:"wal_mode"`
-	MaxOpen  int    `yaml:"max_open_conns"`
-	MaxIdle  int    `yaml:"max_idle_conns"`
-	MaxLife  time.Duration `yaml:"conn_max_lifetime"`
+	Path    string        `yaml:"path"`
+	WALMode bool          `yaml:"wal_mode"`
+	MaxOpen int           `yaml:"max_open_conns"`
+	MaxIdle int           `yaml:"max_idle_conns"`
+	MaxLife time.Duration `yaml:"conn_max_lifetime"`
 }
 
 // JWTConfig JWT 认证配置
 type JWTConfig struct {
-	Secret     string        `yaml:"secret"`
-	ExpireIn   time.Duration `yaml:"expire_in"`
-	Issuer     string        `yaml:"issuer"`
+	Secret   string        `yaml:"secret"`
+	ExpireIn time.Duration `yaml:"expire_in"`
+	Issuer   string        `yaml:"issuer"`
 }
 
 // WechatConfig 微信配置
@@ -60,8 +60,8 @@ type WechatConfig struct {
 
 // MCPConfig MCP 服务器配置
 type MCPConfig struct {
-	Timeout      time.Duration    `yaml:"timeout"`
-	Servers      []MCPServerConfig `yaml:"servers"`
+	Timeout time.Duration     `yaml:"timeout"`
+	Servers []MCPServerConfig `yaml:"servers"`
 }
 
 // MCPServerConfig 单个 MCP 服务器配置
@@ -90,7 +90,7 @@ type FamilyConfig struct {
 // AmapConfig 高德地图配置（天气/地理）
 type AmapConfig struct {
 	APIKey  string `yaml:"api_key"`
-	City    string `yaml:"city"`    // adcode 区域编码，默认 110100（北京）
+	City    string `yaml:"city"` // adcode 区域编码，默认 110100（北京）
 	BaseURL string `yaml:"base_url"`
 }
 
@@ -100,11 +100,19 @@ type GarminConfig struct {
 	Password string `yaml:"password"`
 	TokenDir string `yaml:"token_dir"` // token 持久化目录
 	BaseURL  string `yaml:"base_url"`
+	// v3.9.8: Python 脚本同步模式（绕过 Cloudflare，使用 garminconnect/garth）
+	// 启用后调度器通过 exec 调用 homemate_health_sync.py，脚本直接写 SQLite，
+	// 不再走 Go 版 garminClient.Login/GetDailyHealth（被 Cloudflare 拦截 429）。
+	// 中国区开关由脚本读 GARMIN_IS_CN 环境变量控制（默认中国区 true）。
+	UseScriptSync  bool          `yaml:"use_script_sync"`  // 启用脚本同步（推荐 true）
+	SyncScriptPath string        `yaml:"sync_script_path"` // homemate_health_sync.py 路径
+	PythonPath     string        `yaml:"python_path"`      // python3 可执行文件路径
+	ScriptTimeout  time.Duration `yaml:"script_timeout"`   // 脚本执行超时
 }
 
 // WeComConfig 企业微信群机器人配置
 type WeComConfig struct {
-	WebhookURL  string `yaml:"webhook_url"`
+	WebhookURL string `yaml:"webhook_url"`
 	EnablePush bool   `yaml:"enable_push"`
 }
 
@@ -168,6 +176,16 @@ func (c *Config) setDefaults() {
 	}
 	if c.Garmin.TokenDir == "" {
 		c.Garmin.TokenDir = "./data"
+	}
+	// v3.9.8: 脚本同步默认值
+	if c.Garmin.PythonPath == "" {
+		c.Garmin.PythonPath = "/usr/bin/python3"
+	}
+	if c.Garmin.SyncScriptPath == "" {
+		c.Garmin.SyncScriptPath = "./scripts/homemate_health_sync.py"
+	}
+	if c.Garmin.ScriptTimeout == 0 {
+		c.Garmin.ScriptTimeout = 3 * time.Minute
 	}
 }
 

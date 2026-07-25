@@ -1,10 +1,15 @@
 package scheduler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,17 +23,18 @@ import (
 
 // Scheduler 定时任务调度器
 type Scheduler struct {
-	db           *store.DB
-	garminClient garmin.Client
+	db            *store.DB
+	dbPath        string // v3.9.8: SQLite 路径（传给 Python 脚本）
+	garminClient  garmin.Client
 	weatherClient weather.Client
-	pusher       botservice.Pusher
+	pusher        botservice.Pusher
 	// v3.9.7: 全局 Garmin 凭证兜底（DB data_source_config 未配时使用 config/环境变量）
-	garminCfg    config.GarminConfig
-	stopCh       chan struct{}
-	wg           sync.WaitGroup
-	mu           sync.Mutex
-	running      bool
-	lastRuns     map[string]time.Time // 记录各任务最后执行时间
+	garminCfg config.GarminConfig
+	stopCh    chan struct{}
+	wg        sync.WaitGroup
+	mu        sync.Mutex
+	running   bool
+	lastRuns  map[string]time.Time // 记录各任务最后执行时间
 }
 
 // TaskConfig 任务配置
@@ -47,22 +53,24 @@ type TaskConfig struct {
 // DefaultTaskConfig 默认任务配置
 func DefaultTaskConfig() TaskConfig {
 	return TaskConfig{
-		HealthSyncInterval:     6 * time.Hour,
-		AIAnalysisHour:         8,
+		HealthSyncInterval:      6 * time.Hour,
+		AIAnalysisHour:          8,
 		WeekendRecommendWeekday: time.Thursday,
-		WeekendRecommendHour:  19,
+		WeekendRecommendHour:    19,
 	}
 }
 
 // New 创建调度器
 // garminClient/weatherClient/pusher 可为 nil（未配置时跳过对应功能）
 // garminCfg 为全局 Garmin 凭证兜底（DB data_source_config 未配时使用 config/环境变量）
-func New(db *store.DB, garminClient garmin.Client, weatherClient weather.Client, pusher botservice.Pusher, garminCfg config.GarminConfig) *Scheduler {
+// dbPath 为 SQLite 数据库路径（v3.9.8: 脚本同步模式传给 Python 脚本）
+func New(db *store.DB, dbPath string, garminClient garmin.Client, weatherClient weather.Client, pusher botservice.Pusher, garminCfg config.GarminConfig) *Scheduler {
 	if pusher == nil {
 		pusher = botservice.NewPusher("")
 	}
 	return &Scheduler{
 		db:            db,
+		dbPath:        dbPath,
 		garminClient:  garminClient,
 		weatherClient: weatherClient,
 		pusher:        pusher,
@@ -349,6 +357,17 @@ func (s *Scheduler) runHealthSync() {
 		log.Println("[SCHEDULER] 天气客户端未配置，跳过天气同步")
 	}
 
+	today := time.Now().Format("2006-01-02")
+
+	// v3.9.8: 脚本同步模式（绕过 Cloudflare）— 通过 exec 调用 Python 脚本，
+	// 脚本用 garminconnect/garth 拉取数据并直接写 SQLite（覆盖全部 30 字段）。
+	// 启用后跳过下方 Go 版 garminClient 逐成员循环（该路径被 Cloudflare 429 拦截）。
+	if s.garminCfg.UseScriptSync {
+		synced := s.runScriptSyncAll(ctx, today)
+		log.Printf("[SCHEDULER] 健康数据同步完成（脚本模式），共同步 %d 条记录", synced)
+		return
+	}
+
 	// 2. 获取所有配置了数据源的成员
 	configs, err := s.db.GetDataSourceConfigs(ctx)
 	if err != nil {
@@ -356,7 +375,6 @@ func (s *Scheduler) runHealthSync() {
 		return
 	}
 
-	today := time.Now().Format("2006-01-02")
 	synced := 0
 
 	for _, cfg := range configs {
@@ -444,18 +462,18 @@ func (s *Scheduler) syncGarminData(ctx context.Context, cfg model.DataSourceConf
 
 	// 映射到 HealthDataCache
 	cache := &model.HealthDataCache{
-		MemberID:   memberID,
-		Date:       date,
-		Source:     "garmin",
-		Steps:      health.Steps,
-		HeartRate:  health.HeartRate,
-		SleepHours: health.SleepHours,
-		SleepScore: health.SleepScore,
-		Stress:     health.Stress,
-		SpO2:       health.SpO2,
+		MemberID:    memberID,
+		Date:        date,
+		Source:      "garmin",
+		Steps:       health.Steps,
+		HeartRate:   health.HeartRate,
+		SleepHours:  health.SleepHours,
+		SleepScore:  health.SleepScore,
+		Stress:      health.Stress,
+		SpO2:        health.SpO2,
 		BodyBattery: health.BodyBattery,
-		Calories:   health.Calories,
-		SyncedAt:   time.Now().Format(time.RFC3339),
+		Calories:    health.Calories,
+		SyncedAt:    time.Now().Format(time.RFC3339),
 	}
 
 	if err := s.db.UpsertHealthDataCache(ctx, cache); err != nil {
@@ -466,6 +484,129 @@ func (s *Scheduler) syncGarminData(ctx context.Context, cfg model.DataSourceConf
 	log.Printf("[SCHEDULER] Garmin 数据同步完成 (member=%d, date=%s, steps=%d, hr=%d)",
 		memberID, date, health.Steps, health.HeartRate)
 	return 1
+}
+
+// runScriptSyncAll v3.9.8: 脚本同步模式入口
+// 通过 exec 调用 homemate_health_sync.py 拉取 Garmin 数据并直接写 SQLite。
+// 脚本内部负责：读取 data_source_config 凭证、逐成员登录（token 缓存）、
+// 聚合 4 个 Garmin 端点、写入 health_data_cache 全部 30 字段。
+// 返回同步成功的成员数（从脚本输出 "成功: N" 解析，解析失败时按退出码判定）。
+func (s *Scheduler) runScriptSyncAll(ctx context.Context, date string) int {
+	scriptPath := s.garminCfg.SyncScriptPath
+	if scriptPath == "" {
+		scriptPath = "./scripts/homemate_health_sync.py"
+	}
+	pythonPath := s.garminCfg.PythonPath
+	if pythonPath == "" {
+		pythonPath = "/usr/bin/python3"
+	}
+
+	// 脚本路径转绝对路径，避免依赖 Go 进程 cwd
+	absScript, err := filepath.Abs(scriptPath)
+	if err != nil {
+		log.Printf("[SCHEDULER] 脚本路径解析失败 (%s): %v", scriptPath, err)
+		absScript = scriptPath
+	}
+	if _, err := os.Stat(absScript); err != nil {
+		log.Printf("[SCHEDULER] Garmin 同步脚本不存在: %s (%v)", absScript, err)
+		return 0
+	}
+
+	// DB 路径转绝对路径（与 Go 服务写同一数据库）
+	absDB := s.dbPath
+	if abs, err := filepath.Abs(s.dbPath); err == nil {
+		absDB = abs
+	}
+
+	// 脚本执行超时（独立于调度器 5 分钟上限，给 Garmin 登录+多成员拉取留余量）
+	timeout := s.garminCfg.ScriptTimeout
+	if timeout == 0 {
+		timeout = 3 * time.Minute
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// 构造命令：python3 <script> --date <date>（脚本自动同步所有 active 成员）
+	cmd := exec.CommandContext(runCtx, pythonPath, absScript, "--date", date)
+	cmd.Dir = filepath.Dir(absScript)
+	// 环境变量：继承父进程，剥离 PYTHONHOME/PYTHONPATH（避免 conda/venv 污染，
+	// 对齐用户本地 `env -u PYTHONHOME -u PYTHONPATH /usr/bin/python3` 用法），
+	// 注入 HOMEMATE_DB 让脚本写同一数据库，注入 GARMIN 凭证兜底。
+	cmd.Env = s.buildScriptEnv(absDB)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	log.Printf("[SCHEDULER] 调用 Garmin 同步脚本: %s %s --date %s", pythonPath, absScript, date)
+
+	if err := cmd.Run(); err != nil {
+		log.Printf("[SCHEDULER] Garmin 同步脚本执行失败: %v", err)
+		if stderr.Len() > 0 {
+			log.Printf("[SCHEDULER] 脚本 stderr: %s", strings.TrimSpace(stderr.String()))
+		}
+		return 0
+	}
+
+	// 输出透传到日志便于排查
+	out := stdout.String()
+	if len(out) > 0 {
+		// 仅打印最后 ~1KB 避免日志爆炸
+		tail := out
+		if len(tail) > 1024 {
+			tail = "..." + tail[len(tail)-1024:]
+		}
+		log.Printf("[SCHEDULER] 脚本输出:\n%s", strings.TrimSpace(tail))
+	}
+
+	// 解析 "成功: N" 提取同步条数
+	return parseSyncedCount(out)
+}
+
+// buildScriptEnv 构造脚本执行环境变量
+func (s *Scheduler) buildScriptEnv(absDB string) []string {
+	env := make([]string, 0, len(os.Environ())+4)
+	for _, e := range os.Environ() {
+		// 剥离可能污染系统 python 的变量
+		if strings.HasPrefix(e, "PYTHONHOME=") || strings.HasPrefix(e, "PYTHONPATH=") {
+			continue
+		}
+		env = append(env, e)
+	}
+	// 注入数据库路径（脚本默认 DB_PATH 可能与服务端 config 不一致）
+	env = append(env, "HOMEMATE_DB="+absDB)
+	// 注入全局 Garmin 凭证兜底（DB data_source_config 未配时脚本可用）
+	if s.garminCfg.Username != "" {
+		env = append(env, "GARMIN_USERNAME="+s.garminCfg.Username)
+	}
+	if s.garminCfg.Password != "" {
+		env = append(env, "GARMIN_PASSWORD="+s.garminCfg.Password)
+	}
+	return env
+}
+
+// parseSyncedCount 从脚本输出解析 "成功: N"
+func parseSyncedCount(out string) int {
+	// 匹配 "成功: 3" 或 "成功:3"
+	idx := strings.LastIndex(out, "成功:")
+	if idx < 0 {
+		return 1 // 无法解析但脚本退出码为 0，视为整体成功
+	}
+	rest := strings.TrimSpace(out[idx+len("成功:"):])
+	n := 0
+	for i, r := range rest {
+		if r < '0' || r > '9' {
+			if i == 0 {
+				break
+			}
+			break
+		}
+		n = n*10 + int(r-'0')
+	}
+	if n == 0 {
+		return 1
+	}
+	return n
 }
 
 // ============ AI 分析 ============
@@ -711,15 +852,15 @@ func (s *Scheduler) Status() map[string]interface{} {
 	tasks := make([]map[string]interface{}, 0, 3)
 	for name, lastRun := range s.lastRuns {
 		tasks = append(tasks, map[string]interface{}{
-			"name":      name,
-			"last_run":  lastRun.Format(time.RFC3339),
+			"name":         name,
+			"last_run":     lastRun.Format(time.RFC3339),
 			"last_run_ago": time.Since(lastRun).Truncate(time.Second).String(),
 		})
 	}
 
 	return map[string]interface{}{
-		"running":     s.running,
-		"tasks":       tasks,
+		"running": s.running,
+		"tasks":   tasks,
 	}
 }
 
@@ -759,12 +900,12 @@ func (s *Scheduler) runCleanup() {
 
 	// TTL 映射：表 → 保留天数（归档后从活跃表删除）
 	ttls := map[string]int{
-		"news":          30,
-		"notifications": 90,
+		"news":           30,
+		"notifications":  90,
 		"points_records": 180,
 		"chat_messages":  365,
-		"message_board": 180,
-		"device_data":   90,
+		"message_board":  180,
+		"device_data":    90,
 	}
 	// 表 → 日志名
 	names := map[string]string{
@@ -803,4 +944,3 @@ func (s *Scheduler) runCleanup() {
 
 	log.Printf("[CLEANUP] 清理完成，时间归档 %d 条 + 容量归档 %d 条 = 共归档 %d 条历史记录", totalArchived, capArchived, totalArchived+capArchived)
 }
-

@@ -3484,8 +3484,15 @@
     function openRedeemShop() {
       redeemShopItems = getRedeemItems(); // v3.5.0 每次打开刷新最新数据
       renderRedeemItems();
-      document.getElementById('redeemShopModal').classList.remove('hidden');
-      document.getElementById('redeemShopModal').classList.add('flex');
+      var m = document.getElementById('redeemShopModal');
+      // v3.9.8 fix: 移到 <body> 下，脱离 .tab-panel 的 fadeSlideIn(forwards) 保留的 transform，
+      // 否则 position:fixed 弹框会相对 tab 面板定位，导致弹框偏下、非视口居中。
+      // 与 showModal() 保持同样的防御性重新挂载逻辑。
+      if (m.parentNode !== document.body) {
+        document.body.appendChild(m);
+      }
+      m.classList.remove('hidden');
+      m.classList.add('flex');
     }
     function renderRedeemItems() {
       var box = document.getElementById('redeemItems');

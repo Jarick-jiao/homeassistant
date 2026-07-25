@@ -48,3 +48,17 @@ openai:
 
 family:
   name: "My Family"
+
+# Garmin Connect 健康数据同步（v3.9.8）
+garmin:
+  username: ""          # Garmin 用户名/邮箱（DB data_source_config 未配时兜底）
+  password: ""          # Garmin 密码
+  token_dir: "./data"   # Go 客户端 token 持久化目录（脚本模式不使用）
+  base_url: "https://connect.garmin.com"
+  # 脚本同步模式：调度器每 6 小时 exec 调用 Python 脚本拉取并直写 SQLite，
+  # 绕过 Go 客户端遇到的 Cloudflare 429。脚本覆盖 health_data_cache 全部 30 字段。
+  use_script_sync: true
+  sync_script_path: "./scripts/homemate_health_sync.py"
+  python_path: "/usr/bin/python3"
+  script_timeout: "3m"
+  # 中国区由脚本读 GARMIN_IS_CN 环境变量控制（默认中国区 true；海外设 GARMIN_IS_CN=0）

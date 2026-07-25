@@ -65,7 +65,8 @@ func main() {
 
 	// 初始化定时任务调度器
 	// v3.9.7: 传入 garminCfg 作为全局凭证兜底（DB 未配时用环境变量）
-	sched := scheduler.New(db, garminClient, weatherClient, pusher, cfg.Garmin)
+	// v3.9.8: 传入 dbPath 供脚本同步模式（HOMEMATE_DB 环境变量）
+	sched := scheduler.New(db, cfg.Database.Path, garminClient, weatherClient, pusher, cfg.Garmin)
 	schedCfg := scheduler.DefaultTaskConfig()
 	// TODO: 从配置文件读取调度器配置
 	sched.Start(schedCfg)
