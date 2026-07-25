@@ -209,6 +209,17 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("HOMEMATE_GARMIN_PASSWORD"); v != "" {
 		c.Garmin.Password = v
 	}
+	// v3.9.7: 兼容无前缀的环境变量名（用户常用 GARMIN_USERNAME 而非 HOMEMATE_GARMIN_USERNAME）
+	if c.Garmin.Username == "" {
+		if v := os.Getenv("GARMIN_USERNAME"); v != "" {
+			c.Garmin.Username = v
+		}
+	}
+	if c.Garmin.Password == "" {
+		if v := os.Getenv("GARMIN_PASSWORD"); v != "" {
+			c.Garmin.Password = v
+		}
+	}
 	if v := os.Getenv("HOMEMATE_WECOM_WEBHOOK"); v != "" {
 		c.WeCom.WebhookURL = v
 	}

@@ -36,10 +36,11 @@ func main() {
 	defer db.Close()
 
 	// 构造 Garmin 客户端（从 config 读取默认凭证，按成员配置可覆盖）
+	// v3.9.7: 有 username 或 base_url 就创建客户端（凭证可从环境变量兜底）
 	var garminClient garmin.Client
 	if cfg.Garmin.Username != "" || cfg.Garmin.BaseURL != "" {
 		garminClient = garmin.NewClient(cfg.Garmin.TokenDir, cfg.Garmin.BaseURL)
-		log.Printf("[INFO] Garmin 客户端已初始化 (tokenDir=%s)", cfg.Garmin.TokenDir)
+		log.Printf("[INFO] Garmin 客户端已初始化 (tokenDir=%s, user=%s)", cfg.Garmin.TokenDir, cfg.Garmin.Username)
 	} else {
 		log.Println("[INFO] Garmin 未配置，相关同步将跳过")
 	}
@@ -63,7 +64,8 @@ func main() {
 	}
 
 	// 初始化定时任务调度器
-	sched := scheduler.New(db, garminClient, weatherClient, pusher)
+	// v3.9.7: 传入 garminCfg 作为全局凭证兜底（DB 未配时用环境变量）
+	sched := scheduler.New(db, garminClient, weatherClient, pusher, cfg.Garmin)
 	schedCfg := scheduler.DefaultTaskConfig()
 	// TODO: 从配置文件读取调度器配置
 	sched.Start(schedCfg)

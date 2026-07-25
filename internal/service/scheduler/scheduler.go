@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/homemate/server/internal/config"
 	"github.com/homemate/server/internal/model"
 	"github.com/homemate/server/internal/service/garmin"
 	"github.com/homemate/server/internal/service/weather"
@@ -21,6 +22,8 @@ type Scheduler struct {
 	garminClient garmin.Client
 	weatherClient weather.Client
 	pusher       botservice.Pusher
+	// v3.9.7: 全局 Garmin 凭证兜底（DB data_source_config 未配时使用 config/环境变量）
+	garminCfg    config.GarminConfig
 	stopCh       chan struct{}
 	wg           sync.WaitGroup
 	mu           sync.Mutex
@@ -53,7 +56,8 @@ func DefaultTaskConfig() TaskConfig {
 
 // New 创建调度器
 // garminClient/weatherClient/pusher 可为 nil（未配置时跳过对应功能）
-func New(db *store.DB, garminClient garmin.Client, weatherClient weather.Client, pusher botservice.Pusher) *Scheduler {
+// garminCfg 为全局 Garmin 凭证兜底（DB data_source_config 未配时使用 config/环境变量）
+func New(db *store.DB, garminClient garmin.Client, weatherClient weather.Client, pusher botservice.Pusher, garminCfg config.GarminConfig) *Scheduler {
 	if pusher == nil {
 		pusher = botservice.NewPusher("")
 	}
@@ -62,6 +66,7 @@ func New(db *store.DB, garminClient garmin.Client, weatherClient weather.Client,
 		garminClient:  garminClient,
 		weatherClient: weatherClient,
 		pusher:        pusher,
+		garminCfg:     garminCfg,
 		stopCh:        make(chan struct{}),
 		lastRuns:      make(map[string]time.Time),
 	}
@@ -402,8 +407,17 @@ func (s *Scheduler) syncGarminData(ctx context.Context, cfg model.DataSourceConf
 	username := cfg.UserID
 	password := cfg.APISecret
 
+	// v3.9.7: DB 凭证为空时，用全局 config.Garmin（环境变量）兜底
+	if username == "" {
+		username = s.garminCfg.Username
+	}
+	if password == "" {
+		password = s.garminCfg.Password
+	}
+
 	if username == "" || password == "" {
-		log.Printf("[SCHEDULER] Garmin 凭证不完整 (member=%d, user=%s)", memberID, username)
+		log.Printf("[SCHEDULER] Garmin 凭证不完整 (member=%d, db_user=%s, cfg_user=%s) - 请在 DB data_source_config 或环境变量 GARMIN_USERNAME/GARMIN_PASSWORD 配置",
+			memberID, cfg.UserID, s.garminCfg.Username)
 		return 0
 	}
 
