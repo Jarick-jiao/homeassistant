@@ -3461,7 +3461,10 @@
         var today = (chorseRes && chorseRes.data && chorseRes.data.stats && chorseRes.data.stats.total_points) || 0;
         currentPointsData = ptsData;
         renderPoints(ptsData, { pending: pending, pendingCnt: pendingCnt, today: today });
-      }).catch(function(){ currentPointsData=fallbackPoints; renderPoints(fallbackPoints, {pending:0,today:0}); });
+        // v3.9.9: 积分数据就绪后，若兑换商店处于打开状态则重渲染（修复 myPoints 恒 0 误判）
+        var _rm = document.getElementById('redeemShopModal');
+        if (_rm && !_rm.classList.contains('hidden')) renderRedeemItems();
+      }).catch(function(){ currentPointsData=fallbackPoints; renderPoints(fallbackPoints, {pending:0,today:0}); var _rm=document.getElementById('redeemShopModal'); if(_rm&&!_rm.classList.contains('hidden')) renderRedeemItems(); });
     }
 
     // === 积分兑换商店（v3.3.5 妈妈体验优化 / v3.5.0 支持编辑清单）===
@@ -3493,13 +3496,20 @@
       }
       m.classList.remove('hidden');
       m.classList.add('flex');
+      // v3.9.9 fix: 若积分数据未加载（如从首页直接进商店，未切到积分页），
+      // 异步拉取；loadPointsData 完成后会自动重渲染商店，消除短暂"积分不足"误判。
+      if (!currentPointsData || !currentPointsData.members || currentPointsData.members.length === 0) {
+        loadPointsData();
+      }
     }
     function renderRedeemItems() {
       var box = document.getElementById('redeemItems');
       var myPoints = 0;
       try {
-        var rank = (currentPointsData && currentPointsData.ranking) ? currentPointsData.ranking : [];
-        var me = rank.find(function(m){ return m.name === (currentUser && currentUser.name); });
+        // v3.9.9 fix: 后端 PointsDashboard 返回字段为 members（非 ranking），
+        // 之前误读 ranking 导致 myPoints 恒为 0，所有商品误显示"积分不足"。
+        var members = (currentPointsData && currentPointsData.members) ? currentPointsData.members : [];
+        var me = members.find(function(m){ return m.name === (currentUser && currentUser.name); });
         if (me) myPoints = me.total || 0;
       } catch(e) {}
       var isAdmin = isCurrentUserAdmin();
