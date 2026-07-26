@@ -195,15 +195,24 @@ def login_garmin(username, password, member_id=None):
               file=sys.stderr)
         sys.exit(1)
 
+    # v3.9.13: 用 importlib.metadata 可靠检测版本
+    # 旧实现用 getattr(__version__, "0") + 字符串比较，新版 garminconnect 不暴露
+    # __version__，导致误报 "0 < 0.3.0" 后崩溃在 TypeError(prompt_mfa)。
     try:
-        import garminconnect
-        gv = getattr(garminconnect, "__version__", "0")
-        if gv < "0.3.0":
-            print(f"[WARN] garminconnect {gv} < 0.3.0，2026-03 后 Garmin 认证 API 已变更，"
-                  f"旧版 garth 依赖已失效。请升级: pip3 install --upgrade garminconnect",
-                  file=sys.stderr)
+        import importlib.metadata as _im
+        gv = _im.version("garminconnect")
     except Exception:
-        pass
+        gv = "0"
+    try:
+        gv_tuple = tuple(int(x) for x in gv.split(".")[:3])
+    except Exception:
+        gv_tuple = (0, 0, 0)
+    if gv_tuple < (0, 3, 0):
+        msg = (f"garminconnect {gv} < 0.3.0，2026-03 后 Garmin 认证 API 已变更，"
+               f"prompt_mfa 参数不被旧版支持。请升级: "
+               f"python3 -m pip install --upgrade 'garminconnect>=0.3.0' curl_cffi")
+        print(f"[ERR] {msg}", file=sys.stderr)
+        return None, msg
 
     # 每个成员独立 tokenstore，避免多账号串号
     tokenstore = TOKENSTORE_DIR
@@ -212,16 +221,13 @@ def login_garmin(username, password, member_id=None):
     os.makedirs(tokenstore, exist_ok=True)
 
     try:
-        # v3.9.11: 新 API — prompt_mfa 回调替代 return_on_mfa
+        # v3.9.11+: 新 API — prompt_mfa 回调替代 return_on_mfa
         # 无 MFA 账号传 None 即可；有 MFA 账号会触发回调（脚本不支持交互，
         # 会抛异常提示用户用 --save-config 配置无 MFA 账号或手动登录一次缓存 token）。
+        # v3.9.13: 移除 client.garth.dump（旧 garth 残留），login(tokenstore) 已负责持久化。
         client = Garmin(username, password, prompt_mfa=None, is_cn=IS_CN)
         client.login(tokenstore)
-        try:
-            client.garth.dump(tokenstore)
-            print(f"  [OK] token 已缓存: {tokenstore}")
-        except Exception:
-            pass
+        print(f"  [OK] token 已缓存: {tokenstore}")
         return client, None
     except Exception as e:
         # 详细错误信息打到 stderr，scheduler 会捕获并记录到日志

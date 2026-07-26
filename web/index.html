@@ -4097,10 +4097,12 @@
     var sourceTypeLabels = { garmin: 'Garmin Connect', apple_health: 'Apple Health', huawei: '华为健康', manual: '手动录入' };
     var sourceTypeIcons = { garmin: '⌚', apple_health: '🍎', huawei: '📱', manual: '✏️' };
 
+    var dataSourceConfigsCache = [];
     function loadDataSourceConfigs() {
       authFetch('/api/health/data-source/configs').then(function(res) { return res.json(); })
         .then(function(result) {
           var configs = (result.data || result) || [];
+          dataSourceConfigsCache = configs;
           renderDataSourceConfigs(configs);
         }).catch(function(err) {
           renderDataSourceConfigs([]);
@@ -4141,10 +4143,17 @@
       var name = memberNames[memberId] || '成员';
       document.getElementById('dataSourceMemberId').value = memberId;
       document.getElementById('dataSourceModalSubtitle').textContent = '为 ' + name + ' 配置健康数据采集来源';
-      document.getElementById('dataSourceType').value = 'garmin';
-      document.getElementById('dataSourceApiKey').value = '';
-      document.getElementById('dataSourceUserId').value = String(memberId);
-      document.getElementById('dataSourceActive').checked = true;
+      // v3.9.13: 回填已有配置（避免编辑变新增）
+      var existing = null;
+      for (var i = 0; i < dataSourceConfigsCache.length; i++) {
+        if (dataSourceConfigsCache[i].member_id === memberId) { existing = dataSourceConfigsCache[i]; break; }
+      }
+      document.getElementById('dataSourceType').value = existing ? (existing.source_type || 'garmin') : 'garmin';
+      var apiKeyInput = document.getElementById('dataSourceApiKey');
+      apiKeyInput.value = '';
+      apiKeyInput.placeholder = existing && existing.api_key_hint ? '已配置（' + existing.api_key_hint + '），留空则不变' : '请输入 API Key';
+      document.getElementById('dataSourceUserId').value = existing ? (existing.user_id || String(memberId)) : String(memberId);
+      document.getElementById('dataSourceActive').checked = existing ? !!existing.is_active : true;
       showModal('dataSourceModal');
     }
 

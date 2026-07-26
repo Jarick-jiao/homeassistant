@@ -65,6 +65,11 @@ var rolePermissions = map[model.Role][]string{
 		"/api/notifications",
 		"/api/calendar/upcoming",
 	},
+	model.RolePet: {
+		"/api/health/overview",
+		"/api/notifications",
+		"/api/calendar/upcoming",
+	},
 }
 
 // normalizePath 去除路径参数部分，得到路由模板用于权限比较

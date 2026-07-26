@@ -21,6 +21,14 @@ import (
 	"github.com/homemate/server/internal/store"
 )
 
+// taskMeta 任务元信息（用于状态展示）
+type taskMeta struct {
+	Task     string        // 任务标识（用于手动触发）
+	Name     string        // 中文名
+	Interval time.Duration // 执行间隔（0=按条件触发，如每日定点/每周）
+	Enabled  bool          // 是否启用
+}
+
 // Scheduler 定时任务调度器
 type Scheduler struct {
 	db            *store.DB
@@ -37,6 +45,21 @@ type Scheduler struct {
 	mu        sync.Mutex
 	running   bool
 	lastRuns  map[string]time.Time // 记录各任务最后执行时间
+	// v3.9.13: 任务注册表 + 上次执行状态，让 /api/scheduler/status 返回完整任务列表
+	taskRegistry []taskMeta
+	lastStatus   map[string]string // success / error / ""
+}
+
+// recordRun 统一记录任务执行（时间 + 状态），替代散落的 s.lastRuns[x]=time.Now()
+func (s *Scheduler) recordRun(name string, err error) {
+	s.mu.Lock()
+	s.lastRuns[name] = time.Now()
+	if err != nil {
+		s.lastStatus[name] = "error"
+	} else {
+		s.lastStatus[name] = "success"
+	}
+	s.mu.Unlock()
 }
 
 // TaskConfig 任务配置
@@ -81,6 +104,7 @@ func New(db *store.DB, dbPath string, garminClient garmin.Client, weatherClient 
 		calendarSyncCfg: calendarSyncCfg,
 		stopCh:          make(chan struct{}),
 		lastRuns:        make(map[string]time.Time),
+		lastStatus:      make(map[string]string),
 	}
 }
 
@@ -98,6 +122,19 @@ func (s *Scheduler) Start(cfg TaskConfig) {
 	log.Printf("[SCHEDULER] 健康数据同步间隔: %v", cfg.HealthSyncInterval)
 	log.Printf("[SCHEDULER] AI 分析时间: 每天 %02d:00", cfg.AIAnalysisHour)
 	log.Printf("[SCHEDULER] 周末推荐生成: 每周%s %02d:00", weekdayName(cfg.WeekendRecommendWeekday), cfg.WeekendRecommendHour)
+
+	// v3.9.13: 构建任务注册表（供 /api/scheduler/status 展示完整列表，含未执行过的任务）
+	healthEnabled := s.garminCfg.UseScriptSync || s.garminClient != nil
+	s.taskRegistry = []taskMeta{
+		{Task: "health_sync", Name: "健康数据同步", Interval: cfg.HealthSyncInterval, Enabled: healthEnabled},
+		{Task: "calendar_sync", Name: "Apple 日历同步", Interval: s.calendarSyncCfg.Interval, Enabled: s.calendarSyncCfg.Enable},
+		{Task: "ai_analysis", Name: "AI 健康分析", Interval: 24 * time.Hour, Enabled: true},
+		{Task: "weekend_recommend", Name: "周末推荐生成", Interval: 7 * 24 * time.Hour, Enabled: true},
+		{Task: "reminder_scan", Name: "提醒扫描", Interval: 5 * time.Minute, Enabled: true},
+		{Task: "notification_push", Name: "通知推送", Interval: 1 * time.Minute, Enabled: true},
+		{Task: "calendar_reminder", Name: "日程提醒", Interval: 1 * time.Minute, Enabled: true},
+		{Task: "cleanup", Name: "历史数据清理", Interval: 24 * time.Hour, Enabled: true},
+	}
 
 	// 健康数据同步
 	s.wg.Add(1)
@@ -361,9 +398,7 @@ func (s *Scheduler) healthSyncLoop(interval time.Duration) {
 }
 
 func (s *Scheduler) runHealthSync() {
-	s.mu.Lock()
-	s.lastRuns["health_sync"] = time.Now()
-	s.mu.Unlock()
+	s.recordRun("health_sync", nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -673,9 +708,7 @@ func (s *Scheduler) appleCalendarSyncLoop(interval time.Duration) {
 
 // runAppleCalendarSync 执行一次 Apple 日历同步
 func (s *Scheduler) runAppleCalendarSync() {
-	s.mu.Lock()
-	s.lastRuns["calendar_sync"] = time.Now()
-	s.mu.Unlock()
+	s.recordRun("calendar_sync", nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -857,9 +890,7 @@ func (s *Scheduler) dailyAIAnalysisLoop(hour int) {
 }
 
 func (s *Scheduler) runAIAnalysis() {
-	s.mu.Lock()
-	s.lastRuns["ai_analysis"] = time.Now()
-	s.mu.Unlock()
+	s.recordRun("ai_analysis", nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
@@ -953,9 +984,7 @@ func (s *Scheduler) weekendRecommendLoop(weekday time.Weekday, hour int) {
 }
 
 func (s *Scheduler) runWeekendRecommend() {
-	s.mu.Lock()
-	s.lastRuns["weekend_recommend"] = time.Now()
-	s.mu.Unlock()
+	s.recordRun("weekend_recommend", nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -1064,17 +1093,37 @@ func joinStrings(strs []string, sep string) string {
 }
 
 // Status 调度器状态信息
+// v3.9.13: 遍历 taskRegistry 返回所有已注册任务（含未执行过的），
+// 补充 next_run / last_status 字段（前端 index.html 已期望）。
 func (s *Scheduler) Status() map[string]interface{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tasks := make([]map[string]interface{}, 0, 3)
-	for name, lastRun := range s.lastRuns {
-		tasks = append(tasks, map[string]interface{}{
-			"name":         name,
-			"last_run":     lastRun.Format(time.RFC3339),
-			"last_run_ago": time.Since(lastRun).Truncate(time.Second).String(),
-		})
+	tasks := make([]map[string]interface{}, 0, len(s.taskRegistry))
+	for _, tm := range s.taskRegistry {
+		lastRun, hasRun := s.lastRuns[tm.Task]
+		status := s.lastStatus[tm.Task]
+		entry := map[string]interface{}{
+			"task":    tm.Task,
+			"name":    tm.Name,
+			"enabled": tm.Enabled,
+		}
+		if hasRun {
+			entry["last_run"] = lastRun.Format(time.RFC3339)
+			entry["last_run_ago"] = time.Since(lastRun).Truncate(time.Second).String()
+			entry["last_status"] = status
+			// next_run = last_run + interval（仅对固定间隔任务可预测）
+			if tm.Interval > 0 {
+				next := lastRun.Add(tm.Interval)
+				entry["next_run"] = next.Format(time.RFC3339)
+			}
+		} else {
+			entry["last_run"] = ""
+			entry["last_run_ago"] = ""
+			entry["last_status"] = ""
+			entry["next_run"] = ""
+		}
+		tasks = append(tasks, entry)
 	}
 
 	return map[string]interface{}{
@@ -1105,7 +1154,7 @@ func (s *Scheduler) cleanupLoop(hour int) {
 
 // runCleanup 执行历史数据清理
 func (s *Scheduler) runCleanup() {
-	s.lastRuns["cleanup"] = time.Now()
+	s.recordRun("cleanup", nil)
 	log.Println("[CLEANUP] 开始清理历史数据（归档模式）...")
 
 	if s.db == nil {

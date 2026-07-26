@@ -248,7 +248,7 @@ func UpdateMemberRoleHandler(c *gin.Context) {
 
 	// v3.6.0: 校验角色合法性（admin 不再作为家庭角色）
 	validRoles := map[string]bool{
-		"adult": true, "child": true, "elder": true, "guest": true,
+		"adult": true, "child": true, "elder": true, "guest": true, "pet": true,
 	}
 	if !validRoles[req.Role] {
 		response.BadRequest(c, "非法角色: "+req.Role+"（admin 不再作为家庭角色，请使用管理员开关）")

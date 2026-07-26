@@ -1588,10 +1588,47 @@ func (db *DB) GetHealthDataCache(ctx context.Context, memberID int64, date strin
 // ============ Data Source Config ============
 
 // SaveDataSourceConfig 保存数据源配置
+// v3.9.13: 改为 UPSERT — 同一成员同一数据源类型只保留一条，编辑不再新增重复行。
+// 命中 (member_id, source_type) 则 UPDATE（保留原 created_at），否则 INSERT。
 func (db *DB) SaveDataSourceConfig(ctx context.Context, cfg *model.DataSourceConfig) (int64, error) {
+	var existingID int64
+	err := db.conn.QueryRowContext(ctx,
+		"SELECT id FROM data_source_config WHERE member_id=? AND source_type=?",
+		cfg.MemberID, cfg.SourceType).Scan(&existingID)
+	if err == nil {
+		// 已存在 → UPDATE
+		// api_key / api_secret 为空时保留原值（编辑留空=不变，避免清空 Garmin 凭证）
+		if cfg.APIKey == "" || cfg.APISecret == "" {
+			var origKey, origSecret string
+			_ = db.conn.QueryRowContext(ctx,
+				"SELECT api_key, api_secret FROM data_source_config WHERE id=?", existingID).
+				Scan(&origKey, &origSecret)
+			if cfg.APIKey == "" {
+				cfg.APIKey = origKey
+			}
+			if cfg.APISecret == "" {
+				cfg.APISecret = origSecret
+			}
+		}
+		_, err = db.conn.ExecContext(ctx,
+			"UPDATE data_source_config SET member_name=?, api_key=?, api_secret=?, user_id=?, is_active=?, last_sync_at=? WHERE id=?",
+			cfg.MemberName, cfg.APIKey, cfg.APISecret, cfg.UserID, cfg.IsActive, cfg.LastSyncAt, existingID)
+		if err != nil {
+			return 0, err
+		}
+		return existingID, nil
+	}
+	if err != sql.ErrNoRows {
+		return 0, err
+	}
+	// 不存在 → INSERT（created_at 为空时填当前时间）
+	createdAt := cfg.CreatedAt
+	if createdAt == "" {
+		createdAt = time.Now().Format("2006-01-02 15:04:05")
+	}
 	res, err := db.conn.ExecContext(ctx,
 		"INSERT INTO data_source_config (member_id, member_name, source_type, api_key, api_secret, user_id, is_active, last_sync_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		cfg.MemberID, cfg.MemberName, cfg.SourceType, cfg.APIKey, cfg.APISecret, cfg.UserID, cfg.IsActive, cfg.LastSyncAt, cfg.CreatedAt)
+		cfg.MemberID, cfg.MemberName, cfg.SourceType, cfg.APIKey, cfg.APISecret, cfg.UserID, cfg.IsActive, cfg.LastSyncAt, createdAt)
 	if err != nil {
 		return 0, err
 	}

@@ -15,6 +15,7 @@ const (
 	RoleChild Role = "child"
 	RoleElder Role = "elder"
 	RoleGuest Role = "guest"
+	RolePet   Role = "pet"
 )
 
 // Claims JWT claims 结构

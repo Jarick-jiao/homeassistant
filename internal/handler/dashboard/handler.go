@@ -112,6 +112,26 @@ func GetDashboardHandler(c *gin.Context) {
 			"voice_hint": "点击麦克风图标可使用语音助手",
 		}
 
+	case model.RolePet:
+		data = gin.H{
+			"role":            "pet",
+			"username":        username,
+			"simplified_view": true,
+			"widgets": []gin.H{
+				{"type": "feeding", "title": "今日喂食", "items": []gin.H{
+					{"time": "07:30", "food": "早餐", "done": true},
+					{"time": "12:30", "food": "午餐", "done": false},
+					{"time": "18:30", "food": "晚餐", "done": false},
+				}},
+				{"type": "activity", "title": "活动提醒", "items": []string{"散步 30 分钟", "梳毛 1 次", "玩具互动"}},
+				{"type": "health", "title": "健康概览", "items": []gin.H{
+					{"label": "体重", "value": "5.2", "unit": "kg"},
+					{"label": "体温", "value": "38.5", "unit": "℃"},
+				}},
+			},
+			"quick_actions": []string{"记录喂食", "记录散步", "健康打卡"},
+		}
+
 	default:
 		response.BadRequest(c, "未知的角色类型: "+string(role))
 		return
