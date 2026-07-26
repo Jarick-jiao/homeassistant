@@ -39,20 +39,25 @@ SOURCE = "apple_calendar"
 DEFAULT_MEMBER_ID = 0  # Apple 日历事件为家庭级，不绑定具体成员
 
 # dateutil 用于循环事件展开（可选依赖，未安装时跳过展开）
+HAS_DATEUTIL = False
 try:
     from dateutil.rrule import rrule, DAILY, WEEKLY, MONTHLY, YEARLY
-
     HAS_DATEUTIL = True
 except ImportError:
-    HAS_DATEUTIL = False
+    pass
 
 # AppleScript 频率常量 → dateutil 频率映射
-FREQ_MAP = {
-    "daily": DAILY,
-    "weekly": WEEKLY,
-    "monthly": MONTHLY,
-    "yearly": YEARLY,
-}
+# v3.9.13: 移到函数内构建（模块级引用未定义的 DAILY 会导致 NameError，
+# 使 dateutil 缺失时脚本直接崩溃，而非优雅降级跳过循环展开）
+def _build_freq_map():
+    if not HAS_DATEUTIL:
+        return {}
+    return {
+        "daily": DAILY,
+        "weekly": WEEKLY,
+        "monthly": MONTHLY,
+        "yearly": YEARLY,
+    }
 
 
 # ============ osascript: 读取 Calendar.app 事件 ============
@@ -299,7 +304,7 @@ def expand_recurring(event, window_start, window_end):
     if not freq_str or not HAS_DATEUTIL:
         return [(event["start_dt"], event["end_dt"])]
 
-    freq = FREQ_MAP.get(freq_str)
+    freq = _build_freq_map().get(freq_str)
     if freq is None:
         return [(event["start_dt"], event["end_dt"])]
 
