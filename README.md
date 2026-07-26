@@ -204,6 +204,10 @@ homemate-server/
 - API 使用 RESTful 设计规范
 - 提交信息遵循 Conventional Commits
 
+### Agent 工作流强制规则
+
+代码修改必须遵守 `.trae/rules/agent-workflow.md`：每次提交代码必须依次执行 `go build ./...` → `go vet ./...` → `git add -A` → `git commit` → `git push`（build/vet 失败禁止提交；纯文档可跳过 build/vet 但仍需 commit+push）。该规则文件会被 Trae IDE 自动加载为项目级约束。
+
 ### 测试
 
 ```bash
