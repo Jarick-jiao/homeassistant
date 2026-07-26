@@ -127,6 +127,10 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     location TEXT,
     event_type TEXT,
     type TEXT,
+    -- v3.9.12: Apple 日历同步字段（source='apple_calendar'，按外部事件 ID 去重）
+    source TEXT DEFAULT '',
+    source_account TEXT DEFAULT '',
+    external_event_id TEXT DEFAULT '',
     FOREIGN KEY (member_id) REFERENCES family_members(id)
 );
 
@@ -348,6 +352,7 @@ CREATE TABLE IF NOT EXISTS weekend_votes (
 CREATE INDEX IF NOT EXISTS idx_health_records_member ON health_records(member_id, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_member ON calendar_events(member_id, start_time DESC);
+-- 注：idx_calendar_events_external 唯一索引在 migrate() 中创建（依赖 source_account 列，须在加列之后）
 CREATE INDEX IF NOT EXISTS idx_health_cache_member_date ON health_data_cache(member_id, date);
 CREATE INDEX IF NOT EXISTS idx_chorse_claims_status ON chorse_claims(status);
 CREATE INDEX IF NOT EXISTS idx_points_records_member ON points_records(member_name, created_at DESC);
@@ -510,6 +515,10 @@ func (db *DB) migrate() error {
 		{"calendar_events", "last_reminded_at", "ALTER TABLE calendar_events ADD COLUMN last_reminded_at DATETIME"},
 		{"calendar_events", "created_by", "ALTER TABLE calendar_events ADD COLUMN created_by INTEGER"},
 		{"calendar_events", "color", "ALTER TABLE calendar_events ADD COLUMN color TEXT DEFAULT ''"},
+		// v3.9.12: Apple 日历同步字段（osascript 同步 source='apple_calendar'，按外部事件 ID 去重）
+		{"calendar_events", "source", "ALTER TABLE calendar_events ADD COLUMN source TEXT DEFAULT ''"},
+		{"calendar_events", "source_account", "ALTER TABLE calendar_events ADD COLUMN source_account TEXT DEFAULT ''"},
+		{"calendar_events", "external_event_id", "ALTER TABLE calendar_events ADD COLUMN external_event_id TEXT DEFAULT ''"},
 		// v3.6.0: 家庭成员新增 is_admin 标记（叠加在家庭角色上，不替换 role）
 		{"family_members", "is_admin", "ALTER TABLE family_members ADD COLUMN is_admin INTEGER DEFAULT 0"},
 		// v3.9.0: health_data_cache 扩展 Garmin 关注指标字段（依据字段对照报告）
@@ -550,6 +559,13 @@ func (db *DB) migrate() error {
 				return fmt.Errorf("添加列 %s.%s 失败: %w", m.table, m.column, err)
 			}
 		}
+	}
+
+	// v3.9.12: Apple 日历事件去重唯一索引（须在 source_account/external_event_id 列迁移之后创建）
+	// 仅对已同步事件（source_account != ''）生效，用户手动创建的事件不参与去重
+	if _, err := db.conn.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_events_external
+		ON calendar_events(source_account, external_event_id) WHERE source_account != ''`); err != nil {
+		log.Printf("[WARN] 迁移：创建 idx_calendar_events_external 唯一索引失败: %v", err)
 	}
 
 	// v3.6.0: 将旧版 admin 成员从 family_members 移除（admin 不再作为家庭成员）

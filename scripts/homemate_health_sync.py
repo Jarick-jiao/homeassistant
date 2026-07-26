@@ -186,7 +186,7 @@ def login_garmin(username, password, member_id=None):
     login() API 签名变更（不再返回 tuple，改用 prompt_mfa 回调）。
     旧 token 格式不兼容，首次升级后需清除 ~/.garminconnect_tokens 重新登录。
 
-    Returns: Garmin client (成功) | None (失败)
+    Returns: (client, None) 成功 | (None, err_str) 失败
     """
     try:
         from garminconnect import Garmin
@@ -222,22 +222,24 @@ def login_garmin(username, password, member_id=None):
             print(f"  [OK] token 已缓存: {tokenstore}")
         except Exception:
             pass
-        return client
+        return client, None
     except Exception as e:
         # 详细错误信息打到 stderr，scheduler 会捕获并记录到日志
         import traceback
+        err_msg = f"{type(e).__name__}: {e}"
         print(f"[ERR] Garmin 登录失败 (member={member_id}): {e}", file=sys.stderr)
         print(f"[ERR] 错误类型: {type(e).__name__}", file=sys.stderr)
         # 429 限流提示（clientId+账号绑定，VPN 无效，需静置 24h）
         err_str = str(e).lower()
         if "429" in err_str or "too many" in err_str or "rate" in err_str:
-            print("[ERR] 触发 Garmin SSO 限流(429)：与 clientId+账号绑定，VPN/换网无效，"
-                  "需停止所有登录尝试静置 24 小时后重试（浏览器登录不受影响）", file=sys.stderr)
+            err_msg = "触发 Garmin SSO 限流(429)：与 clientId+账号绑定，VPN/换网无效，需停止所有登录尝试静置 24 小时后重试（浏览器登录不受影响）"
+            print(f"[ERR] {err_msg}", file=sys.stderr)
         # 旧 token 不兼容提示
         elif "token" in err_str or "oauth" in err_str or "auth" in err_str:
-            print(f"[ERR] 可能是旧 token 不兼容，请删除 {tokenstore} 后重试", file=sys.stderr)
+            err_msg = f"可能是旧 token 不兼容，请删除 {tokenstore} 后重试"
+            print(f"[ERR] {err_msg}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
-        return None
+        return None, err_msg
 
 
 # ============ Garmin 数据获取 ============
@@ -431,9 +433,9 @@ def sync_member(conn, member_id, member_name, username, password, date_str, forc
         print("  [SKIP] 当日已有 garmin 数据，跳过（--force 可强制覆盖）")
         return 0
 
-    client = login_garmin(username, password, member_id=member_id)
+    client, err = login_garmin(username, password, member_id=member_id)
     if not client:
-        print("  [FAIL] 登录失败")
+        print(f"  [FAIL] 登录失败: {err}")
         return -1
 
     health = fetch_garmin_data(client, date_str)

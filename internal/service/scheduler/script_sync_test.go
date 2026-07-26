@@ -70,17 +70,14 @@ func TestParseSyncedCount(t *testing.T) {
 	}{
 		{"=== 同步完成 ===\n成功: 3 | 跳过: 1 | 失败: 0", 3},
 		{"成功: 1 | 跳过: 0 | 失败: 0", 1},
-		{"成功:0", 0}, // 0 成员成功 → 兜底返回 1
+		{"成功:0", 0}, // 登录失败 success=0 应如实返回 0（v3.9.12 修复）
 		{"无输出", 1}, // 无法解析但视为成功
 		{"成功: 12 | 跳过: 2", 12},
+		{"成功: 0 | 跳过: 2 | 失败: 1", 0}, // 多字段下 0 仍正确返回
 	}
 	for i, c := range cases {
 		got := parseSyncedCount(c.out)
-		// "成功:0" 时兜底返回 1
 		want := c.expect
-		if c.expect == 0 {
-			want = 1
-		}
 		if got != want {
 			t.Errorf("case %d: parseSyncedCount(%q) = %d, want %d", i, c.out, got, want)
 		}

@@ -30,6 +30,8 @@ type Scheduler struct {
 	pusher        botservice.Pusher
 	// v3.9.7: 全局 Garmin 凭证兜底（DB data_source_config 未配时使用 config/环境变量）
 	garminCfg config.GarminConfig
+	// v3.9.12: Apple 日历同步配置（osascript → calendar_events，仅 macOS）
+	calendarSyncCfg config.CalendarSyncConfig
 	stopCh    chan struct{}
 	wg        sync.WaitGroup
 	mu        sync.Mutex
@@ -64,19 +66,21 @@ func DefaultTaskConfig() TaskConfig {
 // garminClient/weatherClient/pusher 可为 nil（未配置时跳过对应功能）
 // garminCfg 为全局 Garmin 凭证兜底（DB data_source_config 未配时使用 config/环境变量）
 // dbPath 为 SQLite 数据库路径（v3.9.8: 脚本同步模式传给 Python 脚本）
-func New(db *store.DB, dbPath string, garminClient garmin.Client, weatherClient weather.Client, pusher botservice.Pusher, garminCfg config.GarminConfig) *Scheduler {
+// calendarSyncCfg 为 Apple 日历同步配置（v3.9.12: osascript → calendar_events，仅 macOS）
+func New(db *store.DB, dbPath string, garminClient garmin.Client, weatherClient weather.Client, pusher botservice.Pusher, garminCfg config.GarminConfig, calendarSyncCfg config.CalendarSyncConfig) *Scheduler {
 	if pusher == nil {
 		pusher = botservice.NewPusher("")
 	}
 	return &Scheduler{
-		db:            db,
-		dbPath:        dbPath,
-		garminClient:  garminClient,
-		weatherClient: weatherClient,
-		pusher:        pusher,
-		garminCfg:     garminCfg,
-		stopCh:        make(chan struct{}),
-		lastRuns:      make(map[string]time.Time),
+		db:              db,
+		dbPath:          dbPath,
+		garminClient:    garminClient,
+		weatherClient:   weatherClient,
+		pusher:          pusher,
+		garminCfg:       garminCfg,
+		calendarSyncCfg: calendarSyncCfg,
+		stopCh:          make(chan struct{}),
+		lastRuns:        make(map[string]time.Time),
 	}
 }
 
@@ -98,6 +102,19 @@ func (s *Scheduler) Start(cfg TaskConfig) {
 	// 健康数据同步
 	s.wg.Add(1)
 	go s.healthSyncLoop(cfg.HealthSyncInterval)
+
+	// v3.9.12: Apple 日历同步（仅 macOS，osascript → calendar_events）
+	if s.calendarSyncCfg.Enable {
+		interval := s.calendarSyncCfg.Interval
+		if interval <= 0 {
+			interval = 1 * time.Hour
+		}
+		s.wg.Add(1)
+		go s.appleCalendarSyncLoop(interval)
+		log.Printf("[SCHEDULER] Apple 日历同步间隔: %v (脚本: %s)", interval, s.calendarSyncCfg.ScriptPath)
+	} else {
+		log.Println("[SCHEDULER] Apple 日历同步未启用（calendar_sync.enable=false）")
+	}
 
 	// AI 分析检查
 	s.wg.Add(1)
@@ -166,6 +183,9 @@ func (s *Scheduler) TriggerManual(taskName string) error {
 		return nil
 	case "calendar_reminder":
 		go s.runCalendarReminders()
+		return nil
+	case "calendar_sync":
+		go s.runAppleCalendarSync()
 		return nil
 	case "cleanup":
 		go s.runCleanup()
@@ -558,6 +578,15 @@ func (s *Scheduler) runScriptSyncAll(ctx context.Context, date string) int {
 		}
 		log.Printf("[SCHEDULER] 脚本输出:\n%s", strings.TrimSpace(tail))
 	}
+	// 脚本退出码为 0 但 stderr 可能有 [ERR] 详细错误（登录失败等被脚本内部捕获，
+	// 退出码仍为 0 以输出计数）。透传 stderr 便于排查 partial failure。
+	if stderr.Len() > 0 {
+		tail := stderr.String()
+		if len(tail) > 2048 {
+			tail = "..." + tail[len(tail)-2048:]
+		}
+		log.Printf("[SCHEDULER] 脚本 stderr:\n%s", strings.TrimSpace(tail))
+	}
 
 	// 解析 "成功: N" 提取同步条数
 	return parseSyncedCount(out)
@@ -594,17 +623,207 @@ func parseSyncedCount(out string) int {
 	}
 	rest := strings.TrimSpace(out[idx+len("成功:"):])
 	n := 0
-	for i, r := range rest {
+	parsed := false
+	for _, r := range rest {
 		if r < '0' || r > '9' {
-			if i == 0 {
+			if parsed {
 				break
 			}
-			break
+			continue // 跳过数字前的空白/分隔符
 		}
+		parsed = true
 		n = n*10 + int(r-'0')
 	}
-	if n == 0 {
-		return 1
+	if !parsed {
+		return 1 // "成功:" 后无数字，视为整体成功
+	}
+	return n // 显式返回解析值（含 0：登录失败时 success=0 不应误报为 1）
+}
+
+// ============ Apple 日历同步 (v3.9.12) ============
+//
+// 通过 exec 调用 homemate_calendar_sync.py，脚本用 osascript 读取 macOS Calendar.app
+// 中 ±N 天事件，写入 calendar_events 表（source='apple_calendar'）。事件按
+// (source_account, external_event_id) 唯一索引去重，循环事件由 python-dateutil 展开。
+// 静默保存：仅打印日志，不生成通知/报告。
+
+// appleCalendarSyncLoop Apple 日历定时同步循环
+func (s *Scheduler) appleCalendarSyncLoop(interval time.Duration) {
+	defer s.wg.Done()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// 首次启动延迟 2 分钟执行（错开服务启动峰值，与健康同步 1 分钟延迟错开）
+	select {
+	case <-time.After(2 * time.Minute):
+		s.runAppleCalendarSync()
+	case <-s.stopCh:
+		return
+	}
+
+	for {
+		select {
+		case <-ticker.C:
+			s.runAppleCalendarSync()
+		case <-s.stopCh:
+			return
+		}
+	}
+}
+
+// runAppleCalendarSync 执行一次 Apple 日历同步
+func (s *Scheduler) runAppleCalendarSync() {
+	s.mu.Lock()
+	s.lastRuns["calendar_sync"] = time.Now()
+	s.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	s.runCalendarScriptSync(ctx)
+}
+
+// runCalendarScriptSync 通过 exec 调用日历同步脚本
+func (s *Scheduler) runCalendarScriptSync(ctx context.Context) {
+	scriptPath := s.calendarSyncCfg.ScriptPath
+	if scriptPath == "" {
+		scriptPath = "./homemate_calendar_sync.py"
+	}
+	pythonPath := s.calendarSyncCfg.PythonPath
+	if pythonPath == "" {
+		pythonPath = "/usr/bin/python3"
+	}
+
+	absScript, err := filepath.Abs(scriptPath)
+	if err != nil {
+		log.Printf("[SCHEDULER][CALENDAR] 脚本路径解析失败 (%s): %v", scriptPath, err)
+		absScript = scriptPath
+	}
+	if _, err := os.Stat(absScript); err != nil {
+		log.Printf("[SCHEDULER][CALENDAR] 同步脚本不存在: %s (%v)", absScript, err)
+		return
+	}
+
+	absDB := s.dbPath
+	if abs, err := filepath.Abs(s.dbPath); err == nil {
+		absDB = abs
+	}
+
+	timeout := s.calendarSyncCfg.ScriptTimeout
+	if timeout <= 0 {
+		timeout = 2 * time.Minute
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	lookback := s.calendarSyncCfg.LookbackDays
+	if lookback <= 0 {
+		lookback = 30
+	}
+	lookahead := s.calendarSyncCfg.LookaheadDays
+	if lookahead <= 0 {
+		lookahead = 30
+	}
+
+	// 构造命令：python3 <script> --lookback N --lookahead M
+	cmd := exec.CommandContext(runCtx, pythonPath, absScript,
+		"--lookback", fmt.Sprintf("%d", lookback),
+		"--lookahead", fmt.Sprintf("%d", lookahead))
+	cmd.Dir = filepath.Dir(absScript)
+	// 剥离 PYTHONHOME/PYTHONPATH（对齐 env -u 用法），注入 HOMEMATE_DB 写同一数据库
+	cmd.Env = s.buildCalendarScriptEnv(absDB)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	log.Printf("[SCHEDULER][CALENDAR] 调用同步脚本: %s %s --lookback %d --lookahead %d",
+		pythonPath, absScript, lookback, lookahead)
+
+	if err := cmd.Run(); err != nil {
+		// 检测 TCC 自动化授权错误（osascript -10004 / 权限违例 / not authorized）
+		combined := stdout.String() + "\n" + stderr.String()
+		if isCalendarTCCError(combined) {
+			log.Printf("[SCHEDULER][CALENDAR] TCC 自动化授权失效：osascript 无法访问 Calendar.app")
+			log.Printf("[SCHEDULER][CALENDAR] 请在「系统设置 > 隐私与安全性 > 自动化」中为相应进程重新勾选 Calendar，本次不重试")
+			return
+		}
+		log.Printf("[SCHEDULER][CALENDAR] 同步脚本执行失败: %v", err)
+		if stderr.Len() > 0 {
+			log.Printf("[SCHEDULER][CALENDAR] 脚本 stderr: %s", strings.TrimSpace(stderr.String()))
+		}
+		return
+	}
+
+	out := stdout.String()
+	if len(out) > 0 {
+		tail := out
+		if len(tail) > 1024 {
+			tail = "..." + tail[len(tail)-1024:]
+		}
+		log.Printf("[SCHEDULER][CALENDAR] 脚本输出:\n%s", strings.TrimSpace(tail))
+	}
+
+	// 解析 成功/跳过/失败 计数（脚本输出 "成功: N | 跳过: M | 失败: K"）
+	ok := parseCalendarCount(out, "成功")
+	skip := parseCalendarCount(out, "跳过")
+	fail := parseCalendarCount(out, "失败")
+	log.Printf("[SCHEDULER][CALENDAR] 同步完成: 成功=%d 跳过=%d 失败=%d", ok, skip, fail)
+}
+
+// buildCalendarScriptEnv 构造日历同步脚本环境变量
+func (s *Scheduler) buildCalendarScriptEnv(absDB string) []string {
+	env := make([]string, 0, len(os.Environ())+1)
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "PYTHONHOME=") || strings.HasPrefix(e, "PYTHONPATH=") {
+			continue
+		}
+		env = append(env, e)
+	}
+	env = append(env, "HOMEMATE_DB="+absDB)
+	return env
+}
+
+// isCalendarTCCError 检测 osascript TCC 自动化授权错误
+func isCalendarTCCError(text string) bool {
+	low := strings.ToLower(text)
+	if strings.Contains(low, "-10004") || strings.Contains(low, "10004") {
+		return true
+	}
+	if strings.Contains(low, "权限违例") || strings.Contains(low, "权限错误") {
+		return true
+	}
+	if strings.Contains(low, "not authorized") || strings.Contains(low, "not authorised") {
+		return true
+	}
+	if strings.Contains(low, "not allowed assistive") || strings.Contains(low, "appleevent") ||
+		strings.Contains(low, "automation") && strings.Contains(low, "calendar") {
+		return true
+	}
+	return false
+}
+
+// parseCalendarCount 从脚本输出解析标签后的数字（如 "成功: 3"）
+func parseCalendarCount(out, label string) int {
+	needle := label + ":"
+	idx := strings.LastIndex(out, needle)
+	if idx < 0 {
+		needle = label + " :"
+		idx = strings.LastIndex(out, needle)
+	}
+	if idx < 0 {
+		return 0
+	}
+	rest := out[idx+len(needle):]
+	n := 0
+	for _, r := range rest {
+		if r < '0' || r > '9' {
+			if n > 0 {
+				break
+			}
+			continue // 跳过数字前的空白/分隔符
+		}
+		n = n*10 + int(r-'0')
 	}
 	return n
 }

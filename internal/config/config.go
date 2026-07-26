@@ -21,6 +21,8 @@ type Config struct {
 	Amap     AmapConfig     `yaml:"amap"`
 	Garmin   GarminConfig   `yaml:"garmin"`
 	WeCom    WeComConfig    `yaml:"wecom"`
+	// v3.9.12: Apple 日历定时同步（osascript 读取 macOS Calendar.app → calendar_events 表）
+	CalendarSync CalendarSyncConfig `yaml:"calendar_sync"`
 }
 
 // ServerConfig HTTP 服务配置
@@ -116,6 +118,22 @@ type WeComConfig struct {
 	EnablePush bool   `yaml:"enable_push"`
 }
 
+// CalendarSyncConfig Apple 日历同步配置
+// 调度器通过 exec 调用 homemate_calendar_sync.py，脚本用 osascript 读取
+// macOS Calendar.app 中 ±30 天事件，写入 calendar_events 表（source='apple_calendar'）。
+// 事件按 (source_account, external_event_id) 唯一索引去重，循环事件展开为独立行。
+// 仅 macOS 可用（需 TCC 自动化授权），非 macOS 环境应置 enable: false。
+type CalendarSyncConfig struct {
+	Enable        bool          `yaml:"enable"`         // 启用 Apple 日历定时同步
+	ScriptPath    string        `yaml:"script_path"`    // homemate_calendar_sync.py 路径
+	PythonPath    string        `yaml:"python_path"`    // python3 可执行文件路径
+	ScriptTimeout time.Duration `yaml:"script_timeout"` // 脚本执行超时
+	Interval      time.Duration `yaml:"interval"`       // 同步间隔（默认 1 小时）
+	// LookbackDays 同步回看天数（脚本读取 [now-lookback, now+lookahead] 范围事件）
+	LookbackDays  int `yaml:"lookback_days"`
+	LookaheadDays int `yaml:"lookahead_days"`
+}
+
 // setDefaults 设置默认值
 func (c *Config) setDefaults() {
 	if c.Server.Port == "" {
@@ -187,6 +205,25 @@ func (c *Config) setDefaults() {
 	if c.Garmin.ScriptTimeout == 0 {
 		c.Garmin.ScriptTimeout = 3 * time.Minute
 	}
+	// v3.9.12: Apple 日历同步默认值
+	if c.CalendarSync.PythonPath == "" {
+		c.CalendarSync.PythonPath = "/usr/bin/python3"
+	}
+	if c.CalendarSync.ScriptPath == "" {
+		c.CalendarSync.ScriptPath = "./scripts/homemate_calendar_sync.py"
+	}
+	if c.CalendarSync.ScriptTimeout == 0 {
+		c.CalendarSync.ScriptTimeout = 2 * time.Minute
+	}
+	if c.CalendarSync.Interval == 0 {
+		c.CalendarSync.Interval = 1 * time.Hour
+	}
+	if c.CalendarSync.LookbackDays == 0 {
+		c.CalendarSync.LookbackDays = 30
+	}
+	if c.CalendarSync.LookaheadDays == 0 {
+		c.CalendarSync.LookaheadDays = 30
+	}
 }
 
 // applyEnv 用环境变量覆盖配置
@@ -243,6 +280,23 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("HOMEMATE_WECOM_ENABLE_PUSH"); v == "true" || v == "1" {
 		c.WeCom.EnablePush = true
+	}
+	// v3.9.12: Apple 日历同步环境变量覆盖
+	if v := os.Getenv("HOMEMATE_CALENDAR_SYNC_ENABLE"); v == "true" || v == "1" {
+		c.CalendarSync.Enable = true
+	} else if v == "false" || v == "0" {
+		c.CalendarSync.Enable = false
+	}
+	if v := os.Getenv("HOMEMATE_CALENDAR_SYNC_SCRIPT"); v != "" {
+		c.CalendarSync.ScriptPath = v
+	}
+	if v := os.Getenv("HOMEMATE_CALENDAR_SYNC_PYTHON"); v != "" {
+		c.CalendarSync.PythonPath = v
+	}
+	if v := os.Getenv("HOMEMATE_CALENDAR_SYNC_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			c.CalendarSync.Interval = d
+		}
 	}
 }
 

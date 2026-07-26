@@ -62,3 +62,15 @@ garmin:
   python_path: "/usr/bin/python3"
   script_timeout: "3m"
   # 中国区由脚本读 GARMIN_IS_CN 环境变量控制（默认中国区 true；海外设 GARMIN_IS_CN=0）
+
+# Apple 日历定时同步（v3.9.12，仅 macOS，需 TCC 自动化授权）
+# 调度器通过 osascript 读取 Calendar.app 中 ±30 天事件，写入 calendar_events 表
+# 非 macOS 环境置 enable: false
+calendar_sync:
+  enable: false
+  script_path: "./scripts/homemate_calendar_sync.py"
+  python_path: "/usr/bin/python3"
+  script_timeout: "2m"
+  interval: "1h"
+  lookback_days: 30
+  lookahead_days: 30
