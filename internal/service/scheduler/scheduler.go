@@ -136,6 +136,10 @@ func (s *Scheduler) Start(cfg TaskConfig) {
 		{Task: "cleanup", Name: "历史数据清理", Interval: 24 * time.Hour, Enabled: true},
 	}
 
+	// v3.9.13: 从 family_settings 读取任务启停/间隔覆盖（运行时可编辑）
+	// health_sync 间隔立即生效（影响下方 loop），其余 interval 仅持久化，重启后生效
+	s.loadTaskConfigOverrides(&cfg)
+
 	// 健康数据同步
 	s.wg.Add(1)
 	go s.healthSyncLoop(cfg.HealthSyncInterval)
@@ -249,6 +253,9 @@ func (s *Scheduler) reminderScanLoop() {
 }
 
 func (s *Scheduler) runReminderScan() {
+	if !s.isTaskEnabled("reminder_scan") {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	now := time.Now()
@@ -292,6 +299,9 @@ func (s *Scheduler) notificationPushLoop() {
 }
 
 func (s *Scheduler) runNotificationPush() {
+	if !s.isTaskEnabled("notification_push") {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	notifications, err := s.db.ListUnpushedNotifications(ctx, 50)
@@ -328,6 +338,9 @@ func (s *Scheduler) calendarReminderLoop() {
 }
 
 func (s *Scheduler) runCalendarReminders() {
+	if !s.isTaskEnabled("calendar_reminder") {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	now := time.Now()
@@ -398,6 +411,9 @@ func (s *Scheduler) healthSyncLoop(interval time.Duration) {
 }
 
 func (s *Scheduler) runHealthSync() {
+	if !s.isTaskEnabled("health_sync") {
+		return
+	}
 	s.recordRun("health_sync", nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -708,6 +724,9 @@ func (s *Scheduler) appleCalendarSyncLoop(interval time.Duration) {
 
 // runAppleCalendarSync 执行一次 Apple 日历同步
 func (s *Scheduler) runAppleCalendarSync() {
+	if !s.isTaskEnabled("calendar_sync") {
+		return
+	}
 	s.recordRun("calendar_sync", nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -890,6 +909,9 @@ func (s *Scheduler) dailyAIAnalysisLoop(hour int) {
 }
 
 func (s *Scheduler) runAIAnalysis() {
+	if !s.isTaskEnabled("ai_analysis") {
+		return
+	}
 	s.recordRun("ai_analysis", nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
@@ -984,6 +1006,9 @@ func (s *Scheduler) weekendRecommendLoop(weekday time.Weekday, hour int) {
 }
 
 func (s *Scheduler) runWeekendRecommend() {
+	if !s.isTaskEnabled("weekend_recommend") {
+		return
+	}
 	s.recordRun("weekend_recommend", nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -1104,9 +1129,10 @@ func (s *Scheduler) Status() map[string]interface{} {
 		lastRun, hasRun := s.lastRuns[tm.Task]
 		status := s.lastStatus[tm.Task]
 		entry := map[string]interface{}{
-			"task":    tm.Task,
-			"name":    tm.Name,
-			"enabled": tm.Enabled,
+			"task":     tm.Task,
+			"name":     tm.Name,
+			"enabled":  tm.Enabled,
+			"interval": tm.Interval.String(),
 		}
 		if hasRun {
 			entry["last_run"] = lastRun.Format(time.RFC3339)
@@ -1132,6 +1158,81 @@ func (s *Scheduler) Status() map[string]interface{} {
 	}
 }
 
+// isTaskEnabled 查询任务是否启用（taskRegistry 中 Enabled 字段，未知任务默认启用）
+func (s *Scheduler) isTaskEnabled(task string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, tm := range s.taskRegistry {
+		if tm.Task == task {
+			return tm.Enabled
+		}
+	}
+	return true
+}
+
+// UpdateTaskConfig 更新单个任务的启停/间隔，并持久化到 family_settings
+// enabled 立即生效（run* 方法内检查），interval 持久化但需重启服务后生效（避免重建 ticker）
+func (s *Scheduler) UpdateTaskConfig(task string, enabled *bool, interval *time.Duration) error {
+	s.mu.Lock()
+	idx := -1
+	for i := range s.taskRegistry {
+		if s.taskRegistry[i].Task == task {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		s.mu.Unlock()
+		return fmt.Errorf("未知任务: %s", task)
+	}
+	if enabled != nil {
+		s.taskRegistry[idx].Enabled = *enabled
+	}
+	if interval != nil {
+		s.taskRegistry[idx].Interval = *interval
+	}
+	s.mu.Unlock()
+
+	ctx := context.Background()
+	if enabled != nil {
+		val := "false"
+		if *enabled {
+			val = "true"
+		}
+		if err := s.db.SetSetting(ctx, "scheduler."+task+".enabled", val); err != nil {
+			return fmt.Errorf("持久化 enabled 失败: %w", err)
+		}
+		log.Printf("[SCHEDULER] 任务 %s enabled=%v（立即生效）", task, *enabled)
+	}
+	if interval != nil {
+		if err := s.db.SetSetting(ctx, "scheduler."+task+".interval", interval.String()); err != nil {
+			return fmt.Errorf("持久化 interval 失败: %w", err)
+		}
+		log.Printf("[SCHEDULER] 任务 %s interval=%v（重启服务后生效）", task, *interval)
+	}
+	return nil
+}
+
+// loadTaskConfigOverrides 从 family_settings 读取任务启停/间隔覆盖，应用到 taskRegistry
+// health_sync 间隔额外覆盖 cfg.HealthSyncInterval（使本次启动的 loop 使用新间隔）
+func (s *Scheduler) loadTaskConfigOverrides(cfg *TaskConfig) {
+	ctx := context.Background()
+	for i := range s.taskRegistry {
+		task := s.taskRegistry[i].Task
+		if v := s.db.GetSetting(ctx, "scheduler."+task+".enabled"); v != "" {
+			s.taskRegistry[i].Enabled = v == "true"
+		}
+		if v := s.db.GetSetting(ctx, "scheduler."+task+".interval"); v != "" {
+			if d, err := time.ParseDuration(v); err == nil && d > 0 {
+				s.taskRegistry[i].Interval = d
+				if task == "health_sync" {
+					cfg.HealthSyncInterval = d
+				}
+			}
+		}
+	}
+}
+
 // ============ 历史数据清理 ============
 
 // cleanupLoop 每日指定小时执行清理
@@ -1154,6 +1255,9 @@ func (s *Scheduler) cleanupLoop(hour int) {
 
 // runCleanup 执行历史数据清理
 func (s *Scheduler) runCleanup() {
+	if !s.isTaskEnabled("cleanup") {
+		return
+	}
 	s.recordRun("cleanup", nil)
 	log.Println("[CLEANUP] 开始清理历史数据（归档模式）...")
 

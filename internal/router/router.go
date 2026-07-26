@@ -1,6 +1,8 @@
 package router
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/homemate/server/internal/handler/anniversary"
 	"github.com/homemate/server/internal/handler/archive"
@@ -264,6 +266,36 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 			return
 		}
 		c.JSON(200, gin.H{"code": 0, "message": "任务已触发: " + task})
+	})
+	// v3.9.13: 编辑调度任务配置（启停/间隔），需管理员权限
+	adminGroup.PUT("/scheduler/config", func(c *gin.Context) {
+		if sched == nil {
+			c.JSON(500, gin.H{"code": 500, "message": "调度器未启动"})
+			return
+		}
+		var req struct {
+			Task     string  `json:"task" binding:"required"`
+			Enabled  *bool   `json:"enabled"`
+			Interval *string `json:"interval"` // 形如 "6h" / "30m" / "5m"
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(400, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		var interval *time.Duration
+		if req.Interval != nil && *req.Interval != "" {
+			d, err := time.ParseDuration(*req.Interval)
+			if err != nil || d <= 0 {
+				c.JSON(400, gin.H{"code": 400, "message": "interval 格式无效，示例: 6h, 30m, 5m"})
+				return
+			}
+			interval = &d
+		}
+		if err := sched.UpdateTaskConfig(req.Task, req.Enabled, interval); err != nil {
+			c.JSON(400, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"code": 0, "message": "调度配置已更新"})
 	})
 	adminGroup.GET("/chorse/tasks", chorse.ListAllChorseTasksHandler)
 	adminGroup.PUT("/chorse/tasks/toggle", chorse.ToggleChorseTaskHandler)

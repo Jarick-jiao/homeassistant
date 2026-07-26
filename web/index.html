@@ -1360,6 +1360,33 @@
             </div>
           </div>
         </div>
+        <!-- v3.9.13: 调度任务编辑弹框 -->
+        <div id="schedulerTaskModal" class="modal-overlay">
+          <div class="modal-box" style="max-width:420px">
+            <h4 class="text-lg font-bold mb-1">编辑调度任务</h4>
+            <p class="text-xs text-gray-400 mb-4">调整任务启停与执行间隔</p>
+            <input type="hidden" id="schedulerTaskKey" value="">
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs text-gray-400 mb-1">任务名称</label>
+                <div id="schedulerTaskName" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">-</div>
+              </div>
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" id="schedulerTaskEnabled" class="rounded accent-blue-500">
+                <span>启用该任务</span>
+              </label>
+              <div id="schedulerTaskIntervalWrap">
+                <label class="block text-xs text-gray-400 mb-1">执行间隔（如 6h / 30m / 5m）</label>
+                <input type="text" id="schedulerTaskInterval" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="6h">
+                <p id="schedulerTaskIntervalHint" class="text-[11px] text-gray-400 mt-1">修改后需重启服务生效</p>
+              </div>
+            </div>
+            <div class="flex gap-3 mt-5">
+              <button onclick="document.getElementById('schedulerTaskModal').classList.remove('show')" class="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition">取消</button>
+              <button onclick="submitSchedulerConfig()" class="ripple-btn flex-1 py-2 rounded-lg text-sm font-medium text-white" style="background:var(--primary)">保存</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -5085,25 +5112,80 @@
     }
 
     // ===== 调度器状态 =====
+    // v3.9.13: 调度器状态分页（每页5）+ 编辑控制
+    var schedulerPage = 1, schedulerPageSize = 5, schedulerTasksCache = [], schedulerRunning = false;
     function loadSchedulerStatus() {
       var el = document.getElementById('schedulerStatus');
       if (!el) return;
       el.innerHTML = '<div class="text-center text-gray-400 py-4">加载中...</div>';
       authFetch('/api/scheduler/status').then(function(r){return r.json();}).then(function(res){
-        var running = res.running, tasks = res.tasks || [];
-        var html = '<div class="flex items-center gap-2 mb-2"><span class="w-2 h-2 rounded-full ' + (running?'bg-green-500':'bg-gray-400') + '"></span><span class="font-medium">' + (running?'运行中':'未运行') + '</span><span class="text-gray-400">· ' + tasks.length + ' 个任务</span></div>';
-        if (tasks.length === 0) { html += '<div class="text-gray-400 text-center py-3">无定时任务</div>'; }
-        else {
-          html += tasks.map(function(t){
-            var lastRun = t.last_run ? new Date(t.last_run).toLocaleString('zh-CN') : '从未';
-            var nextRun = t.next_run ? new Date(t.next_run).toLocaleString('zh-CN') : '-';
-            var status = t.last_status || '-';
-            var statusColor = status === 'success' ? 'text-green-600' : (status === 'error' ? 'text-red-600' : 'text-gray-400');
-            return '<div class="border border-gray-100 dark:border-gray-700 rounded-lg p-2.5"><div class="flex items-center justify-between mb-1"><span class="font-medium">' + escapeHtml(t.name||t.task||'-') + '</span><button onclick="triggerSchedulerTask(\'' + escapeHtml(t.task||t.name) + '\')" class="text-blue-500 hover:underline text-xs">▶ 手动触发</button></div><div class="text-gray-400 text-[11px]">上次: <span class="' + statusColor + '">' + status + '</span> · ' + lastRun + '<br>下次: ' + nextRun + '</div></div>';
-          }).join('');
-        }
-        el.innerHTML = html;
+        schedulerRunning = res.running || false;
+        schedulerTasksCache = res.tasks || [];
+        var totalPages = Math.max(1, Math.ceil(schedulerTasksCache.length / schedulerPageSize));
+        if (schedulerPage > totalPages) schedulerPage = 1;
+        el.innerHTML = renderSchedulerStatus();
       }).catch(function(){ el.innerHTML = '<div class="text-center text-red-400 py-4">加载失败（需管理员权限）</div>'; });
+    }
+    function renderSchedulerStatus() {
+      var tasks = schedulerTasksCache, total = tasks.length;
+      var html = '<div class="flex items-center gap-2 mb-2"><span class="w-2 h-2 rounded-full ' + (schedulerRunning?'bg-green-500':'bg-gray-400') + '"></span><span class="font-medium">' + (schedulerRunning?'运行中':'未运行') + '</span><span class="text-gray-400">· ' + total + ' 个任务</span></div>';
+      if (total === 0) { html += '<div class="text-gray-400 text-center py-3">无定时任务</div>'; return html; }
+      var totalPages = Math.max(1, Math.ceil(total / schedulerPageSize));
+      if (schedulerPage > totalPages) schedulerPage = totalPages;
+      var start = (schedulerPage - 1) * schedulerPageSize;
+      var pageTasks = tasks.slice(start, start + schedulerPageSize);
+      html += pageTasks.map(function(t){
+        var lastRun = t.last_run ? new Date(t.last_run).toLocaleString('zh-CN') : '从未';
+        var nextRun = t.next_run ? new Date(t.next_run).toLocaleString('zh-CN') : '-';
+        var status = t.last_status || '-';
+        var statusColor = status === 'success' ? 'text-green-600' : (status === 'error' ? 'text-red-600' : 'text-gray-400');
+        var enabledBadge = t.enabled ? '<span class="text-green-600">启用</span>' : '<span class="text-gray-400">已停用</span>';
+        var intervalStr = t.interval ? '· 间隔 ' + t.interval : '';
+        return '<div class="border border-gray-100 dark:border-gray-700 rounded-lg p-2.5"><div class="flex items-center justify-between mb-1"><span class="font-medium">' + escapeHtml(t.name||t.task||'-') + '</span><div class="flex gap-2"><button onclick="editSchedulerTask(\'' + escapeHtml(t.task||'') + '\')" class="text-gray-500 hover:text-blue-500 text-xs">⚙️ 编辑</button><button onclick="triggerSchedulerTask(\'' + escapeHtml(t.task||t.name) + '\')" class="text-blue-500 hover:underline text-xs">▶ 触发</button></div></div><div class="text-gray-400 text-[11px]">' + enabledBadge + ' ' + intervalStr + '<br>上次: <span class="' + statusColor + '">' + status + '</span> · ' + lastRun + '<br>下次: ' + nextRun + '</div></div>';
+      }).join('');
+      // 分页栏（每页最多5个）
+      html += '<div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-700"><span class="text-gray-400">共 ' + total + ' 个 · 第 ' + schedulerPage + '/' + totalPages + ' 页</span><div class="flex gap-2"><button onclick="schedulerPrevPage()" ' + (schedulerPage<=1?'disabled':'') + ' class="px-2 py-0.5 rounded border border-gray-200 dark:border-gray-600 text-xs ' + (schedulerPage<=1?'opacity-40 cursor-not-allowed':'hover:bg-gray-50 dark:hover:bg-gray-700') + '">上一页</button><button onclick="schedulerNextPage()" ' + (schedulerPage>=totalPages?'disabled':'') + ' class="px-2 py-0.5 rounded border border-gray-200 dark:border-gray-600 text-xs ' + (schedulerPage>=totalPages?'opacity-40 cursor-not-allowed':'hover:bg-gray-50 dark:hover:bg-gray-700') + '">下一页</button></div></div>';
+      return html;
+    }
+    function schedulerPrevPage() { if (schedulerPage > 1) { schedulerPage--; document.getElementById('schedulerStatus').innerHTML = renderSchedulerStatus(); } }
+    function schedulerNextPage() { var totalPages = Math.max(1, Math.ceil(schedulerTasksCache.length / schedulerPageSize)); if (schedulerPage < totalPages) { schedulerPage++; document.getElementById('schedulerStatus').innerHTML = renderSchedulerStatus(); } }
+    function editSchedulerTask(task) {
+      var t = null;
+      for (var i = 0; i < schedulerTasksCache.length; i++) { if (schedulerTasksCache[i].task === task) { t = schedulerTasksCache[i]; break; } }
+      if (!t) { showToast('任务不存在'); return; }
+      document.getElementById('schedulerTaskName').textContent = t.name || task;
+      document.getElementById('schedulerTaskKey').value = task;
+      document.getElementById('schedulerTaskEnabled').checked = !!t.enabled;
+      var intervalInput = document.getElementById('schedulerTaskInterval');
+      intervalInput.value = t.interval || '';
+      // ai_analysis / weekend_recommend 为定点任务，间隔不可编辑
+      var fixedPoint = (task === 'ai_analysis' || task === 'weekend_recommend');
+      var hint = document.getElementById('schedulerTaskIntervalHint');
+      if (fixedPoint) {
+        intervalInput.disabled = true;
+        intervalInput.value = '';
+        hint.textContent = '定点任务，间隔不可调整';
+      } else {
+        intervalInput.disabled = false;
+        hint.textContent = '修改后需重启服务生效';
+      }
+      showModal('schedulerTaskModal');
+    }
+    function submitSchedulerConfig() {
+      var task = document.getElementById('schedulerTaskKey').value;
+      var enabled = document.getElementById('schedulerTaskEnabled').checked;
+      var intervalInput = document.getElementById('schedulerTaskInterval');
+      var body = { task: task, enabled: enabled };
+      if (!intervalInput.disabled && intervalInput.value.trim()) { body.interval = intervalInput.value.trim(); }
+      authFetch('/api/scheduler/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){return r.json();}).then(function(res){
+        if (res.code === 0 || res.code === undefined) {
+          showToast(res.message || '已更新', 'success');
+          document.getElementById('schedulerTaskModal').classList.remove('show');
+          loadSchedulerStatus();
+        } else {
+          showToast(res.message || '更新失败', 'error');
+        }
+      }).catch(function(){ showToast('更新失败', 'error'); });
     }
 
     function triggerSchedulerTask(task) {
