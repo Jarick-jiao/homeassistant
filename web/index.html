@@ -956,7 +956,7 @@
             <div class="flex gap-2 mt-3">
               <button onclick="clearRedeemHistory()" class="text-xs text-red-400 hover:underline">🗑️ 清空记录</button>
             </div>
-            <p class="text-[10px] text-gray-300 dark:text-gray-600 mt-2">⚠️ 兑换记录仅保存在本设备浏览器，积分扣减需后端配套（规划中）。</p>
+            <p class="text-[10px] text-gray-300 dark:text-gray-600 mt-2">⚠️ 兑换需爸妈确认后正式扣分。积分扣减需后端配套（规划中）。</p>
           </div>
         </div>
       </div>
@@ -3630,28 +3630,40 @@
     }
     function redeemItem(id, name, cost) {
       showConfirmDialog('确认兑换', '将申请兑换：' + name + '（-' + cost + '分）', '兑换需爸妈确认后正式扣分。积分扣减需后端配套（规划中），当前仅记录申请。', function(){
-        var records = getRedeemRecords();
-        var rec = {
-          id: 'r' + Date.now() + Math.floor(Math.random()*1000),
-          itemId: id, itemName: name, cost: cost,
-          member: (currentUser && currentUser.name) || '未知',
-          createdAt: new Date().toISOString(),
-          status: 'pending'
-        };
-        records.unshift(rec);
-        saveRedeemRecords(records);
-        showToast('已提交兑换申请，待爸妈确认', 'success');
-        switchRedeemTab('history');
+        // v3.9.11: 持久化到后端（原仅 localStorage，管理员跨设备无法确认）
+        authFetch('/api/redeem/records', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            member_name: (currentUser && currentUser.name) || '未知',
+            item_name: name,
+            item_icon: '',
+            cost: cost
+          })
+        }).then(function(r){ return r.json(); }).then(function(res){
+          if (res.code === 0) {
+            showToast('已提交兑换申请，待爸妈确认', 'success');
+            switchRedeemTab('history');
+            loadRedeemRecords(); // 刷新记录列表
+          } else {
+            showToast('提交失败：' + (res.message || '未知错误'), 'error');
+          }
+        }).catch(function(){
+          showToast('网络错误，提交失败', 'error');
+        });
       }, '确认兑换', '#8b5cf6');
     }
 
-    // ===== A4 积分兑换记录管理（v3.3.9 localStorage 闭环） =====
-    function getRedeemRecords() {
-      try { return JSON.parse(localStorage.getItem('homemate_redeem_records') || '[]'); }
-      catch(e) { return []; }
-    }
-    function saveRedeemRecords(arr) {
-      localStorage.setItem('homemate_redeem_records', JSON.stringify(arr));
+    // ===== A4 积分兑换记录管理（v3.9.11: 搬后端持久化，支持跨设备确认）=====
+    var _currentRedeemRecords = []; // 后端记录缓存（供 renderRedeemHistory 渲染）
+    function loadRedeemRecords() {
+      return authFetch('/api/redeem/records').then(function(r){ return r.json(); }).then(function(res){
+        _currentRedeemRecords = (res.code === 0 && res.data) ? res.data : [];
+        renderRedeemHistory();
+      }).catch(function(){
+        _currentRedeemRecords = [];
+        renderRedeemHistory();
+      });
     }
     function switchRedeemTab(tab) {
       var shopView = document.getElementById('redeemShopView');
@@ -3664,7 +3676,7 @@
         historyView.classList.remove('hidden');
         if (tabShop) { tabShop.classList.remove('text-purple-600','font-bold'); tabShop.classList.add('text-gray-400','font-medium'); }
         if (tabHistory) { tabHistory.classList.add('text-purple-600','font-bold'); tabHistory.classList.remove('text-gray-400','font-medium'); }
-        renderRedeemHistory();
+        loadRedeemRecords(); // v3.9.11: 切到记录页时从后端拉取
       } else {
         shopView.classList.remove('hidden');
         historyView.classList.add('hidden');
@@ -3675,7 +3687,7 @@
     function renderRedeemHistory() {
       var list = document.getElementById('redeemHistoryList');
       if (!list) return;
-      var records = getRedeemRecords();
+      var records = _currentRedeemRecords;
       if (!records.length) {
         list.innerHTML = '<div class="text-center text-gray-400 py-6 text-xs">暂无兑换记录</div>';
         return;
@@ -3688,25 +3700,45 @@
       var isAdmin = isCurrentUserAdmin();
       list.innerHTML = records.map(function(r){
         var st = statusMap[r.status] || statusMap['pending'];
-        var d = new Date(r.createdAt);
-        var dateStr = (d.getMonth()+1) + '/' + d.getDate() + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+        // v3.9.11: 后端 created_at 为 'YYYY-MM-DD HH:MM:SS' UTC，转本地显示
+        var dateStr = '';
+        try {
+          var d = new Date(r.created_at.replace(' ', 'T') + 'Z');
+          dateStr = (d.getMonth()+1) + '/' + d.getDate() + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+        } catch(e) { dateStr = r.created_at; }
         var actions = '';
         if (r.status === 'pending' && isAdmin) {
-          actions = '<div class="flex gap-1 mt-1"><button onclick="markRedeemStatus(\'' + r.id + '\',\'confirmed\')" class="text-[10px] px-2 py-0.5 rounded text-white" style="background:#10b981">确认</button><button onclick="markRedeemStatus(\'' + r.id + '\',\'rejected\')" class="text-[10px] px-2 py-0.5 rounded text-white" style="background:#9ca3af">驳回</button></div>';
+          actions = '<div class="flex gap-1 mt-1"><button onclick="markRedeemStatus(' + r.id + ',\'confirmed\')" class="text-[10px] px-2 py-0.5 rounded text-white" style="background:#10b981">确认</button><button onclick="markRedeemStatus(' + r.id + ',\'rejected\')" class="text-[10px] px-2 py-0.5 rounded text-white" style="background:#9ca3af">驳回</button></div>';
         }
-        return '<div class="border border-gray-100 dark:border-gray-700 rounded-lg p-2.5"><div class="flex items-center justify-between"><div><span class="font-medium text-sm">' + escapeHtml(r.itemName) + '</span><span class="text-xs text-red-400 ml-2">-' + r.cost + '分</span></div><span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style="background:'+st.bg+';color:'+st.color+'">' + st.label + '</span></div><div class="text-[10px] text-gray-400 mt-1">' + escapeHtml(r.member) + ' · ' + dateStr + '</div>' + actions + '</div>';
+        return '<div class="border border-gray-100 dark:border-gray-700 rounded-lg p-2.5"><div class="flex items-center justify-between"><div><span class="font-medium text-sm">' + escapeHtml(r.item_name) + '</span><span class="text-xs text-red-400 ml-2">-' + r.cost + '分</span></div><span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style="background:'+st.bg+';color:'+st.color+'">' + st.label + '</span></div><div class="text-[10px] text-gray-400 mt-1">' + escapeHtml(r.member_name) + ' · ' + dateStr + '</div>' + actions + '</div>';
       }).join('');
     }
     function markRedeemStatus(id, status) {
-      var records = getRedeemRecords();
-      var rec = records.find(function(r){return r.id === id;});
-      if (rec) { rec.status = status; saveRedeemRecords(records); renderRedeemHistory(); showToast(status === 'confirmed' ? '已确认兑换' : '已驳回兑换'); }
+      // v3.9.11: 调后端 API 确认/驳回（原仅改 localStorage）
+      authFetch('/api/redeem/records/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, status: status })
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (res.code === 0) {
+          showToast(status === 'confirmed' ? '已确认兑换' : '已驳回兑换', 'success');
+          loadRedeemRecords();
+        } else {
+          showToast('操作失败：' + (res.message || '未知错误'), 'error');
+        }
+      }).catch(function(){
+        showToast('网络错误，操作失败', 'error');
+      });
     }
     function clearRedeemHistory() {
-      showConfirmDialog('清空兑换记录', '确认要清空所有兑换记录吗？', '此操作不可恢复，仅清除本设备的记录，不影响实际积分', function(){
-        localStorage.removeItem('homemate_redeem_records');
-        renderRedeemHistory();
-        showToast('已清空兑换记录');
+      showConfirmDialog('清空兑换记录', '确认要清空所有兑换记录吗？', '此操作不可恢复，将删除所有成员的兑换记录', function(){
+        authFetch('/api/redeem/records', { method: 'DELETE' })
+          .then(function(r){ return r.json(); })
+          .then(function(res){
+            if (res.code === 0) { showToast('已清空兑换记录', 'success'); loadRedeemRecords(); }
+            else { showToast('清空失败：' + (res.message || '未知错误'), 'error'); }
+          })
+          .catch(function(){ showToast('网络错误，清空失败', 'error'); });
       });
     }
 

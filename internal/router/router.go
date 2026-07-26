@@ -17,6 +17,7 @@ import (
 	"github.com/homemate/server/internal/handler/news"
 	"github.com/homemate/server/internal/handler/notification"
 	"github.com/homemate/server/internal/handler/points"
+	"github.com/homemate/server/internal/handler/redeem"
 	"github.com/homemate/server/internal/handler/records"
 	"github.com/homemate/server/internal/handler/reminder"
 	"github.com/homemate/server/internal/handler/trip"
@@ -134,6 +135,12 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	authed.GET("/points/weekly-goal", points.GetWeeklyGoalHandler)
 	authed.PUT("/points/weekly-goal", middleware.RequireAdmin(), points.UpdateWeeklyGoalHandler)
 	authed.DELETE("/points/records/:id", middleware.RequireAdmin(), points.DeletePointsRecordHandler)
+
+	// --- 积分兑换记录（v3.9.11: 前端 localStorage 搬后端，支持跨设备确认）---
+	authed.GET("/redeem/records", redeem.ListRedeemRecordsHandler)
+	authed.POST("/redeem/records", redeem.CreateRedeemRecordHandler)
+	authed.PUT("/redeem/records/:id", middleware.RequireAdmin(), redeem.UpdateRedeemRecordStatusHandler)
+	authed.DELETE("/redeem/records", middleware.RequireAdmin(), redeem.ClearRedeemRecordsHandler)
 
 	// --- 休闲活动（原周末出行） ---
 	authed.GET("/weekend/dashboard", weekend.GetWeekendDashboardHandler)

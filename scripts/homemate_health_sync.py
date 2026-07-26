@@ -180,14 +180,30 @@ def update_last_sync(conn, member_ids):
 def login_garmin(username, password, member_id=None):
     """登录 Garmin Connect（中国区 + tokenstore 缓存）。
 
+    v3.9.11: 适配 garminconnect >= 0.3.0 新认证流程。
+    背景：2026-03 Garmin 改了认证基础设施，garth 库已废弃，
+    garminconnect 0.3.x 起改用 curl_cffi + ua-generator 的 Mobile SSO 流程，
+    login() API 签名变更（不再返回 tuple，改用 prompt_mfa 回调）。
+    旧 token 格式不兼容，首次升级后需清除 ~/.garminconnect_tokens 重新登录。
+
     Returns: Garmin client (成功) | None (失败)
     """
     try:
         from garminconnect import Garmin
     except ImportError:
-        print("[ERR] garminconnect 库未安装。请运行: pip3 install garminconnect --break-system-packages",
+        print("[ERR] garminconnect 库未安装。请运行: pip3 install 'garminconnect>=0.3.0' --break-system-packages",
               file=sys.stderr)
         sys.exit(1)
+
+    try:
+        import garminconnect
+        gv = getattr(garminconnect, "__version__", "0")
+        if gv < "0.3.0":
+            print(f"[WARN] garminconnect {gv} < 0.3.0，2026-03 后 Garmin 认证 API 已变更，"
+                  f"旧版 garth 依赖已失效。请升级: pip3 install --upgrade garminconnect",
+                  file=sys.stderr)
+    except Exception:
+        pass
 
     # 每个成员独立 tokenstore，避免多账号串号
     tokenstore = TOKENSTORE_DIR
@@ -195,16 +211,12 @@ def login_garmin(username, password, member_id=None):
         tokenstore = os.path.join(TOKENSTORE_DIR, f"member_{member_id}")
     os.makedirs(tokenstore, exist_ok=True)
 
-    client = Garmin(username, password, is_cn=IS_CN)
     try:
-        result = client.login(tokenstore=tokenstore)
-        # 新版 garminconnect: login() 返回 (needs_mfa, _legacy_token)
-        # needs_mfa 非 None 表示需要 MFA 二次验证
-        needs_mfa = result[0] if isinstance(result, tuple) else None
-        if needs_mfa:
-            print(f"[WARN] 该账号需要 MFA 验证 (member={member_id})，请使用 --save-config 重新登录或配置 MFA 流程",
-                  file=sys.stderr)
-            return None
+        # v3.9.11: 新 API — prompt_mfa 回调替代 return_on_mfa
+        # 无 MFA 账号传 None 即可；有 MFA 账号会触发回调（脚本不支持交互，
+        # 会抛异常提示用户用 --save-config 配置无 MFA 账号或手动登录一次缓存 token）。
+        client = Garmin(username, password, prompt_mfa=None, is_cn=IS_CN)
+        client.login(tokenstore)
         try:
             client.garth.dump(tokenstore)
             print(f"  [OK] token 已缓存: {tokenstore}")
@@ -212,7 +224,19 @@ def login_garmin(username, password, member_id=None):
             pass
         return client
     except Exception as e:
+        # 详细错误信息打到 stderr，scheduler 会捕获并记录到日志
+        import traceback
         print(f"[ERR] Garmin 登录失败 (member={member_id}): {e}", file=sys.stderr)
+        print(f"[ERR] 错误类型: {type(e).__name__}", file=sys.stderr)
+        # 429 限流提示（clientId+账号绑定，VPN 无效，需静置 24h）
+        err_str = str(e).lower()
+        if "429" in err_str or "too many" in err_str or "rate" in err_str:
+            print("[ERR] 触发 Garmin SSO 限流(429)：与 clientId+账号绑定，VPN/换网无效，"
+                  "需停止所有登录尝试静置 24 小时后重试（浏览器登录不受影响）", file=sys.stderr)
+        # 旧 token 不兼容提示
+        elif "token" in err_str or "oauth" in err_str or "auth" in err_str:
+            print(f"[ERR] 可能是旧 token 不兼容，请删除 {tokenstore} 后重试", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         return None
 
 

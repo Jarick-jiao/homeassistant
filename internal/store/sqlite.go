@@ -463,6 +463,21 @@ CREATE TABLE IF NOT EXISTS message_board_archive (
     archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_message_board_archive_archived ON message_board_archive(archived_at DESC);
+
+-- ==================== 积分兑换记录（v3.9.11: 前端 localStorage 搬后端，支持跨设备确认）====================
+CREATE TABLE IF NOT EXISTS redeem_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_name TEXT NOT NULL,
+    item_name TEXT NOT NULL,
+    item_icon TEXT DEFAULT '',
+    cost INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending', -- pending/confirmed/rejected
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    confirmed_at DATETIME,
+    confirmed_by TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_redeem_records_status ON redeem_records(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_redeem_records_member ON redeem_records(member_name, created_at DESC);
 `
 	if _, err := db.conn.Exec(schema); err != nil {
 		return fmt.Errorf("执行建表语句失败: %w", err)
@@ -1197,6 +1212,70 @@ func (db *DB) UpdateChorseTask(ctx context.Context, task *model.ChorseTaskDB) er
 // DeleteChorseTask 软删除家务任务（is_active=0，保留历史认领引用完整性）
 func (db *DB) DeleteChorseTask(ctx context.Context, id int64) error {
 	_, err := db.conn.ExecContext(ctx, "UPDATE chorse_tasks SET is_active=0 WHERE id=?", id)
+	return err
+}
+
+// ============ 积分兑换记录（v3.9.11）============
+
+// CreateRedeemRecord 创建兑换记录
+func (db *DB) CreateRedeemRecord(ctx context.Context, memberName, itemName, itemIcon string, cost int) (int64, error) {
+	res, err := db.conn.ExecContext(ctx,
+		"INSERT INTO redeem_records (member_name, item_name, item_icon, cost, status) VALUES (?, ?, ?, ?, 'pending')",
+		memberName, itemName, itemIcon, cost)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// ListRedeemRecords 列出兑换记录（按时间倒序）
+func (db *DB) ListRedeemRecords(ctx context.Context, limit int) ([]map[string]interface{}, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := db.conn.QueryContext(ctx,
+		`SELECT id, member_name, item_name, item_icon, cost, status, created_at, confirmed_at, confirmed_by
+		 FROM redeem_records ORDER BY created_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []map[string]interface{}
+	for rows.Next() {
+		var id int64
+		var memberName, itemName, itemIcon, status, createdAt string
+		var cost int
+		var confirmedAt, confirmedBy *string
+		if err := rows.Scan(&id, &memberName, &itemName, &itemIcon, &cost, &status, &createdAt, &confirmedAt, &confirmedBy); err != nil {
+			return nil, err
+		}
+		rec := map[string]interface{}{
+			"id": id, "member_name": memberName, "item_name": itemName, "item_icon": itemIcon,
+			"cost": cost, "status": status, "created_at": createdAt,
+			"confirmed_at": "", "confirmed_by": "",
+		}
+		if confirmedAt != nil {
+			rec["confirmed_at"] = *confirmedAt
+		}
+		if confirmedBy != nil {
+			rec["confirmed_by"] = *confirmedBy
+		}
+		result = append(result, rec)
+	}
+	return result, rows.Err()
+}
+
+// UpdateRedeemRecordStatus 更新兑换记录状态（admin 确认/驳回）
+func (db *DB) UpdateRedeemRecordStatus(ctx context.Context, id int64, status, confirmedBy string) error {
+	_, err := db.conn.ExecContext(ctx,
+		"UPDATE redeem_records SET status=?, confirmed_by=?, confirmed_at=datetime('now') WHERE id=?",
+		status, confirmedBy, id)
+	return err
+}
+
+// DeleteAllRedeemRecords 清空兑换记录（admin）
+func (db *DB) DeleteAllRedeemRecords(ctx context.Context) error {
+	_, err := db.conn.ExecContext(ctx, "DELETE FROM redeem_records")
 	return err
 }
 
