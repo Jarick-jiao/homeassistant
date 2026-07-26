@@ -95,3 +95,21 @@ CREATE TABLE IF NOT EXISTS feedback_records (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (member_id) REFERENCES family_members(id)
 );
+
+CREATE TABLE IF NOT EXISTS data_source_config (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER NOT NULL,
+    member_name TEXT,
+    source_type TEXT,
+    api_key TEXT,
+    api_secret TEXT,
+    user_id TEXT,
+    is_active INTEGER DEFAULT 1,
+    last_sync_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (member_id) REFERENCES family_members(id)
+);
+
+-- v3.9.13: 每个成员同一数据源类型仅允许一条配置，防止编辑时新增重复行
+CREATE UNIQUE INDEX IF NOT EXISTS idx_data_source_config_member_type
+ON data_source_config(member_id, source_type);

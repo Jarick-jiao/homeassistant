@@ -568,6 +568,27 @@ func (db *DB) migrate() error {
 		log.Printf("[WARN] 迁移：创建 idx_calendar_events_external 唯一索引失败: %v", err)
 	}
 
+	// v3.9.13: data_source_config 去重 — 每个成员同一数据源类型只保留一条配置
+	// 修复历史脏数据：旧版 SaveDataSourceConfig 为 INSERT 逻辑，编辑会新增而非更新，
+	// 导致同一 (member_id, source_type) 存在多行。保留 MAX(id)（最新写入），删除其余。
+	// member_id/source_type 为 NULL 的脏行不在约束范围内，不处理避免误删。
+	if _, err := db.conn.Exec(`DELETE FROM data_source_config WHERE id NOT IN (
+		SELECT MAX(id) FROM data_source_config
+		WHERE member_id IS NOT NULL AND source_type IS NOT NULL
+		GROUP BY member_id, source_type)`); err != nil {
+		log.Printf("[WARN] 迁移：清理 data_source_config 重复行失败: %v", err)
+	} else {
+		var removed int
+		db.conn.QueryRow("SELECT changes()").Scan(&removed)
+		if removed > 0 {
+			log.Printf("[INFO] v3.9.13 迁移：已清理 data_source_config 重复行 %d 条", removed)
+		}
+	}
+	if _, err := db.conn.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_data_source_config_member_type
+		ON data_source_config(member_id, source_type)`); err != nil {
+		log.Printf("[WARN] 迁移：创建 idx_data_source_config_member_type 唯一索引失败: %v", err)
+	}
+
 	// v3.6.0: 将旧版 admin 成员从 family_members 移除（admin 不再作为家庭成员）
 	// admin 账号保留在 users 表（role='admin'），仅作系统数据管理用途
 	if _, err := db.conn.Exec("DELETE FROM family_members WHERE role='admin'"); err != nil {
