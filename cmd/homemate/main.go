@@ -114,7 +114,7 @@ func main() {
 	}()
 
 	// 启动服务器
-	log.Printf("[INFO] HomeMate v3.1 启动于 :%s (mode=%s)", cfg.Server.Port, cfg.Server.Mode)
+	log.Printf("[INFO] HomeMate v4.0 启动于 :%s (mode=%s)", cfg.Server.Port, cfg.Server.Mode)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("[FATAL] 服务器启动失败: %v", err)
 	}
