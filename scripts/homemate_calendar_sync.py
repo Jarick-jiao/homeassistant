@@ -91,8 +91,8 @@ tell application "Calendar"
             -- 起止时间（格式化为 ISO）
             set evStart to start date of ev
             set evEnd to end date of ev
-            set evStartStr to fmtDate(evStart)
-            set evEndStr to fmtDate(evEnd)
+            set evStartStr to my fmtDate(evStart)
+            set evEndStr to my fmtDate(evEnd)
 
             -- 地点
             set evLoc to ""
@@ -134,16 +134,14 @@ tell application "Calendar"
                     try
                         set untilDate to end date of recRule
                         if untilDate is not missing value then
-                            set untilStr to fmtDate(untilDate)
+                            set untilStr to my fmtDate(untilDate)
                         end if
                     end try
+                    -- v3.9.14: 移除 occurrence count 属性访问
+                    -- 'count' 是 AppleScript 保留字，在 macOS 26+ 中与 Calendar
+                    -- 属性名 'occurrence count' 冲突导致 -2741 语法错误。
+                    -- 脚本已优雅处理 rec_count=0（rrule 用 between() 限制展开范围）。
                     set cntStr to "0"
-                    try
-                        set occCnt to occurrence count of recRule
-                        if occCnt is not missing value then
-                            set cntStr to (occCnt) as string
-                        end if
-                    end try
                     set recInfo to freqStr & ":::" & intVal & ":::" & untilStr & ":::" & cntStr
                 end if
             end try
