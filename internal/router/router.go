@@ -228,6 +228,8 @@ func Setup(db *store.DB, sched *scheduler.Scheduler, jwtSecret string, serverMod
 	adminGroup.GET("/tokens", auth.ListAPITokensHandler)
 	adminGroup.POST("/tokens", auth.CreateAPITokenHandler)
 	adminGroup.DELETE("/tokens/:id", auth.DeleteAPITokenHandler)
+	// v4.0: 创建登录账号仅管理员可用（首个管理员由种子账号引导）
+	adminGroup.POST("/auth/register", auth.RegisterHandler)
 	// 归档查询（v3.3.1）
 	adminGroup.GET("/archive", archive.ListArchiveTablesHandler)
 	adminGroup.GET("/archive/:table", archive.ListArchivedHandler)

@@ -1,11 +1,15 @@
 package chorse
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/homemate/server/internal/model"
+	"github.com/homemate/server/internal/pkg/memberctx"
 	"github.com/homemate/server/internal/pkg/response"
 	"github.com/homemate/server/internal/store"
 )
@@ -124,15 +128,11 @@ func GetChorseDashboardHandler(c *gin.Context) {
 }
 
 // ClaimChorseHandler 认领家务
+// v4.0（范式 §2.2）：认领人身份取自 JWT → family_members，请求体只传 task_id；
+// 任务名称/图标/积分以服务端任务库为准；同人同任务存在未结认领时幂等拒绝。
 func ClaimChorseHandler(c *gin.Context) {
 	var req struct {
-		MemberID     int64  `json:"member_id" binding:"required"`
-		MemberName   string `json:"member_name" binding:"required"`
-		TaskID       int64  `json:"task_id" binding:"required"`
-		TaskName     string `json:"task_name" binding:"required"`
-		TaskIcon     string `json:"task_icon"`
-		VerifierID   int64  `json:"verifier_id"`
-		VerifierName string `json:"verifier_name"`
+		TaskID int64 `json:"task_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "请求参数错误: "+err.Error())
@@ -143,41 +143,54 @@ func ClaimChorseHandler(c *gin.Context) {
 		response.InternalServerError(c, "数据库不可用")
 		return
 	}
+	member, err := memberctx.CurrentMember(c)
+	if err != nil {
+		response.Forbidden(c, err.Error())
+		return
+	}
 
-	points := 10
-	// 查询任务获取实际积分
-	tasks, _ := db.ListChorseTasks(c.Request.Context())
-	for _, t := range tasks {
-		if t.ID == req.TaskID {
-			points = t.Points
+	// 任务校验：必须存在、未删除、已启用
+	task, err := db.GetChorseTaskByID(c.Request.Context(), req.TaskID)
+	if err != nil {
+		response.BadRequest(c, "家务任务不存在或未启用")
+		return
+	}
+	if !task.Enabled {
+		response.BadRequest(c, "该家务任务已停用，不能认领")
+		return
+	}
+
+	// 幂等：同一成员对同一任务存在 pending/completed 认领时拒绝
+	has, err := db.HasActiveClaim(c.Request.Context(), member.ID, req.TaskID)
+	if err != nil {
+		response.InternalServerError(c, "校验认领状态失败: "+err.Error())
+		return
+	}
+	if has {
+		response.Conflict(c, "你已认领该家务且尚未验收，不能重复认领")
+		return
+	}
+
+	// 自动指派验收人：第一个非执行人的成人（或被委派管理员）；家庭仅一人时允许自验收
+	verifierID, verifierName := int64(0), ""
+	members, _ := db.GetMembers(c.Request.Context())
+	for _, m := range members {
+		if m.ID != member.ID && (m.Role == "adult" || m.IsAdmin) {
+			verifierID = m.ID
+			verifierName = m.Name
 			break
 		}
 	}
-
-	// 自动指派验收人：若请求未指定，则选第一个非执行人的成人/admin
-	verifierID := req.VerifierID
-	verifierName := req.VerifierName
 	if verifierID == 0 {
-		members, _ := db.GetMembers(c.Request.Context())
-		for _, m := range members {
-			if m.ID != req.MemberID && (m.Role == "adult" || m.Role == "admin") {
-				verifierID = m.ID
-				verifierName = m.Name
-				break
-			}
-		}
-		// 如果家庭只有一个成员，允许自验收
-		if verifierID == 0 {
-			verifierID = req.MemberID
-			verifierName = req.MemberName
-		}
+		verifierID = member.ID
+		verifierName = member.Name
 	}
 
 	deadline := time.Now().Add(24 * time.Hour)
 	claim := &model.ChorseClaimDB{
-		TaskID: req.TaskID, TaskName: req.TaskName, TaskIcon: req.TaskIcon,
-		MemberID: req.MemberID, MemberName: req.MemberName,
-		Deadline: &deadline, Status: "pending", Points: points,
+		TaskID: task.ID, TaskName: task.Name, TaskIcon: task.Icon,
+		MemberID: member.ID, MemberName: member.Name,
+		Deadline: &deadline, Status: "pending", Points: task.Points,
 		VerifierID: verifierID, VerifierName: verifierName,
 	}
 	id, err := db.CreateChorseClaim(c.Request.Context(), claim)
@@ -188,17 +201,17 @@ func ClaimChorseHandler(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"claim_id":      id,
-		"task_name":     req.TaskName,
-		"member_name":   req.MemberName,
+		"task_name":     task.Name,
+		"member_name":   member.Name,
 		"verifier_id":   verifierID,
 		"verifier_name": verifierName,
-		"points":        points,
-		"deadline":       deadline.Format("2006-01-02 15:04:05"),
-		"status":         "pending",
+		"points":        task.Points,
+		"deadline":      deadline.Format("2006-01-02 15:04:05"),
+		"status":        "pending",
 	})
 }
 
-// CompleteChorseHandler 标记完成
+// CompleteChorseHandler 标记完成（仅认领人本人，身份取自 JWT）
 func CompleteChorseHandler(c *gin.Context) {
 	var req struct {
 		ClaimID int64 `json:"claim_id" binding:"required"`
@@ -212,19 +225,27 @@ func CompleteChorseHandler(c *gin.Context) {
 		response.InternalServerError(c, "数据库不可用")
 		return
 	}
+	member, err := memberctx.CurrentMember(c)
+	if err != nil {
+		response.Forbidden(c, err.Error())
+		return
+	}
 
-	if err := db.CompleteChorseClaim(c.Request.Context(), req.ClaimID); err != nil {
-		response.BadRequest(c, "标记失败: "+err.Error())
+	if err := db.CompleteChorseClaim(c.Request.Context(), req.ClaimID, member.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			response.NotFound(c, "认领记录不存在")
+			return
+		}
+		response.Forbidden(c, "标记失败: "+err.Error())
 		return
 	}
 	response.Success(c, gin.H{"message": "已标记完成，等待确认"})
 }
 
-// ConfirmChorseHandler 确认完成（仅验收人或 admin 可调用）
+// ConfirmChorseHandler 确认验收（仅该单的验收人本人或系统管理员，身份取自 JWT）
 func ConfirmChorseHandler(c *gin.Context) {
 	var req struct {
-		ClaimID   int64  `json:"claim_id" binding:"required"`
-		Confirmer string `json:"confirmer" binding:"required"`
+		ClaimID int64 `json:"claim_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "请求参数错误: "+err.Error())
@@ -236,7 +257,7 @@ func ConfirmChorseHandler(c *gin.Context) {
 		return
 	}
 
-	// 权限校验：查询 claim 的 verifier_name，仅验收人或 admin 可确认
+	// 定位待确认认领
 	claims, _ := db.GetPendingChorseClaims(c.Request.Context())
 	var target *model.ChorseClaimDB
 	for i := range claims {
@@ -249,24 +270,30 @@ func ConfirmChorseHandler(c *gin.Context) {
 		response.BadRequest(c, "认领记录不存在或状态不允许确认")
 		return
 	}
-	userRole, _ := c.Get("role")
-	roleStr, _ := userRole.(model.Role)
-	isAdminVal, _ := c.Get("isAdmin")
-	isAdmin, _ := isAdminVal.(bool)
-	if target.VerifierName != "" && target.VerifierName != req.Confirmer && roleStr != model.RoleAdmin && !isAdmin {
-		response.BadRequest(c, fmt.Sprintf("仅验收人 %s 或管理员可确认验收", target.VerifierName))
-		return
+
+	// 身份校验：系统管理员（admin 账号或被委派成员）可验收；否则必须是该单验收人本人
+	isAdmin := memberctx.IsAdmin(c)
+	confirmerName := memberctx.Username(c)
+	if !isAdmin {
+		member, err := memberctx.CurrentMember(c)
+		if err != nil {
+			response.Forbidden(c, err.Error())
+			return
+		}
+		if target.VerifierID != member.ID {
+			response.Forbidden(c, fmt.Sprintf("仅验收人 %s 或管理员可确认验收", target.VerifierName))
+			return
+		}
+		confirmerName = member.Name
 	}
 
-	userID, _ := c.Get("userID")
-	uid, _ := userID.(int64)
-	claim, err := db.ConfirmChorseClaim(c.Request.Context(), req.ClaimID, uid, req.Confirmer)
+	claim, err := db.ConfirmChorseClaim(c.Request.Context(), req.ClaimID, 0, confirmerName)
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
 	response.Success(c, gin.H{
-		"message": fmt.Sprintf("%s 已确认完成，%s 获得 %d 积分", req.Confirmer, claim.MemberName, claim.Points),
+		"message": fmt.Sprintf("%s 已确认完成，%s 获得 %d 积分", confirmerName, claim.MemberName, claim.Points),
 		"claim":   claim,
 	})
 }

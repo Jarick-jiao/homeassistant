@@ -43,6 +43,11 @@ func NotFound(c *gin.Context, message string) {
 	Error(c, http.StatusNotFound, message)
 }
 
+// Conflict 返回409冲突（幂等/状态机非法迁移）
+func Conflict(c *gin.Context, message string) {
+	Error(c, http.StatusConflict, message)
+}
+
 // InternalServerError 返回500错误
 func InternalServerError(c *gin.Context, message string) {
 	Error(c, http.StatusInternalServerError, message)

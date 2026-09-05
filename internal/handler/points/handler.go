@@ -87,13 +87,13 @@ func GetPointsDashboardHandler(c *gin.Context) {
 	// 获取排行
 	rankings, err := db.GetPointsRanking(c.Request.Context(), 20)
 	if err != nil {
-		rankings = []struct{ Name string `json:"name"`; Total int `json:"total"` }{}
+		rankings = []store.PointsRankingItem{}
 	}
 
 	members := make([]MemberPointsView, 0, len(rankings))
 	familyTotal := 0
 	for i, r := range rankings {
-		easy, medium, hard, _, err := db.GetPointsByMember(c.Request.Context(), r.Name)
+		easy, medium, hard, _, err := db.GetPointsByMember(c.Request.Context(), r.ID, r.Name)
 		if err != nil {
 			easy, medium, hard = 0, 0, 0
 		}
@@ -240,13 +240,13 @@ func GetMembersSnapshot(c *gin.Context) []MemberPointsView {
 	return members
 }
 
-// AddPoints 添加积分（供其他 handler 调用）
-func AddPoints(c *gin.Context, memberName, ptsType, typeLabel, title string, points int) error {
+// AddPoints 添加积分（供其他 handler 调用；v4.0 起必须带 memberID）
+func AddPoints(c *gin.Context, memberID int64, memberName, ptsType, typeLabel, title string, points int) error {
 	db := getDB(c)
 	if db == nil {
 		return nil
 	}
-	return db.AddPointsRecord(c.Request.Context(), memberName, ptsType, typeLabel, title, points)
+	return db.AddPointsRecord(c.Request.Context(), memberID, memberName, ptsType, typeLabel, title, points)
 }
 
 // record 变更说明：原 points 包的 AddPoints 从内存存储操作改为数据库操作

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/homemate/server/internal/model"
+	"github.com/homemate/server/internal/pkg/memberctx"
 	"github.com/homemate/server/internal/pkg/response"
 	"github.com/homemate/server/internal/store"
 )
@@ -116,11 +117,10 @@ func GetWeekendDashboardHandler(c *gin.Context) {
 }
 
 // VoteProposalHandler 投票
+// v4.0（范式 §2.2）：投票人身份取自 JWT → family_members，请求体只传 proposal_id
 func VoteProposalHandler(c *gin.Context) {
 	var req struct {
-		ProposalID int64  `json:"proposal_id" binding:"required"`
-		MemberID   int64  `json:"member_id" binding:"required"`
-		MemberName string `json:"member_name" binding:"required"`
+		ProposalID int64 `json:"proposal_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "请求参数错误: "+err.Error())
@@ -131,8 +131,13 @@ func VoteProposalHandler(c *gin.Context) {
 		response.InternalServerError(c, "数据库不可用")
 		return
 	}
+	member, err := memberctx.CurrentMember(c)
+	if err != nil {
+		response.Forbidden(c, err.Error())
+		return
+	}
 
-	if err := db.AddWeekendVote(c.Request.Context(), req.ProposalID, req.MemberID, req.MemberName); err != nil {
+	if err := db.AddWeekendVote(c.Request.Context(), req.ProposalID, member.ID, member.Name); err != nil {
 		response.BadRequest(c, "投票失败（可能已投过或方案不存在）")
 		return
 	}
@@ -149,22 +154,20 @@ func VoteProposalHandler(c *gin.Context) {
 	response.Success(c, gin.H{"message": "投票成功", "results": items})
 }
 
-// CancelVoteHandler 取消投票
+// CancelVoteHandler 取消本人投票（v4.0：身份取自 JWT，不能删他人票）
 func CancelVoteHandler(c *gin.Context) {
-	var req struct {
-		MemberID int64 `json:"member_id" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
-		return
-	}
 	db := getDB(c)
 	if db == nil {
 		response.InternalServerError(c, "数据库不可用")
 		return
 	}
+	member, err := memberctx.CurrentMember(c)
+	if err != nil {
+		response.Forbidden(c, err.Error())
+		return
+	}
 
-	proposalID, err := db.RemoveWeekendVote(c.Request.Context(), req.MemberID)
+	proposalID, err := db.RemoveWeekendVote(c.Request.Context(), member.ID)
 	if err != nil {
 		response.BadRequest(c, "未找到投票记录")
 		return
@@ -229,8 +232,6 @@ func AddProposalHandler(c *gin.Context) {
 		Difficulty  string   `json:"difficulty"`
 		SuitableFor string   `json:"suitable_for"`
 		WeatherReq  string   `json:"weather_req"`
-		MemberID    int64    `json:"member_id"`
-		MemberName  string   `json:"member_name"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "请求参数错误: "+err.Error())
@@ -249,13 +250,19 @@ func AddProposalHandler(c *gin.Context) {
 		response.InternalServerError(c, "数据库不可用")
 		return
 	}
+	// v4.0：推荐人身份取自 JWT（范式 §2.2）
+	member, err := memberctx.CurrentMember(c)
+	if err != nil {
+		response.Forbidden(c, err.Error())
+		return
+	}
 
 	tagsJSON, _ := json.Marshal(req.Tags)
 	p := &model.WeekendProposalDB{
 		Title: req.Title, Description: req.Description, Icon: req.Icon,
 		Category: req.Category, TagsJSON: string(tagsJSON), Duration: req.Duration,
 		Cost: req.Cost, Difficulty: req.Difficulty, SuitableFor: req.SuitableFor,
-		WeatherReq: req.WeatherReq, Tips: "由 " + req.MemberName + " 推荐", CreatedBy: req.MemberID,
+		WeatherReq: req.WeatherReq, Tips: "由 " + member.Name + " 推荐", CreatedBy: member.ID,
 	}
 	id, err := db.CreateWeekendProposal(c.Request.Context(), p)
 	if err != nil {

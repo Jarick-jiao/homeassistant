@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -472,6 +473,7 @@ CREATE INDEX IF NOT EXISTS idx_message_board_archive_archived ON message_board_a
 -- ==================== 积分兑换记录（v3.9.11: 前端 localStorage 搬后端，支持跨设备确认）====================
 CREATE TABLE IF NOT EXISTS redeem_records (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER DEFAULT 0,
     member_name TEXT NOT NULL,
     item_name TEXT NOT NULL,
     item_icon TEXT DEFAULT '',
@@ -482,7 +484,7 @@ CREATE TABLE IF NOT EXISTS redeem_records (
     confirmed_by TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_redeem_records_status ON redeem_records(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_redeem_records_member ON redeem_records(member_name, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_redeem_records_member ON redeem_records(member_id, created_at DESC);
 `
 	if _, err := db.conn.Exec(schema); err != nil {
 		return fmt.Errorf("执行建表语句失败: %w", err)
@@ -521,6 +523,9 @@ func (db *DB) migrate() error {
 		{"calendar_events", "external_event_id", "ALTER TABLE calendar_events ADD COLUMN external_event_id TEXT DEFAULT ''"},
 		// v3.6.0: 家庭成员新增 is_admin 标记（叠加在家庭角色上，不替换 role）
 		{"family_members", "is_admin", "ALTER TABLE family_members ADD COLUMN is_admin INTEGER DEFAULT 0"},
+		// v4.0: 积分/兑换流水关联成员 ID（关联用 ID 不用名字，范式 §2.3）
+		{"points_records", "member_id", "ALTER TABLE points_records ADD COLUMN member_id INTEGER DEFAULT 0"},
+		{"redeem_records", "member_id", "ALTER TABLE redeem_records ADD COLUMN member_id INTEGER DEFAULT 0"},
 		// v3.9.0: health_data_cache 扩展 Garmin 关注指标字段（依据字段对照报告）
 		// B1 睡眠详情
 		{"health_data_cache", "deep_sleep_hours", "ALTER TABLE health_data_cache ADD COLUMN deep_sleep_hours REAL DEFAULT 0"},
@@ -558,6 +563,19 @@ func (db *DB) migrate() error {
 			if _, err := db.conn.Exec(m.ddl); err != nil {
 				return fmt.Errorf("添加列 %s.%s 失败: %w", m.table, m.column, err)
 			}
+		}
+	}
+
+	// v4.0: 按名字回填历史积分/兑换流水的 member_id（幂等，仅回填 member_id=0 的行）
+	for _, backfill := range []struct{ table, label string }{
+		{"points_records", "积分流水"},
+		{"redeem_records", "兑换记录"},
+	} {
+		stmt := fmt.Sprintf(
+			"UPDATE %s SET member_id=(SELECT fm.id FROM family_members fm WHERE fm.name=%s.member_name LIMIT 1) WHERE member_id=0",
+			backfill.table, backfill.table)
+		if _, err := db.conn.Exec(stmt); err != nil {
+			log.Printf("[WARN] 迁移：回填 %s member_id 失败: %v", backfill.label, err)
 		}
 	}
 
@@ -1042,41 +1060,57 @@ func (db *DB) GetFeedbackList(ctx context.Context, limit int) ([]model.FeedbackR
 
 // ============ Points Records (新增) ============
 
-// AddPointsRecord 添加积分记录
-func (db *DB) AddPointsRecord(ctx context.Context, memberName, ptsType, typeLabel, title string, points int) error {
+// AddPointsRecord 添加积分记录（memberID 关联成员，memberName 为展示冗余）
+// v4.0: points 可为负数（兑换扣分），余额=流水求和
+func (db *DB) AddPointsRecord(ctx context.Context, memberID int64, memberName, ptsType, typeLabel, title string, points int) error {
 	_, err := db.conn.ExecContext(ctx,
-		"INSERT INTO points_records (member_name, pts_type, type_label, title, points) VALUES (?, ?, ?, ?, ?)",
-		memberName, ptsType, typeLabel, title, points)
+		"INSERT INTO points_records (member_id, member_name, pts_type, type_label, title, points) VALUES (?, ?, ?, ?, ?, ?)",
+		memberID, memberName, ptsType, typeLabel, title, points)
 	return err
 }
 
 // GetPointsByMember 获取成员总积分（按家务难度分组：简单/中等/困难）
 // v3.8.0 方案C：三类积分维度改为按任务难度划分，每类都有真实数据支撑
-func (db *DB) GetPointsByMember(ctx context.Context, memberName string) (total, easy, medium, hard int, err error) {
+// v4.0: 按 member_id 聚合；member_id=0 的历史行按 member_name 兜底
+func (db *DB) GetPointsByMember(ctx context.Context, memberID int64, memberName string) (total, easy, medium, hard int, err error) {
 	err = db.conn.QueryRowContext(ctx,
 		"SELECT COALESCE(SUM(points),0), "+
 			"COALESCE(SUM(CASE WHEN type_label='简单' THEN points ELSE 0 END),0), "+
 			"COALESCE(SUM(CASE WHEN type_label='中等' THEN points ELSE 0 END),0), "+
 			"COALESCE(SUM(CASE WHEN type_label='困难' THEN points ELSE 0 END),0) "+
-			"FROM points_records WHERE member_name=?",
-		memberName).Scan(&total, &easy, &medium, &hard)
+			"FROM points_records WHERE member_id=? OR (member_id=0 AND member_name=?)",
+		memberID, memberName).Scan(&total, &easy, &medium, &hard)
 	return
 }
 
-// GetPointsRanking 获取积分排行榜
-func (db *DB) GetPointsRanking(ctx context.Context, limit int) ([]struct {
+// GetPointsBalance 获取成员积分余额（全部流水求和，含兑换负流水）
+func (db *DB) GetPointsBalance(ctx context.Context, memberID int64, memberName string) (int, error) {
+	var total int
+	err := db.conn.QueryRowContext(ctx,
+		"SELECT COALESCE(SUM(points),0) FROM points_records WHERE member_id=? OR (member_id=0 AND member_name=?)",
+		memberID, memberName).Scan(&total)
+	return total, err
+}
+
+// PointsRankingItem 积分排行榜条目
+type PointsRankingItem struct {
+	ID    int64  `json:"id"`
 	Name  string `json:"name"`
 	Total int    `json:"total"`
-}, error) {
+}
+
+// GetPointsRanking 获取积分排行榜
+func (db *DB) GetPointsRanking(ctx context.Context, limit int) ([]PointsRankingItem, error) {
 	if limit <= 0 {
 		limit = 20
 	}
 	// LEFT JOIN family_members：0 积分成员也上榜
 	// v3.6.0: 过滤 role='admin' 的历史遗留记录（admin 不参与家庭积分排行）
+	// v4.0: 按 member_id 关联（含兑换负流水），改名不再断账
 	rows, err := db.conn.QueryContext(ctx,
-		`SELECT fm.name, COALESCE(SUM(pr.points), 0) AS total
+		`SELECT fm.id, fm.name, COALESCE(SUM(pr.points), 0) AS total
 		 FROM family_members fm
-		 LEFT JOIN points_records pr ON pr.member_name = fm.name
+		 LEFT JOIN points_records pr ON pr.member_id = fm.id
 		 WHERE fm.role!='admin'
 		 GROUP BY fm.id, fm.name
 		 ORDER BY total DESC, fm.id ASC
@@ -1085,16 +1119,10 @@ func (db *DB) GetPointsRanking(ctx context.Context, limit int) ([]struct {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []struct {
-		Name  string `json:"name"`
-		Total int    `json:"total"`
-	}
+	var result []PointsRankingItem
 	for rows.Next() {
-		var r struct {
-			Name  string `json:"name"`
-			Total int    `json:"total"`
-		}
-		if err := rows.Scan(&r.Name, &r.Total); err != nil {
+		var r PointsRankingItem
+		if err := rows.Scan(&r.ID, &r.Name, &r.Total); err != nil {
 			return nil, err
 		}
 		result = append(result, r)
@@ -1254,11 +1282,20 @@ func (db *DB) DeleteChorseTask(ctx context.Context, id int64) error {
 
 // ============ 积分兑换记录（v3.9.11）============
 
+// 兑换状态机错误（范式 §1.3：非法迁移显式报错，禁止静默成功）
+var (
+	ErrRedeemNotPending      = errors.New("兑换记录不是待处理状态，不能重复操作")
+	ErrInsufficientPoints    = errors.New("积分余额不足，无法确认兑换")
+	ErrRedeemRecordNotFound  = errors.New("兑换记录不存在")
+	ErrChorseClaimNotPending = errors.New("家务已认领或已完成，不能重复认领")
+	ErrChorseTaskUnavailable = errors.New("家务任务不存在或未启用")
+)
+
 // CreateRedeemRecord 创建兑换记录
-func (db *DB) CreateRedeemRecord(ctx context.Context, memberName, itemName, itemIcon string, cost int) (int64, error) {
+func (db *DB) CreateRedeemRecord(ctx context.Context, memberID int64, memberName, itemName, itemIcon string, cost int) (int64, error) {
 	res, err := db.conn.ExecContext(ctx,
-		"INSERT INTO redeem_records (member_name, item_name, item_icon, cost, status) VALUES (?, ?, ?, ?, 'pending')",
-		memberName, itemName, itemIcon, cost)
+		"INSERT INTO redeem_records (member_id, member_name, item_name, item_icon, cost, status) VALUES (?, ?, ?, ?, ?, 'pending')",
+		memberID, memberName, itemName, itemIcon, cost)
 	if err != nil {
 		return 0, err
 	}
@@ -1302,12 +1339,75 @@ func (db *DB) ListRedeemRecords(ctx context.Context, limit int) ([]map[string]in
 	return result, rows.Err()
 }
 
-// UpdateRedeemRecordStatus 更新兑换记录状态（admin 确认/驳回）
-func (db *DB) UpdateRedeemRecordStatus(ctx context.Context, id int64, status, confirmedBy string) error {
-	_, err := db.conn.ExecContext(ctx,
-		"UPDATE redeem_records SET status=?, confirmed_by=?, confirmed_at=datetime('now') WHERE id=?",
-		status, confirmedBy, id)
-	return err
+// ConfirmRedeemRecord 确认兑换（状态机：pending → confirmed）
+// 同事务校验余额并写入负向积分流水（范式 §2.3）；余额不足或状态非法返回哨兵错误
+func (db *DB) ConfirmRedeemRecord(ctx context.Context, id int64, operator string) error {
+	tx, err := db.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var memberID int64
+	var memberName, itemName string
+	var cost int
+	var status string
+	err = tx.QueryRowContext(ctx,
+		"SELECT member_id, member_name, item_name, cost, status FROM redeem_records WHERE id=?", id).
+		Scan(&memberID, &memberName, &itemName, &cost, &status)
+	if err == sql.ErrNoRows {
+		return ErrRedeemRecordNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status != "pending" {
+		return ErrRedeemNotPending
+	}
+
+	// 余额校验：全部流水求和（member_id=0 历史行按名字兜底）
+	var balance int
+	if err := tx.QueryRowContext(ctx,
+		"SELECT COALESCE(SUM(points),0) FROM points_records WHERE member_id=? OR (member_id=0 AND member_name=?)",
+		memberID, memberName).Scan(&balance); err != nil {
+		return err
+	}
+	if balance < cost {
+		return ErrInsufficientPoints
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE redeem_records SET status='confirmed', confirmed_by=?, confirmed_at=datetime('now') WHERE id=? AND status='pending'",
+		operator, id); err != nil {
+		return err
+	}
+	// 扣分流水：pts_type='redeem'，points 为负
+	if _, err := tx.ExecContext(ctx,
+		"INSERT INTO points_records (member_id, member_name, pts_type, type_label, title, points) VALUES (?, ?, 'redeem', '兑换', ?, ?)",
+		memberID, memberName, "兑换: "+itemName, -cost); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// RejectRedeemRecord 驳回兑换（状态机：pending → rejected，不扣分）
+func (db *DB) RejectRedeemRecord(ctx context.Context, id int64, operator string) error {
+	res, err := db.conn.ExecContext(ctx,
+		"UPDATE redeem_records SET status='rejected', confirmed_by=?, confirmed_at=datetime('now') WHERE id=? AND status='pending'",
+		operator, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		// 区分「不存在」与「已处理」
+		var exists int
+		_ = db.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM redeem_records WHERE id=?", id).Scan(&exists)
+		if exists == 0 {
+			return ErrRedeemRecordNotFound
+		}
+		return ErrRedeemNotPending
+	}
+	return nil
 }
 
 // DeleteAllRedeemRecords 清空兑换记录（admin）
@@ -1327,10 +1427,50 @@ func (db *DB) CreateChorseClaim(ctx context.Context, claim *model.ChorseClaimDB)
 	return res.LastInsertId()
 }
 
-// CompleteChorseClaim 标记认领完成
-func (db *DB) CompleteChorseClaim(ctx context.Context, claimID int64) error {
-	_, err := db.conn.ExecContext(ctx, "UPDATE chorse_claims SET status='completed' WHERE id=? AND status='pending'", claimID)
-	return err
+// CompleteChorseClaim 标记认领完成（仅属主本人；范式 §2.2 属主校验）
+func (db *DB) CompleteChorseClaim(ctx context.Context, claimID, memberID int64) error {
+	res, err := db.conn.ExecContext(ctx,
+		"UPDATE chorse_claims SET status='completed' WHERE id=? AND member_id=? AND status='pending'",
+		claimID, memberID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		var cnt int
+		_ = db.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM chorse_claims WHERE id=?", claimID).Scan(&cnt)
+		if cnt == 0 {
+			return sql.ErrNoRows
+		}
+		return errors.New("只有认领人本人可以标记完成，或任务已完成")
+	}
+	return nil
+}
+
+// GetChorseTaskByID 查单个可用家务任务（is_active=1，软删除任务不返回）
+func (db *DB) GetChorseTaskByID(ctx context.Context, id int64) (*model.ChorseTaskDB, error) {
+	var t model.ChorseTaskDB
+	err := db.conn.QueryRowContext(ctx,
+		"SELECT id, name, icon, category, difficulty, points, duration, description, enabled FROM chorse_tasks WHERE id=? AND is_active=1",
+		id).Scan(&t.ID, &t.Name, &t.Icon, &t.Category, &t.Difficulty, &t.Points, &t.Duration, &t.Description, &t.Enabled)
+	if err == sql.ErrNoRows {
+		return nil, ErrChorseTaskUnavailable
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+// HasActiveClaim 幂等校验：同一成员对同一任务存在 pending/completed 认领
+func (db *DB) HasActiveClaim(ctx context.Context, memberID, taskID int64) (bool, error) {
+	var cnt int
+	err := db.conn.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM chorse_claims WHERE member_id=? AND task_id=? AND status IN ('pending','completed')",
+		memberID, taskID).Scan(&cnt)
+	if err != nil {
+		return false, err
+	}
+	return cnt > 0, nil
 }
 
 // ConfirmChorseClaim 确认认领完成
@@ -1360,10 +1500,10 @@ func (db *DB) ConfirmChorseClaim(ctx context.Context, claimID, confirmerID int64
 	if err := tx.QueryRowContext(ctx, "SELECT COALESCE(difficulty,'简单') FROM chorse_tasks WHERE id=?", claim.TaskID).Scan(&difficulty); err != nil {
 		difficulty = "简单" // 查不到任务时默认简单
 	}
-	// 联动积分：type_label 存储难度，便于按维度统计
+	// 联动积分：type_label 存储难度，便于按维度统计；v4.0 起带 member_id
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO points_records (member_name, pts_type, type_label, title, points) VALUES (?, 'chorse', ?, ?, ?)",
-		claim.MemberName, difficulty, claim.TaskName, claim.Points)
+		"INSERT INTO points_records (member_id, member_name, pts_type, type_label, title, points) VALUES (?, ?, 'chorse', ?, ?, ?)",
+		claim.MemberID, claim.MemberName, difficulty, claim.TaskName, claim.Points)
 	if err != nil {
 		return nil, err
 	}
