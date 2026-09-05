@@ -1,6 +1,7 @@
 # 构建产物
 homemate
 homemate-server
+/main
 *.exe
 *.dll
 *.so

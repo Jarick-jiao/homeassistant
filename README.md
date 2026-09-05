@@ -178,20 +178,22 @@ Garmin 专用 MCP 服务器，提供细粒度的 Garmin 设备数据访问。
 ### 项目结构
 
 ```
-homemate-server/
+homemate/
 ├── cmd/
-│   └── server/          # 主应用入口
+│   └── homemate/        # 主应用入口
 ├── internal/
-│   ├── api/             # HTTP 处理器
+│   ├── handler/         # HTTP 处理器（按业务域分包）
+│   ├── router/          # 路由与中间件
 │   ├── config/          # 配置管理
-│   ├── models/          # 数据模型
-│   ├── service/         # 业务逻辑
-│   └── mcp/             # MCP 客户端
-├── mcp-servers/
-│   ├── weather-mcp/     # 天气 MCP 服务器
-│   ├── health-mcp/      # 健康聚合 MCP 服务器
-│   └── garmin-mcp/      # Garmin MCP 服务器
-├── web/                 # 前端静态资源
+│   ├── model/           # 数据模型
+│   ├── service/         # 业务逻辑（scheduler/garmin/weather/wechat 等）
+│   ├── store/           # SQLite 数据访问层
+│   ├── mcpmanager/      # MCP 客户端管理
+│   └── pkg/             # 通用工具（jwt/response）
+├── mcp-servers/         # weather / health / garmin MCP 服务器
+├── scripts/             # Python 同步脚本（Garmin / Apple 日历）
+├── web/                 # 前端静态资源（PWA）
+├── docs/                # PRD、研发范式、修复报告
 ├── Dockerfile
 ├── go.mod
 └── README.md
