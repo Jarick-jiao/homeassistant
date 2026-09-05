@@ -15,6 +15,7 @@ import (
 	"github.com/homemate/server/internal/router"
 	"github.com/homemate/server/internal/service/garmin"
 	"github.com/homemate/server/internal/service/scheduler"
+	botservice "github.com/homemate/server/internal/service/wechat"
 	"github.com/homemate/server/internal/service/weather"
 	"github.com/homemate/server/internal/store"
 )
@@ -24,9 +25,8 @@ func main() {
 	configPath := flag.String("config", "config.yaml", "配置文件路径")
 	flag.Parse()
 
-	// 加载配置
-	cfg := config.Load()
-	_ = configPath // 配置文件路径可通过后续扩展使用
+	// 加载配置（v4.0: -config 参数真正生效）
+	cfg := config.LoadFrom(*configPath)
 
 	// 初始化数据库
 	db, err := store.InitDB(cfg.Database)
@@ -56,11 +56,21 @@ func main() {
 
 	// 注入 WeCom 配置并构造推送器
 	wechatHandler.SetWeComConfig(cfg.WeCom.WebhookURL, cfg.WeCom.EnablePush)
-	pusher := wechatHandler.GetPusher()
+	// v4.0: 恢复运行时在系统设置中修改并持久化到 family_settings 的 WeCom 配置
+	wechatHandler.LoadWeComConfig(db)
+	// v4.0: 动态推送器——每次推送读取最新配置，运行时改 webhook/启停无需重启
+	pusher := botservice.NewDynamicPusher(wechatHandler.GetPusher)
 	if cfg.WeCom.EnablePush {
 		log.Printf("[INFO] WeCom 推送已启用 (webhook 配置)")
 	} else {
 		log.Println("[INFO] WeCom 推送未启用，使用 NoopPusher")
+	}
+
+	// v4.0 安全：公众号回调签名校验 Token（环境变量 HOMEMATE_WECHAT_TOKEN 配置；
+	// 未配置时回调不校验签名，仅限内网部署）
+	if token := os.Getenv("HOMEMATE_WECHAT_TOKEN"); token != "" {
+		wechatHandler.SetWeChatCallbackToken(token)
+		log.Println("[INFO] 微信公众号回调签名校验已启用")
 	}
 
 	// 初始化定时任务调度器

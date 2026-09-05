@@ -1,6 +1,6 @@
-# 构建产物
-homemate
-homemate-server
+# 构建产物（锚定根目录，避免误伤 cmd/homemate 源码目录）
+/homemate
+/homemate-server
 /main
 *.exe
 *.dll

@@ -311,15 +311,24 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// Load 从配置文件和环境变量加载配置
+// Load 从默认路径（config.yaml，可用 HOMEMATE_CONFIG 环境变量覆盖）加载配置
 func Load() *Config {
+	path := os.Getenv("HOMEMATE_CONFIG")
+	if path == "" {
+		path = "config.yaml"
+	}
+	return LoadFrom(path)
+}
+
+// LoadFrom 从指定配置文件和环境变量加载配置（v4.0: -config 参数生效）
+func LoadFrom(path string) *Config {
 	cfg := &Config{}
 	cfg.setDefaults()
 
-	// 尝试从 config.yaml 读取
-	data, err := os.ReadFile("config.yaml")
+	// 尝试从指定配置文件读取
+	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("[INFO] 未找到 config.yaml，使用环境变量和默认值: %v", err)
+		log.Printf("[INFO] 未找到 %s，使用环境变量和默认值: %v", path, err)
 	} else {
 		if err := yaml.Unmarshal(data, cfg); err != nil {
 			log.Fatalf("[FATAL] 配置文件解析失败: %v", err)

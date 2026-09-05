@@ -69,3 +69,18 @@ type noopPusher struct{}
 func (p *noopPusher) Push(ctx context.Context, title, content string) error {
 	return nil
 }
+
+// dynamicPusher 动态推送器：每次推送都通过 fn 获取最新配置的推送器，
+// 使运行时修改 webhook/启停后调度器无需重启即生效（v4.0）
+type dynamicPusher struct {
+	fn func() Pusher
+}
+
+// NewDynamicPusher 包装一个推送器工厂，调用方每次 Push 时拿到最新配置的实例
+func NewDynamicPusher(fn func() Pusher) Pusher {
+	return &dynamicPusher{fn: fn}
+}
+
+func (p *dynamicPusher) Push(ctx context.Context, title, content string) error {
+	return p.fn().Push(ctx, title, content)
+}

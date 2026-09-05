@@ -2,8 +2,13 @@ package wechat
 
 import (
 	"context"
+	"crypto/sha1"
+	"crypto/subtle"
 	"encoding/xml"
+	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +23,14 @@ var weComConfig = struct {
 	WebhookURL  string
 	EnablePush bool
 }{}
+
+// weChatCallbackToken 微信公众号回调校验 Token；为空时不校验签名（仅内网/未接入公网时）
+var weChatCallbackToken string
+
+// SetWeChatCallbackToken 注入公众号回调签名校验 Token（main.go 启动时调用）
+func SetWeChatCallbackToken(token string) {
+	weChatCallbackToken = token
+}
 
 // SetWeComConfig 注入初始配置（main.go 启动时调用）
 func SetWeComConfig(webhookURL string, enablePush bool) {
@@ -39,9 +52,34 @@ type BindRequest struct {
 	MemberID int64  `json:"member_id" binding:"required"`
 }
 
+// verifyWeChatSignature 校验微信服务器签名（公众号对接规范）：
+// signature = sha1(sort(token, timestamp, nonce) 拼接)
+// 未配置 Token 时放行（仅适用于内网/未接入公网的部署）
+func verifyWeChatSignature(c *gin.Context) bool {
+	if weChatCallbackToken == "" {
+		return true
+	}
+	sig := c.Query("signature")
+	ts := c.Query("timestamp")
+	nonce := c.Query("nonce")
+	if sig == "" || ts == "" || nonce == "" {
+		return false
+	}
+	parts := []string{weChatCallbackToken, ts, nonce}
+	sort.Strings(parts)
+	sum := sha1.Sum([]byte(strings.Join(parts, "")))
+	expected := fmt.Sprintf("%x", sum)
+	return subtle.ConstantTimeCompare([]byte(expected), []byte(sig)) == 1
+}
+
 // CallbackHandler 微信消息回调接口
 // 接收微信服务器推送的 XML 消息，解析后路由到 Agent 引擎，返回 XML 响应
+// v4.0 安全：配置 Token 后强制校验 signature，防止伪造回调
 func CallbackHandler(c *gin.Context) {
+	if !verifyWeChatSignature(c) {
+		c.String(http.StatusForbidden, "invalid signature")
+		return
+	}
 	var msg model.WeChatMessage
 	if err := c.ShouldBindXML(&msg); err != nil {
 		// 尝试直接读取原始 body 解析
@@ -124,12 +162,22 @@ func UpdateWeComConfigHandler(c *gin.Context) {
 	}
 	weComConfig.WebhookURL = req.WebhookURL
 	weComConfig.EnablePush = req.EnablePush
-	// 尝试持久化到 data_source_config 表（可选，失败不阻塞）
+	// v4.0: 持久化到 family_settings，重启后仍生效
 	dbVal, _ := c.Get("db")
 	if db, ok := dbVal.(*store.DB); ok && db != nil {
-		// 用 data_source_config 表存储 wecom 配置（source_type=wecom）
-		// 简化：仅内存更新，重启后从 config.yaml 重新加载
-		_ = db
+		ctx := c.Request.Context()
+		if err := db.SetSetting(ctx, "wecom.webhook_url", req.WebhookURL); err != nil {
+			response.InternalServerError(c, "持久化 webhook 失败: "+err.Error())
+			return
+		}
+		enableVal := "false"
+		if req.EnablePush {
+			enableVal = "true"
+		}
+		if err := db.SetSetting(ctx, "wecom.enable_push", enableVal); err != nil {
+			response.InternalServerError(c, "持久化启用状态失败: "+err.Error())
+			return
+		}
 	}
 	response.Success(c, gin.H{
 		"webhook_url":  weComConfig.WebhookURL,
@@ -144,4 +192,19 @@ func GetWeComConfigHandler(c *gin.Context) {
 		"webhook_url":  weComConfig.WebhookURL,
 		"enable_push": weComConfig.EnablePush,
 	})
+}
+
+// LoadWeComConfig 启动时从 family_settings 恢复运行时修改过的 WeCom 配置（v4.0），
+// 使「系统设置中修改 webhook」在服务重启后依然生效
+func LoadWeComConfig(db *store.DB) {
+	if db == nil {
+		return
+	}
+	ctx := context.Background()
+	if v := db.GetSetting(ctx, "wecom.webhook_url"); v != "" {
+		weComConfig.WebhookURL = v
+	}
+	if v := db.GetSetting(ctx, "wecom.enable_push"); v != "" {
+		weComConfig.EnablePush = v == "true"
+	}
 }
