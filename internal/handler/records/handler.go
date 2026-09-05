@@ -116,10 +116,12 @@ func (h *Handler) Upload(c *gin.Context) {
 	}
 
 	// 生成唯一文件名（SHA256 前缀 + 原始文件名）
+	// v4.0 安全：filepath.Base 剥离客户端伪造的路径分隔，防止路径穿越写入任意目录
+	safeName := filepath.Base(header.Filename)
 	hash := sha256.New()
-	hash.Write([]byte(fmt.Sprintf("%d_%d_%s", memberID, time.Now().UnixNano(), header.Filename)))
+	hash.Write([]byte(fmt.Sprintf("%d_%d_%s", memberID, time.Now().UnixNano(), safeName)))
 	hashStr := hex.EncodeToString(hash.Sum(nil))[:16]
-	relPath := fmt.Sprintf("%d/%s_%s", memberID, hashStr, header.Filename)
+	relPath := fmt.Sprintf("%d/%s_%s", memberID, hashStr, safeName)
 	fullPath := filepath.Join(h.uploadDir, relPath)
 
 	// 创建成员子目录

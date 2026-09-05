@@ -174,24 +174,37 @@ func UpdateMemberHandler(c *gin.Context) {
 	req.ID = id // 确保返回正确的ID
 
 	dbVal, exists := c.Get("db")
-	if exists && dbVal != nil {
-		if db, ok := dbVal.(*store.DB); ok {
-			fm := &model.FamilyMember{
-				ID:               id,
-				Name:             req.Name,
-				Role:             string(req.Role),
-				Age:              req.Age,
-				HealthFocus:      req.HealthFocus,
-				DataSourcePlugin: req.DataSourcePlugin,
-				AvatarURL:        req.AvatarURL,
-				Bio:              req.Bio,
-				IsAdmin:          req.IsAdmin,
-			}
-			if err := db.UpdateMember(c.Request.Context(), fm); err == nil {
-				response.Success(c, req)
-				return
-			}
-		}
+	if !exists || dbVal == nil {
+		response.Error(c, 500, "数据库不可用，无法更新成员")
+		return
+	}
+	db, ok := dbVal.(*store.DB)
+	if !ok {
+		response.Error(c, 500, "数据库不可用，无法更新成员")
+		return
+	}
+
+	// v4.0（范式 §2.2/§2.5）：is_admin 只能经 PUT /members/:id/admin 变更，
+	// 此处忽略请求体中的 is_admin，保留库内现值；DB 失败必须返回错误
+	existing, err := db.GetMemberByID(c.Request.Context(), id)
+	if err != nil {
+		response.NotFound(c, "成员不存在")
+		return
+	}
+	fm := &model.FamilyMember{
+		ID:               id,
+		Name:             req.Name,
+		Role:             string(req.Role),
+		Age:              req.Age,
+		HealthFocus:      req.HealthFocus,
+		DataSourcePlugin: req.DataSourcePlugin,
+		AvatarURL:        req.AvatarURL,
+		Bio:              req.Bio,
+		IsAdmin:          existing.IsAdmin,
+	}
+	if err := db.UpdateMember(c.Request.Context(), fm); err != nil {
+		response.InternalServerError(c, "更新成员失败: "+err.Error())
+		return
 	}
 
 	response.Success(c, req)
