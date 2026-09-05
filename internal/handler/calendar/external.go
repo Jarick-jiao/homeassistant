@@ -49,13 +49,13 @@ func ExternalCreateEventHandler(c *gin.Context) {
 
 	var startTime, endTime time.Time
 	if req.Date != "" && req.Time != "" {
-		startTime, _ = time.Parse("2006-01-02 15:04", req.Date+" "+req.Time)
+		startTime, _ = time.ParseInLocation("2006-01-02 15:04", req.Date+" "+req.Time, time.Local)
 	}
 	if startTime.IsZero() {
 		startTime = time.Now()
 	}
 	if req.EndTime != "" {
-		endTime, _ = time.Parse("2006-01-02 15:04", req.Date+" "+req.EndTime)
+		endTime, _ = time.ParseInLocation("2006-01-02 15:04", req.Date+" "+req.EndTime, time.Local)
 	}
 	if endTime.IsZero() {
 		endTime = startTime.Add(2 * time.Hour)

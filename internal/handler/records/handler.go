@@ -481,7 +481,7 @@ func (h *Handler) GenerateReport(c *gin.Context) {
 	}
 	if periodStart == "" {
 		periodEnd = time.Now().Format("2006-01-02")
-		start, _ := time.Parse("2006-01-02", periodEnd)
+		start, _ := time.ParseInLocation("2006-01-02", periodEnd, time.Local)
 		periodStart = start.AddDate(0, -1, 0).Format("2006-01-02")
 	}
 

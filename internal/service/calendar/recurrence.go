@@ -30,7 +30,7 @@ func NextOccurrence(baseTime time.Time, rule model.RecurrenceRule, after time.Ti
 		if current.After(after) {
 			// 检查 until 边界
 			if rule.Until != "" {
-				until, err := time.Parse("2006-01-02", rule.Until)
+				until, err := time.ParseInLocation("2006-01-02", rule.Until, time.Local)
 				if err == nil && current.After(until.Add(24*time.Hour)) {
 					return time.Time{}, nil
 				}
@@ -61,7 +61,7 @@ func ExpandOccurrences(baseTime time.Time, rule model.RecurrenceRule, from, to t
 	hasUntil := false
 	if rule.Until != "" {
 		var err error
-		untilTime, err = time.Parse("2006-01-02", rule.Until)
+		untilTime, err = time.ParseInLocation("2006-01-02", rule.Until, time.Local)
 		if err == nil {
 			untilTime = untilTime.Add(24 * time.Hour)
 			hasUntil = true

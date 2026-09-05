@@ -65,7 +65,7 @@ func CreateReminderHandler(c *gin.Context) {
 	memberID := getCurrentMemberID(c)
 	remindAt, err := time.Parse(time.RFC3339, req.RemindAt)
 	if err != nil {
-		remindAt, err = time.Parse("2006-01-02 15:04", req.RemindAt)
+		remindAt, err = time.ParseInLocation("2006-01-02 15:04", req.RemindAt, time.Local)
 		if err != nil {
 			response.BadRequest(c, "时间格式错误，应为 RFC3339 或 2006-01-02 15:04")
 			return
@@ -117,7 +117,7 @@ func UpdateReminderHandler(c *gin.Context) {
 	if req.RemindAt != "" {
 		remindAt, err := time.Parse(time.RFC3339, req.RemindAt)
 		if err != nil {
-			remindAt, err = time.Parse("2006-01-02 15:04", req.RemindAt)
+			remindAt, err = time.ParseInLocation("2006-01-02 15:04", req.RemindAt, time.Local)
 			if err != nil {
 				response.BadRequest(c, "时间格式错误")
 				return

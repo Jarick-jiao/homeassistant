@@ -68,12 +68,12 @@ func ListCalendarEventsHandler(c *gin.Context) {
 	rangeFrom := now.AddDate(0, -1, 0)
 	rangeTo := now.AddDate(0, 2, 0)
 	if from != "" {
-		if t, err := time.Parse("2006-01-02", from); err == nil {
+		if t, err := time.ParseInLocation("2006-01-02", from, time.Local); err == nil {
 			rangeFrom = t
 		}
 	}
 	if to != "" {
-		if t, err := time.Parse("2006-01-02", to); err == nil {
+		if t, err := time.ParseInLocation("2006-01-02", to, time.Local); err == nil {
 			rangeTo = t.Add(24 * time.Hour)
 		}
 	}
@@ -187,13 +187,13 @@ func CreateCalendarEventHandler(c *gin.Context) {
 
 	var startTime, endTime time.Time
 	if req.Date != "" && req.Time != "" {
-		startTime, _ = time.Parse("2006-01-02 15:04", req.Date+" "+req.Time)
+		startTime, _ = time.ParseInLocation("2006-01-02 15:04", req.Date+" "+req.Time, time.Local)
 	}
 	if startTime.IsZero() {
 		startTime = time.Now()
 	}
 	if req.EndTime != "" {
-		endTime, _ = time.Parse("2006-01-02 15:04", req.Date+" "+req.EndTime)
+		endTime, _ = time.ParseInLocation("2006-01-02 15:04", req.Date+" "+req.EndTime, time.Local)
 	}
 	if endTime.IsZero() {
 		endTime = startTime.Add(2 * time.Hour)
@@ -307,7 +307,7 @@ func UpdateCalendarEventHandler(c *gin.Context) {
 		existing.Color = req.Color
 	}
 	if req.Date != "" && req.Time != "" {
-		if st, err := time.Parse("2006-01-02 15:04", req.Date+" "+req.Time); err == nil {
+		if st, err := time.ParseInLocation("2006-01-02 15:04", req.Date+" "+req.Time, time.Local); err == nil {
 			existing.StartTime = st
 		}
 	}
@@ -463,7 +463,7 @@ func ImportCSVHandler(c *gin.Context) {
 		if timeStr == "" {
 			timeStr = "09:00"
 		}
-		startTime, perr := time.Parse("2006-01-02 15:04", dateStr+" "+timeStr)
+		startTime, perr := time.ParseInLocation("2006-01-02 15:04", dateStr+" "+timeStr, time.Local)
 		if perr != nil {
 			startTime = time.Now()
 		}

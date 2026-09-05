@@ -198,7 +198,7 @@ func (db *DB) SeedDemoEvents(ctx context.Context) (int, error) {
 		if existingID > 0 {
 			continue
 		}
-		startTime, _ := time.Parse("2006-01-02 15:04", e.Date+" "+e.Time)
+		startTime, _ := time.ParseInLocation("2006-01-02 15:04", e.Date+" "+e.Time, time.Local)
 		if startTime.IsZero() {
 			startTime = now
 		}
