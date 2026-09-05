@@ -145,16 +145,13 @@ func (s *Scheduler) Start(cfg TaskConfig) {
 	go s.healthSyncLoop(cfg.HealthSyncInterval)
 
 	// v3.9.12: Apple 日历同步（仅 macOS，osascript → calendar_events）
+	// v4.0: loop 始终创建，启停/间隔由 taskRegistry 热控制（运行时启用无需重启）
+	s.wg.Add(1)
+	go s.appleCalendarSyncLoop(0)
 	if s.calendarSyncCfg.Enable {
-		interval := s.calendarSyncCfg.Interval
-		if interval <= 0 {
-			interval = 1 * time.Hour
-		}
-		s.wg.Add(1)
-		go s.appleCalendarSyncLoop(interval)
-		log.Printf("[SCHEDULER] Apple 日历同步间隔: %v (脚本: %s)", interval, s.calendarSyncCfg.ScriptPath)
+		log.Printf("[SCHEDULER] Apple 日历同步已启用 (脚本: %s)", s.calendarSyncCfg.ScriptPath)
 	} else {
-		log.Println("[SCHEDULER] Apple 日历同步未启用（calendar_sync.enable=false）")
+		log.Println("[SCHEDULER] Apple 日历同步启动时未启用（可在任务管理中运行时开启）")
 	}
 
 	// AI 分析检查
@@ -208,13 +205,13 @@ func (s *Scheduler) IsRunning() bool {
 func (s *Scheduler) TriggerManual(taskName string) error {
 	switch taskName {
 	case "health_sync":
-		go s.runHealthSync()
+		go s.runHealthSyncOnce()
 		return nil
 	case "ai_analysis":
-		go s.runAIAnalysis()
+		go s.runAIAnalysisOnce()
 		return nil
 	case "weekend_recommend":
-		go s.runWeekendRecommend()
+		go s.runWeekendRecommendOnce()
 		return nil
 	case "reminder_scan":
 		go s.runReminderScan()
@@ -226,10 +223,10 @@ func (s *Scheduler) TriggerManual(taskName string) error {
 		go s.runCalendarReminders()
 		return nil
 	case "calendar_sync":
-		go s.runAppleCalendarSync()
+		go s.runAppleCalendarSyncOnce()
 		return nil
 	case "cleanup":
-		go s.runCleanup()
+		go s.runCleanupOnce()
 		return nil
 	default:
 		return fmt.Errorf("未知任务: %s", taskName)
@@ -387,35 +384,50 @@ func (s *Scheduler) runCalendarReminders() {
 
 // ============ 健康数据同步 ============
 
-func (s *Scheduler) healthSyncLoop(interval time.Duration) {
+// healthSyncLoop 健康数据同步循环
+// v4.0: 每轮重新读取 taskRegistry 中的间隔，UpdateTaskConfig 改间隔后下一轮即生效
+func (s *Scheduler) healthSyncLoop(_ time.Duration) {
 	defer s.wg.Done()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
 
 	// 首次启动延迟 1 分钟执行
 	select {
 	case <-time.After(1 * time.Minute):
-		s.runHealthSync()
+		s.runHealthSyncOnce()
 	case <-s.stopCh:
 		return
 	}
 
 	for {
 		select {
-		case <-ticker.C:
-			s.runHealthSync()
+		case <-time.After(s.taskInterval("health_sync", 6*time.Hour)):
+			s.runHealthSyncOnce()
 		case <-s.stopCh:
 			return
 		}
 	}
 }
 
-func (s *Scheduler) runHealthSync() {
+// runHealthSyncOnce 启停检查 + 真实结果记录（成功/失败以实际 err 为准）
+func (s *Scheduler) runHealthSyncOnce() {
 	if !s.isTaskEnabled("health_sync") {
 		return
 	}
-	s.recordRun("health_sync", nil)
+	s.recordRun("health_sync", s.runHealthSync())
+}
 
+// taskInterval 从 taskRegistry 热读取任务间隔（<=0 时用 def 兜底）
+func (s *Scheduler) taskInterval(task string, def time.Duration) time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, tm := range s.taskRegistry {
+		if tm.Task == task && tm.Interval > 0 {
+			return tm.Interval
+		}
+	}
+	return def
+}
+
+func (s *Scheduler) runHealthSync() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
@@ -436,14 +448,14 @@ func (s *Scheduler) runHealthSync() {
 	if s.garminCfg.UseScriptSync {
 		synced := s.runScriptSyncAll(ctx, today)
 		log.Printf("[SCHEDULER] 健康数据同步完成（脚本模式），共同步 %d 条记录", synced)
-		return
+		return nil
 	}
 
 	// 2. 获取所有配置了数据源的成员
 	configs, err := s.db.GetDataSourceConfigs(ctx)
 	if err != nil {
 		log.Printf("[SCHEDULER] 获取数据源配置失败: %v", err)
-		return
+		return fmt.Errorf("获取数据源配置失败: %w", err)
 	}
 
 	synced := 0
@@ -466,6 +478,7 @@ func (s *Scheduler) runHealthSync() {
 	}
 
 	log.Printf("[SCHEDULER] 健康数据同步完成，共同步 %d 条记录", synced)
+	return nil
 }
 
 // syncWeatherData 同步天气数据到周末推荐缓存
@@ -699,44 +712,46 @@ func parseSyncedCount(out string) int {
 // 静默保存：仅打印日志，不生成通知/报告。
 
 // appleCalendarSyncLoop Apple 日历定时同步循环
-func (s *Scheduler) appleCalendarSyncLoop(interval time.Duration) {
+// v4.0: loop 始终存活；启停/间隔由 taskRegistry 热控制，每轮重新读取间隔
+func (s *Scheduler) appleCalendarSyncLoop(_ time.Duration) {
 	defer s.wg.Done()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
 
 	// 首次启动延迟 2 分钟执行（错开服务启动峰值，与健康同步 1 分钟延迟错开）
 	select {
 	case <-time.After(2 * time.Minute):
-		s.runAppleCalendarSync()
+		s.runAppleCalendarSyncOnce()
 	case <-s.stopCh:
 		return
 	}
 
 	for {
 		select {
-		case <-ticker.C:
-			s.runAppleCalendarSync()
+		case <-time.After(s.taskInterval("calendar_sync", time.Hour)):
+			s.runAppleCalendarSyncOnce()
 		case <-s.stopCh:
 			return
 		}
 	}
 }
 
-// runAppleCalendarSync 执行一次 Apple 日历同步
-func (s *Scheduler) runAppleCalendarSync() {
+// runAppleCalendarSyncOnce 启停检查 + 真实结果记录
+func (s *Scheduler) runAppleCalendarSyncOnce() {
 	if !s.isTaskEnabled("calendar_sync") {
 		return
 	}
-	s.recordRun("calendar_sync", nil)
+	s.recordRun("calendar_sync", s.runAppleCalendarSync())
+}
 
+// runAppleCalendarSync 执行一次 Apple 日历同步
+func (s *Scheduler) runAppleCalendarSync() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	s.runCalendarScriptSync(ctx)
+	return s.runCalendarScriptSync(ctx)
 }
 
-// runCalendarScriptSync 通过 exec 调用日历同步脚本
-func (s *Scheduler) runCalendarScriptSync(ctx context.Context) {
+// runCalendarScriptSync 通过 exec 调用日历同步脚本（v4.0: 失败返回 error 供任务状态记录）
+func (s *Scheduler) runCalendarScriptSync(ctx context.Context) error {
 	scriptPath := s.calendarSyncCfg.ScriptPath
 	if scriptPath == "" {
 		scriptPath = "./homemate_calendar_sync.py"
@@ -753,7 +768,7 @@ func (s *Scheduler) runCalendarScriptSync(ctx context.Context) {
 	}
 	if _, err := os.Stat(absScript); err != nil {
 		log.Printf("[SCHEDULER][CALENDAR] 同步脚本不存在: %s (%v)", absScript, err)
-		return
+		return fmt.Errorf("日历同步脚本不存在: %s", absScript)
 	}
 
 	absDB := s.dbPath
@@ -798,13 +813,13 @@ func (s *Scheduler) runCalendarScriptSync(ctx context.Context) {
 		if isCalendarTCCError(combined) {
 			log.Printf("[SCHEDULER][CALENDAR] TCC 自动化授权失效：osascript 无法访问 Calendar.app")
 			log.Printf("[SCHEDULER][CALENDAR] 请在「系统设置 > 隐私与安全性 > 自动化」中为相应进程重新勾选 Calendar，本次不重试")
-			return
+			return fmt.Errorf("Calendar TCC 自动化授权失效")
 		}
 		log.Printf("[SCHEDULER][CALENDAR] 同步脚本执行失败: %v", err)
 		if stderr.Len() > 0 {
 			log.Printf("[SCHEDULER][CALENDAR] 脚本 stderr: %s", strings.TrimSpace(stderr.String()))
 		}
-		return
+		return fmt.Errorf("日历同步脚本执行失败: %w", err)
 	}
 
 	out := stdout.String()
@@ -821,6 +836,10 @@ func (s *Scheduler) runCalendarScriptSync(ctx context.Context) {
 	skip := parseCalendarCount(out, "跳过")
 	fail := parseCalendarCount(out, "失败")
 	log.Printf("[SCHEDULER][CALENDAR] 同步完成: 成功=%d 跳过=%d 失败=%d", ok, skip, fail)
+	if fail > 0 && ok == 0 {
+		return fmt.Errorf("日历同步全部失败（失败=%d）", fail)
+	}
+	return nil
 }
 
 // buildCalendarScriptEnv 构造日历同步脚本环境变量
@@ -900,7 +919,7 @@ func (s *Scheduler) dailyAIAnalysisLoop(hour int) {
 				if ok && last.Format("2006-01-02") == now.Format("2006-01-02") {
 					continue
 				}
-				s.runAIAnalysis()
+				s.runAIAnalysisOnce()
 			}
 		case <-s.stopCh:
 			return
@@ -908,12 +927,17 @@ func (s *Scheduler) dailyAIAnalysisLoop(hour int) {
 	}
 }
 
-func (s *Scheduler) runAIAnalysis() {
+// runAIAnalysisOnce 启停检查 + 真实结果记录
+func (s *Scheduler) runAIAnalysisOnce() {
 	if !s.isTaskEnabled("ai_analysis") {
 		return
 	}
-	s.recordRun("ai_analysis", nil)
+	s.recordRun("ai_analysis", s.runAIAnalysis())
+}
 
+// runAIAnalysis v4.0: AI 深度分析尚未接入（见 v4.0 PRD 路线图），
+// 不再生成 source="ai" 的模板占位报告误导用户；仅统计待分析档案并记录任务成功。
+func (s *Scheduler) runAIAnalysis() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
@@ -923,7 +947,7 @@ func (s *Scheduler) runAIAnalysis() {
 	files, err := s.db.GetHealthRecordFiles(ctx, 0, "", 100)
 	if err != nil {
 		log.Printf("[SCHEDULER] 获取档案文件失败: %v", err)
-		return
+		return fmt.Errorf("获取档案文件失败: %w", err)
 	}
 
 	unanalyzed := 0
@@ -935,47 +959,13 @@ func (s *Scheduler) runAIAnalysis() {
 
 	if unanalyzed == 0 {
 		log.Println("[SCHEDULER] 没有待分析的档案文件")
-		return
+		return nil
 	}
 
-	log.Printf("[SCHEDULER] 发现 %d 个待分析文件，开始批量分析...", unanalyzed)
-
-	// TODO: 集成实际 AI 分析
-	// 当前为框架占位，实际部署时需要：
-	// 1. 提取文件内容（PDF OCR、图片识别）
-	// 2. 调用 OpenAI API 分析
-	// 3. 保存分析结果到数据库
-
-	// 生成综合报告
-	periodEnd := time.Now().Format("2006-01-02")
-	periodStart := time.Now().AddDate(0, -1, 0).Format("2006-01-02")
-
-	// 获取有分析的文件并生成报告
-	analyzedFiles, _ := s.db.GetHealthRecordFiles(ctx, 0, "", 50)
-	var fileSummaries []string
-	for _, f := range analyzedFiles {
-		if f.AnalyzedAt != nil && f.Summary != "" {
-			fileSummaries = append(fileSummaries, fmt.Sprintf("- [%s] %s: %s", f.RecordDate, f.Title, f.Summary))
-		}
-	}
-
-	if len(fileSummaries) > 0 {
-		report := &model.HealthAnalysisReport{
-			ReportDate:  time.Now().Format("2006-01-02"),
-			PeriodStart: periodStart,
-			PeriodEnd:   periodEnd,
-			Summary:     fmt.Sprintf("系统定期分析报告，涵盖 %d 份已分析档案", len(fileSummaries)),
-			Details:     "# 定期健康分析报告\n\n" + fmt.Sprintf("本报告基于 %d 份健康档案生成。\n\n## 已分析档案\n\n%s\n\n## 分析说明\n\nAI 深度分析功能需要配置 OpenAI API Key。请在 config.yaml 中设置 `openai.api_key`。", len(fileSummaries), joinStrings(fileSummaries, "\n")),
-			Metrics:     fmt.Sprintf(`{"total_files":%d,"analyzed_files":%d,"unanalyzed_files":%d}`, len(files), len(files)-unanalyzed, unanalyzed),
-			Source:      "ai",
-		}
-
-		if _, err := s.db.CreateAnalysisReport(ctx, report); err != nil {
-			log.Printf("[SCHEDULER] 保存分析报告失败: %v", err)
-		} else {
-			log.Println("[SCHEDULER] 定期分析报告已生成")
-		}
-	}
+	// TODO(v4.1+): 集成实际 AI 分析（PDF OCR/图片识别 → LLM → 落库）
+	// 接入前不生成占位报告，前端标注「AI 深度分析规划中」
+	log.Printf("[SCHEDULER] 发现 %d 个待分析文件；AI 深度分析功能规划中，本次跳过（不生成占位报告）", unanalyzed)
+	return nil
 }
 
 // ============ 周末推荐生成 ============
@@ -997,7 +987,7 @@ func (s *Scheduler) weekendRecommendLoop(weekday time.Weekday, hour int) {
 				if ok && last.Format("2006-01-02") == now.Format("2006-01-02") {
 					continue
 				}
-				s.runWeekendRecommend()
+				s.runWeekendRecommendOnce()
 			}
 		case <-s.stopCh:
 			return
@@ -1005,12 +995,15 @@ func (s *Scheduler) weekendRecommendLoop(weekday time.Weekday, hour int) {
 	}
 }
 
-func (s *Scheduler) runWeekendRecommend() {
+// runWeekendRecommendOnce 启停检查 + 真实结果记录
+func (s *Scheduler) runWeekendRecommendOnce() {
 	if !s.isTaskEnabled("weekend_recommend") {
 		return
 	}
-	s.recordRun("weekend_recommend", nil)
+	s.recordRun("weekend_recommend", s.runWeekendRecommend())
+}
 
+func (s *Scheduler) runWeekendRecommend() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
@@ -1033,7 +1026,7 @@ func (s *Scheduler) runWeekendRecommend() {
 	existing, err := s.db.GetValidWeekendRecommendation(ctx, "all", weekendDate)
 	if err == nil && existing != nil {
 		log.Printf("[SCHEDULER] 周末推荐已存在且有效 (source=%s)", existing.Source)
-		return
+		return nil
 	}
 
 	// TODO: 集成 AI 推荐生成
@@ -1086,9 +1079,10 @@ func (s *Scheduler) runWeekendRecommend() {
 
 	if _, err := s.db.SaveWeekendRecommendation(ctx, rec); err != nil {
 		log.Printf("[SCHEDULER] 保存周末推荐失败: %v", err)
-	} else {
-		log.Printf("[SCHEDULER] 周末推荐已生成 (source=offline, proposals=%d)", len(proposals))
+		return fmt.Errorf("保存周末推荐失败: %w", err)
 	}
+	log.Printf("[SCHEDULER] 周末推荐已生成 (source=offline, proposals=%d)", len(proposals))
+	return nil
 }
 
 // ============ 辅助函数 ============
@@ -1171,7 +1165,8 @@ func (s *Scheduler) isTaskEnabled(task string) bool {
 }
 
 // UpdateTaskConfig 更新单个任务的启停/间隔，并持久化到 family_settings
-// enabled 立即生效（run* 方法内检查），interval 持久化但需重启服务后生效（避免重建 ticker）
+// v4.0: enabled 与 interval 均立即生效——run* 方法每轮重新读取 taskRegistry，
+// 无需重建 ticker 或重启服务
 func (s *Scheduler) UpdateTaskConfig(task string, enabled *bool, interval *time.Duration) error {
 	s.mu.Lock()
 	idx := -1
@@ -1208,7 +1203,7 @@ func (s *Scheduler) UpdateTaskConfig(task string, enabled *bool, interval *time.
 		if err := s.db.SetSetting(ctx, "scheduler."+task+".interval", interval.String()); err != nil {
 			return fmt.Errorf("持久化 interval 失败: %w", err)
 		}
-		log.Printf("[SCHEDULER] 任务 %s interval=%v（重启服务后生效）", task, *interval)
+		log.Printf("[SCHEDULER] 任务 %s interval=%v（下一轮调度即生效）", task, *interval)
 	}
 	return nil
 }
@@ -1247,45 +1242,58 @@ func (s *Scheduler) cleanupLoop(hour int) {
 		case <-ticker.C:
 			now := time.Now()
 			if now.Hour() == hour {
-				s.runCleanup()
+				s.runCleanupOnce()
 			}
 		}
 	}
 }
 
-// runCleanup 执行历史数据清理
-func (s *Scheduler) runCleanup() {
+// runCleanupOnce 启停检查 + 真实结果记录
+func (s *Scheduler) runCleanupOnce() {
 	if !s.isTaskEnabled("cleanup") {
 		return
 	}
-	s.recordRun("cleanup", nil)
+	s.recordRun("cleanup", s.runCleanup())
+}
+
+// archiveExempt 永不归档的表：累计资产/财务流水，余额由全量流水求和得出
+// （范式 §2.3：积分流水含负向兑换记录，清理/归档会导致余额蒸发）
+var archiveExempt = map[string]bool{
+	"points_records": true,
+}
+
+// runCleanup 执行历史数据清理
+func (s *Scheduler) runCleanup() error {
 	log.Println("[CLEANUP] 开始清理历史数据（归档模式）...")
 
 	if s.db == nil {
 		log.Println("[CLEANUP] 数据库不可用，跳过")
-		return
+		return fmt.Errorf("数据库不可用")
 	}
 
 	ctx := context.Background()
 	now := time.Now()
 	var totalArchived int64
+	var firstErr error
 
 	// TTL 映射：表 → 保留天数（归档后从活跃表删除）
 	ttls := map[string]int{
-		"news":           30,
-		"notifications":  90,
-		"points_records": 180,
-		"chat_messages":  365,
-		"message_board":  180,
-		"device_data":    90,
+		"news":          30,
+		"notifications": 90,
+		"chat_messages": 365,
+		"message_board": 180,
+		"device_data":   90,
 	}
 	// 表 → 日志名
 	names := map[string]string{
-		"news": "新闻", "notifications": "通知", "points_records": "积分记录",
+		"news": "新闻", "notifications": "通知",
 		"chat_messages": "聊天消息", "message_board": "留言板", "device_data": "设备数据",
 	}
 	// 1. 时间驱动：归档超 TTL 的记录（搬移到 *_archive 后从原表删除）
 	for _, spec := range store.ArchiveTableSpecs() {
+		if archiveExempt[spec.Table] {
+			continue
+		}
 		days, ok := ttls[spec.Table]
 		if !ok {
 			continue
@@ -1294,6 +1302,9 @@ func (s *Scheduler) runCleanup() {
 		n, err := s.db.ArchiveAndDeleteBefore(ctx, spec.Table, before)
 		if err != nil {
 			log.Printf("[CLEANUP] %s 归档失败: %v", names[spec.Table], err)
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		log.Printf("[CLEANUP] %s 归档: %d 条", names[spec.Table], n)
@@ -1303,9 +1314,15 @@ func (s *Scheduler) runCleanup() {
 	// 2. 容量驱动：活跃表超上限则归档最旧部分
 	var capArchived int64
 	for _, spec := range store.ArchiveTableSpecs() {
+		if archiveExempt[spec.Table] {
+			continue
+		}
 		n, err := s.db.EnforceArchiveCap(ctx, spec.Table, spec.Cap)
 		if err != nil {
 			log.Printf("[CLEANUP] %s 容量归档失败: %v", names[spec.Table], err)
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		if n > 0 {
@@ -1314,5 +1331,6 @@ func (s *Scheduler) runCleanup() {
 		}
 	}
 
-	log.Printf("[CLEANUP] 清理完成，时间归档 %d 条 + 容量归档 %d 条 = 共归档 %d 条历史记录", totalArchived, capArchived, totalArchived+capArchived)
+	log.Printf("[CLEANUP] 清理完成，时间归档 %d 条 + 容量归档 %d 条 = 共归档 %d 条历史记录（积分流水不归档）", totalArchived, capArchived, totalArchived+capArchived)
+	return firstErr
 }
